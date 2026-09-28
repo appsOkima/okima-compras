@@ -13,11 +13,11 @@ Patrón de UX para seleccionar `insumo_okima`, `proveedor` o `insumo_proveedor` 
 3. Si el texto escrito no calza con nada, se ofrece la opción "Crear '<texto>'". Al elegirla, se crea el registro con ese texto como `nombre` (más los campos adicionales obligatorios de cada caso, ver abajo). El resto de los campos queda `null`.
 
 ## Campos obligatorios por entidad
-- **`insumo_okima`** (desde Solicitudes de Compra): `nombre` + `id_categoria` (dropdown de categorías existentes, obligatorio — no se puede crear sin categoría).
+- **`insumo_okima`** (desde Solicitudes de Compra): `nombre` + `id_subcategoria` (dropdown de subcategorías activas, agrupadas por categoría/centro de costo; obligatorio — no se puede crear sin subcategoría). La categoría no se guarda aparte: se obtiene a través de la subcategoría.
 - **`proveedor`** (desde Gestionar Facturas): primero `nombre` (para verificar si ya existe), luego `rut` (obligatorio, se necesita para facturar). El resto queda nulo.
-- **`insumo_proveedor`** (desde Gestionar Facturas): `nombre`, hereda `id_proveedor` del proveedor ya seleccionado en esa factura. **`id_insumo_okima` NO se pide aquí — nunca se vincula al vuelo.** Ese vínculo lo hace solo el administrador desde Gestionar Proveedores y sus Insumos.
+- **`insumo_proveedor`** (desde Gestionar Facturas): `nombre`, hereda `id_proveedor` del proveedor ya seleccionado en esa factura. **`id_insumo_okima` NO se pide aquí — nunca se vincula al vuelo.** Ese vínculo se hace después: el administrador desde Gestionar Proveedores y sus Insumos ("Por vincular", revisión semanal) o, en Gestionar Facturas, al asociar la línea a una solicitud de compra, solo con confirmación explícita del usuario (flujo aparte, no parte de la creación).
 
 ## Qué no hacer
 - No crear un registro nuevo si ya existe uno con nombre igual o muy similar (typo, mayúsculas, tildes) — avisar antes de crear, no crear en silencio.
 - No agregar restricción `UNIQUE` a nivel de base de datos sobre `nombre` — el chequeo de duplicados es de aplicación, no de base de datos.
-- No ofrecer vincular `insumo_okima` al crear un `insumo_proveedor`, bajo ninguna circunstancia.
+- No ofrecer vincular `insumo_okima` al crear un `insumo_proveedor`, bajo ninguna circunstancia. La pregunta "¿Vincular con el insumo de la solicitud?" de Facturas es otro momento: aparece solo cuando la línea ya tiene un `insumo_proveedor` y una solicitud, y nunca vincula sin confirmación.

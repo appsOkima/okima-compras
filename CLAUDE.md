@@ -9,8 +9,10 @@ Resumen operativo — el detalle y el razonamiento de cada punto está en `histo
 - Sin login; RLS permisivo.
 - Todo en CLP, sin excepciones.
 - Creación al vuelo para `insumo_okima`, `proveedor` e `insumo_proveedor` (ver sección dedicada) — varios campos quedan nullable.
-- `insumos.qty` se actualiza solo al guardar una línea de factura.
-- Vínculo `insumo_proveedor` → `insumo_okima`: no se hace al ingresar la factura; solo lo hace el administrador, en su revisión semanal.
+- `insumos.qty` (numeric, acepta decimales) se actualiza solo al guardar una línea de factura cuyo `insumo_proveedor` ya esté vinculado; vincular después no aplica stock retroactivo.
+- Reglas de negocio de facturas (stock y solicitud 'Comprada') implementadas como triggers en la base; en la etapa inicial el estado de la solicitud también se gestiona a mano desde su panel.
+- `categorias` = centros de costo, con `subcategorias`; `insumos`, `otros_gastos` y `plantillas_gastos_recurrentes` referencian solo `id_subcategoria` (la categoría se obtiene a través de ella).
+- Vínculo `insumo_proveedor` → `insumo_okima`: nunca al crear el `insumo_proveedor` al vuelo ni en silencio. Lo hace el administrador en su revisión semanal ("Por vincular") o, en Facturas, al asociar una línea a una solicitud, solo con confirmación explícita del usuario.
 - Gasto recurrente vía `plantillas_gastos_recurrentes` (monto editable), no un valor fijo.
 - `venta_directa` en `insumos` habilita `precio_venta`.
 
@@ -34,9 +36,9 @@ Desarrollar un MVP (App Web) para gestionar solicitudes de compra de insumos y r
 
 Patrón de UX para tres entidades: el input es un combobox con autocompletado sobre los registros existentes; si el texto escrito no calza con ninguno, permite crear un registro nuevo con ese texto como `nombre` (más los campos adicionales obligatorios de cada caso). El resto de los campos queda vacío y se completa después en el Mantenedor correspondiente.
 
-- **Solicitudes de Compra → `insumo_okima`:** captura `nombre` + `id_categoria` (ambos obligatorios). El resto queda nulo.
+- **Solicitudes de Compra → `insumo_okima`:** captura `nombre` + `id_subcategoria` (ambos obligatorios). El resto queda nulo.
 - **Gestionar Facturas → `proveedor`:** primero `nombre` (para verificar si ya estaba ingresado), luego `rut` (obligatorio). El resto queda nulo.
-- **Gestionar Facturas → `insumo_proveedor`:** captura `nombre` y hereda `id_proveedor` del proveedor ya seleccionado en esa factura. `id_insumo_okima` **no se pide aquí** — queda vacío siempre; solo el administrador lo vincula, en su revisión semanal (ver Función 4).
+- **Gestionar Facturas → `insumo_proveedor`:** captura `nombre` y hereda `id_proveedor` del proveedor ya seleccionado en esa factura. `id_insumo_okima` **no se pide aquí** — queda vacío siempre al crearlo; se vincula después: el administrador en su revisión semanal (ver Función 4) o, con confirmación explícita, al asociar la línea de factura a una solicitud (ver Función 2).
 
 **Duplicados:** antes de ofrecer "crear nuevo", el autocompletado debería buscar coincidencias sin distinguir mayúsculas/tildes/espacios y avisar si hay algo parecido, en vez de crear silenciosamente un registro repetido. Esto es un chequeo de aplicación, no un `UNIQUE` en la base.
 
@@ -64,19 +66,19 @@ Para Supabase, todas las tablas deben usar `id` (UUID o gen_random_uuid() como P
 ### 2. insumos (Insumos internos de Okima)
 - `id` (uuid, PK)
 - `nombre` (text)
-- `id_categoria` (uuid, FK a categorias) — obligatorio siempre, incluso al crear al vuelo
+- `id_subcategoria` (uuid, FK a subcategorias) — obligatorio siempre, incluso al crear al vuelo; la categoría (centro de costo) se obtiene a través de la subcategoría
 - `codigo` (text, nullable)
 - `ancho`, `alto`, `profundidad` (numeric, nullable) - En milímetros
 - `venta_directa` (boolean, nullable) - indica si el insumo también se vende directamente tal como está (ej. scotch, resmas de papel)
 - `precio_venta` (numeric, nullable) - precio de venta directa; aplica cuando `venta_directa = true`
-- `qty` (integer) - Default 0. Se actualiza automáticamente al ingresar facturas.
+- `qty` (numeric, acepta decimales) - Default 0. Se actualiza automáticamente al ingresar facturas (trigger de stock, ver Función 2).
 - `descripcion` (text, opcional)
 
 *(`codigo`, `ancho`, `alto`, `profundidad`, `venta_directa` y `precio_venta` pasan a nullable por la creación al vuelo)*
 
 ### 3. insumos_proveedores (Catálogo)
 - `id` (uuid, PK)
-- `id_insumo_okima` (uuid, FK a insumos, nullable) — nunca se llena al crear el `insumo_proveedor`; solo el administrador lo vincula desde el Mantenedor, en su revisión semanal (ver Función 4)
+- `id_insumo_okima` (uuid, FK a insumos, nullable) — nunca se llena al crear el `insumo_proveedor`; lo vincula el administrador desde el Mantenedor, en su revisión semanal (ver Función 4), o el usuario desde Facturas, con confirmación explícita, al asociar una línea a una solicitud (ver Función 2)
 - `nombre` (text)
 - `codigo` (text, nullable)
 - `id_proveedor` (uuid, FK a proveedores)
@@ -104,20 +106,24 @@ Para Supabase, todas las tablas deben usar `id` (UUID o gen_random_uuid() como P
 - `id_proveedor` (uuid, FK a proveedores)
 - `numero_factura` (text) — `UNIQUE (id_proveedor, numero_factura)`
 - `fecha` (date)
-- `neto_total`, `descuento_total`, `iva`, `total` (numeric) - en CLP, incluidas las facturas de Google Workspace (monto ya convertido antes de ingresarlo); se ingresan tal cual figuran en la factura física; conviene que la interfaz avise si no cuadran con la suma de `detalle_facturas`
+- `descuento_pct` (numeric, % 0–100, default 0) - descuento global de la factura, en porcentaje; es lo único de los totales que ingresa el usuario, si aplica
+- `neto_total`, `iva`, `total` (numeric) - en CLP, incluidas las facturas de Google Workspace (monto ya convertido antes de ingresarlo); no se ingresan: los calcula la interfaz desde las líneas y se guardan ya calculados — neto = Σ subtotales × (1 − `descuento_pct`/100), IVA = 19 % del neto, total = neto + IVA (redondeados al peso)
 
 ### 6. detalle_facturas (Líneas)
 - `id` (uuid, PK)
 - `id_factura` (uuid, FK a facturas)
 - `id_insumo_proveedor` (uuid, FK a insumos_proveedores)
 - `id_solicitud_compra` (uuid, FK a solicitudes_compra, opcional) - Enlaza con la solicitud que originó la compra.
-- `cantidad`, `precio_neto`, `descuento`, `subtotal` (numeric)
+- `cantidad`, `precio_neto` (numeric)
+- `descuento_pct` (numeric, % 0–100, default 0) - descuento de la línea, en porcentaje
+- `subtotal` (numeric) - no se ingresa: lo calcula la interfaz, cantidad × precio_neto × (1 − `descuento_pct`/100), redondeado al peso
+- `id_insumo_stock` (uuid, FK a insumos, nullable) y `qty_stock` (numeric, nullable) - stock aplicado al guardar la línea; los llena el trigger, no la interfaz. Permiten revertir exactamente lo sumado si la línea se edita o se borra (incluido el borrado en cascada de la factura)
 
 ### 7. otros_gastos
 Gastos que no corresponden a la compra de un insumo con stock (ej. arriendo, sueldos, pago de IVA, servicios).
 - `id` (uuid, PK)
 - `concepto` (text)
-- `id_categoria` (uuid, FK a categorias, opcional)
+- `id_subcategoria` (uuid, FK a subcategorias, opcional)
 - `id_plantilla_recurrente` (uuid, FK a plantillas_gastos_recurrentes, opcional) - si el gasto se originó desde un atajo de gasto recurrente, queda la referencia a cuál
 - `id_proveedor` (uuid, FK a proveedores, opcional)
 - `monto` (numeric) - en CLP
@@ -125,20 +131,31 @@ Gastos que no corresponden a la compra de un insumo con stock (ej. arriendo, sue
 - `numero_documento` (text, opcional)
 - `notas` (text, opcional)
 
-### 8. categorias
+### 8. categorias (Centros de costo)
+Cada categoría es un centro de costo; se desglosa en `subcategorias` (ver sección 10).
 - `id` (uuid, PK)
 - `nombre` (text)
 - `activo` (boolean, default true) - para retirar categorías del dropdown sin borrar el historial que ya las usa
 
-*Cuando tengas la lista inicial de categorías, la incluimos como datos semilla (`INSERT`) en el `schema.sql` de la Fase 1.*
+*Datos semilla en `schema.sql`, desde `centros_de_costo.csv`: 10 categorías y 34 subcategorías.*
 
 ### 9. plantillas_gastos_recurrentes — **[NUEVO]**
 Tipos de gasto recurrente (Arriendo, Sueldos, Pago IVA) y su monto habitual, editable.
 - `id` (uuid, PK)
 - `nombre` (text) - ej: "Arriendo", "Sueldos", "Pago IVA"
-- `id_categoria` (uuid, FK a categorias, opcional)
+- `id_subcategoria` (uuid, FK a subcategorias, opcional)
 - `monto_default` (numeric) - editable; pre-llena el monto al registrar ese gasto
 - `activo` (boolean, default true) - para retirar un tipo sin borrar el historial de gastos ya asociados
+
+*Datos semilla (todas bajo GASTOS ADMINISTRATIVOS Y FIJOS, `monto_default` 0): Arriendo → Infraestructura, Sueldos → Remuneraciones, Pago IVA → Impuestos y Finanzas.*
+
+### 10. subcategorias
+Desglose de cada categoría (centro de costo). Es lo que referencian `insumos`, `otros_gastos` y `plantillas_gastos_recurrentes`: solo la subcategoría, para no guardar pares categoría/subcategoría inconsistentes.
+- `id` (uuid, PK)
+- `id_categoria` (uuid, FK a categorias) — obligatorio
+- `nombre` (text)
+- `descripcion` (text, opcional) - ítems incluidos (columna "Items Incluidos" de `centros_de_costo.csv`), ej: "Papeles, Toner (solo negro)"
+- `activo` (boolean, default true) - para retirar subcategorías del dropdown sin borrar el historial que ya las usa
 
 ## Vistas sugeridas para la Fase 1
 
@@ -148,27 +165,32 @@ Tipos de gasto recurrente (Arriendo, Sueldos, Pago IVA) y su monto habitual, edi
 
 ## Funcionalidades Core a Desarrollar
 
-Sin login: las 5 secciones quedan disponibles directamente y cada empleado se capacita en la que usa.
+Sin login: las 6 secciones quedan disponibles directamente y cada empleado se capacita en la que usa.
 
 1. **Solicitudes de Compra**
    - Crear y ver `solicitudes_compra`; selección de `insumo_okima` con creación al vuelo.
    - Alertas visuales por color según `nivel_urgencia`.
    - Lista y vista de impresión basadas en `vista_solicitudes_pendientes`: solo 'Pendiente', ordenada por urgencia, mostrando insumo, fecha tope y proveedores sugeridos. Botón de impresión (`@media print` para ocultar menús).
+   - **Estado gestionable a mano desde el panel** ('Pendiente', 'Comprada', 'Cancelada'), con confirmación: en Pendientes, "Marcar comprada" y "Cancelar"; en Todas, cambio a cualquier otro estado. En esta etapa inicial muchas facturas se ingresarán sin asociar la solicitud, así que no se depende solo del trigger, que sigue marcando 'Comprada' al asociar una línea de factura. Al pasar a 'Pendiente' o 'Cancelada' una solicitud asociada a líneas de factura, se avisa cuáles (sin bloquear; el vínculo se mantiene).
 2. **Gestionar Facturas**
    - Maestro-detalle: se crea la factura y se agregan dinámicamente las líneas; selección de `proveedor` (nombre, luego rut si es nuevo) e `insumo_proveedor` con creación al vuelo.
-   - **Regla de negocio:** línea con `id_solicitud_compra` → esa solicitud pasa a 'Comprada'.
-   - **Regla de negocio:** línea cuyo `insumo_proveedor` tiene `id_insumo_okima` vinculado → `insumos.qty += cantidad × cantidad_formato`. Si no está vinculado, no se actualiza stock hasta que se vincule.
+   - Montos calculados: el usuario ingresa cantidad y precio neto de cada línea y, si aplica, el descuento en % (por línea y global de la factura). Subtotal, neto, IVA (19 %) y total solo se calculan y se muestran; no son editables.
+   - **Regla de negocio (trigger en la base):** línea con `id_solicitud_compra` (al insertarla o al asociarla después) → esa solicitud pasa a 'Comprada'.
+   - **Regla de negocio (trigger en la base):** si al guardar la línea su `insumo_proveedor` ya tiene `id_insumo_okima` vinculado → `insumos.qty += cantidad × cantidad_formato` (`cantidad_formato` vacío cuenta como 1). Si no está vinculado, no se registra stock, y vincularlo después no lo aplica retroactivamente. Lo aplicado queda en `detalle_facturas.id_insumo_stock` / `qty_stock`, así que editar o borrar la línea (o la factura completa) revierte exactamente lo sumado.
+   - **Vínculo desde la solicitud, con confirmación:** si una línea tiene solicitud y su `insumo_proveedor` no está vinculado, la interfaz pregunta en la línea si vincularlo con el `insumo_okima` de la solicitud ("Vincular" / "No vincular", cambiable hasta guardar). Nunca en silencio ni al crear el insumo al vuelo. Lo aceptado se aplica al guardar, antes de las líneas (solo si sigue sin vincular), así la línea nueva ya suma stock; una línea ya guardada no suma stock retroactivo. Si ya está vinculado a otro insumo, solo se avisa: aquí no se re-vincula.
 3. **Otros Gastos**
    - CRUD de `otros_gastos`.
    - CRUD de `plantillas_gastos_recurrentes`: pantalla simple donde el administrador mantiene Arriendo/Sueldos/IVA y edita el `monto_default` cuando cambie.
-   - Ingreso rápido de gasto recurrente: se elige una plantilla y se pre-llenan `concepto`, `id_categoria` y `monto` desde ella. Solo queda por confirmar la `fecha` (default: hoy, editable a una fecha pasada).
+   - Ingreso rápido de gasto recurrente: se elige una plantilla y se pre-llenan `concepto`, `id_subcategoria` y `monto` desde ella. Solo queda por confirmar la `fecha` (default: hoy, editable a una fecha pasada).
 4. **Gestionar Proveedores y sus Insumos**
    - CRUD de `proveedores` e `insumos_proveedores`.
-   - Vista de "insumos por vincular": `insumos_proveedores` con `id_insumo_okima` vacío, con selector directo para asignarlo — es el único lugar donde se hace este vínculo, pensado para la revisión semanal del administrador.
+   - Vista de "insumos por vincular": `insumos_proveedores` con `id_insumo_okima` vacío, con selector directo para asignarlo — es el lugar principal de este vínculo, pensado para la revisión semanal del administrador (también se puede vincular desde Facturas, con confirmación, al asociar una línea a una solicitud; ver Función 2).
    - Filtro de registros incompletos (creados al vuelo).
 5. **Gestionar Insumos Okima**
-   - CRUD de `insumos` (incluye gestión de `categorias`).
+   - CRUD de `insumos`.
    - Filtro de registros incompletos creados al vuelo.
+6. **Centros de Costo**
+   - CRUD de `categorias` (centros de costo) y `subcategorias`. Sección propia, no dentro de Insumos Okima: las subcategorías las usan `insumos`, `otros_gastos` y `plantillas_gastos_recurrentes`.
 
 Transversal: botón reutilizable de exportación a CSV en todas las vistas de tabla.
 
@@ -185,7 +207,7 @@ Para garantizar el éxito de este MVP, trabaja estrictamente bajo estas fases. *
 - **Fase 3: Layout y Enrutamiento.**
   Crea la estructura de navegación básica (Sidebar/Navbar) con React Router, con las 5 secciones de Funcionalidades Core.
 - **Fase 4: Desarrollo de Pantallas.**
-  Comenzaremos pantalla por pantalla. Primero los Mantenedores (Proveedores, Insumos, Categorías), luego Solicitudes, Otros Gastos y finalmente Facturación.
+  Comenzaremos pantalla por pantalla. Primero los Mantenedores (Proveedores, Insumos, Centros de Costo: Categorías y Subcategorías), luego Solicitudes, Otros Gastos y finalmente Facturación.
 - **Fase 5: UI/UX y Exportación.**
   Refinamiento de estilos, lógica de impresión y botones de exportación CSV.
 
