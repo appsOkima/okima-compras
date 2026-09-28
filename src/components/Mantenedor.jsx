@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { AlertCircle, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { AlertCircle, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { useTabla } from '../hooks/useTabla'
 import { CODIGO_EN_USO, mensajeError } from '../lib/errores'
 import { buscarSimilares, coincide, normalizar } from '../lib/texto'
+import DetalleRegistro from './DetalleRegistro'
 import FormularioRegistro from './FormularioRegistro'
 import Modal from './Modal'
 import TablaDatos from './TablaDatos'
@@ -16,6 +17,8 @@ const valorBusqueda = (fila, campo) => (typeof campo === 'function' ? campo(fila
 
 // Estructura común de todos los Mantenedores: encabezado, filtros, tabla con CSV
 // y formulario modal. Cada pantalla solo declara columnas y campos.
+// `detalle` (opcional, ver DetalleRegistro) agrega la acción "Ver detalles" para
+// consultar campos que no caben en la tabla.
 function Mantenedor({
   titulo,
   descripcion,
@@ -33,6 +36,7 @@ function Mantenedor({
   filtroDuplicados,
   duplicadosAdicionales,
   etiquetaDuplicado,
+  detalle,
 }) {
   const { filas, cargando, error, crear, actualizar, eliminar } = useTabla(tabla, { select, orden })
   const [busqueda, setBusqueda] = useState('')
@@ -40,7 +44,12 @@ function Mantenedor({
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
   // null = cerrado; { registro: null } = nuevo; { registro } = edición.
   const [edicion, setEdicion] = useState(null)
+  // Se guarda el id y no la fila para mostrar siempre los datos recargados;
+  // si el registro desaparece, la ficha se cierra sola.
+  const [idDetalle, setIdDetalle] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
+
+  const filaDetalle = idDetalle ? filas.find((f) => f.id === idDetalle) : null
 
   const filasActivas = useMemo(
     () => (tieneActivo && !mostrarInactivos ? filas.filter((f) => f.activo !== false) : filas),
@@ -170,6 +179,17 @@ function Mantenedor({
           barra={barra}
           acciones={(fila) => (
             <div className="inline-flex gap-1">
+              {detalle && (
+                <button
+                  type="button"
+                  onClick={() => setIdDetalle(fila.id)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                  aria-label={`Ver detalles de ${fila.nombre ?? ''}`}
+                  title="Ver detalles"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setEdicion({ registro: fila })}
@@ -193,8 +213,22 @@ function Mantenedor({
         />
       </div>
 
+      {detalle && filaDetalle && (
+        <Modal titulo={filaDetalle.nombre ?? 'Detalles'} onCerrar={() => setIdDetalle(null)}>
+          <DetalleRegistro
+            detalle={detalle}
+            fila={filaDetalle}
+            onEditar={() => {
+              setIdDetalle(null)
+              setEdicion({ registro: filaDetalle })
+            }}
+            onCerrar={() => setIdDetalle(null)}
+          />
+        </Modal>
+      )}
+
       {edicion && (
-        <Modal titulo={registro ? `Editar: ${registro.nombre ?? ''}` : `Nuevo registro — ${titulo}`} onCerrar={() => setEdicion(null)}>
+        <Modal titulo={registro ?`Editar: ${registro.nombre ?? ''}` : `Nuevo registro — ${titulo}`} onCerrar={() => setEdicion(null)}>
           <FormularioRegistro
             // key: al cambiar de registro el formulario parte con sus valores.
             key={registro?.id ?? 'nuevo'}

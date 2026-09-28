@@ -32,6 +32,16 @@ export function formatoFecha(isoDate) {
   return `${m[3]}-${m[2]}-${m[1]}`
 }
 
+// Marca de tiempo (ej. created_at, en UTC) → 'dd-mm-aaaa' en la hora local, para
+// que un registro creado de noche en Chile no aparezca con la fecha del día siguiente.
+export function formatoFechaLocal(marcaTiempo) {
+  if (!marcaTiempo) return VACIO
+  const fecha = new Date(marcaTiempo)
+  if (Number.isNaN(fecha.getTime())) return String(marcaTiempo)
+  const dos = (n) => String(n).padStart(2, '0')
+  return `${dos(fecha.getDate())}-${dos(fecha.getMonth() + 1)}-${fecha.getFullYear()}`
+}
+
 // Formato de compra de un insumo de proveedor: "caja de 12", "caja", "12 unid.".
 export function formatoCompra(cantidadFormato, formatoUnidad) {
   const unidad = String(formatoUnidad ?? '').trim()

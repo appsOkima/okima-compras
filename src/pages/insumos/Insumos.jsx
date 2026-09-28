@@ -1,6 +1,6 @@
 import Mantenedor from '../../components/Mantenedor'
 import SelectorSubcategoria from '../../components/SelectorSubcategoria'
-import { formatoCLP, formatoDimensiones, formatoNumero } from '../../lib/formato'
+import { formatoCLP, formatoDimensiones, formatoFechaLocal, formatoNumero } from '../../lib/formato'
 import { estaVacio } from '../../lib/texto'
 
 // La categoría (centro de costo) se obtiene a través de la subcategoría.
@@ -9,26 +9,20 @@ const SELECT = '*, subcategoria:subcategorias(id, nombre, categoria:categorias(i
 const nombreSubcategoria = (fila) => fila.subcategoria?.nombre ?? ''
 const nombreCategoria = (fila) => fila.subcategoria?.categoria?.nombre ?? ''
 
-const textoVentaDirecta = (fila) => (fila.venta_directa === true ? 'Sí' : fila.venta_directa === false ? 'No' : '—')
+const textoVentaDirecta = (fila) =>
+  fila.venta_directa === true ? 'Sí' : fila.venta_directa === false ? 'No' : 'Sin definir'
 
-// Dimensiones: una columna compacta en pantalla y una por medida en el CSV.
+// Tabla compacta: categoría, dimensiones, venta directa y descripción se consultan
+// en "Ver detalles", pero el CSV sigue exportándolas todas (columnas soloCsv).
 const columnas = [
   { clave: 'nombre', titulo: 'Nombre' },
   { clave: 'codigo', titulo: 'Código' },
-  { clave: 'categoria', titulo: 'Categoría', render: nombreCategoria, csv: nombreCategoria },
+  { clave: 'categoria', titulo: 'Categoría', soloCsv: true, csv: nombreCategoria },
   { clave: 'subcategoria', titulo: 'Subcategoría', render: nombreSubcategoria, csv: nombreSubcategoria },
-  {
-    clave: 'dimensiones',
-    titulo: 'Dimensiones',
-    soloTabla: true,
-    render: (fila) => (
-      <span className="whitespace-nowrap">{formatoDimensiones(fila.ancho, fila.alto, fila.profundidad)}</span>
-    ),
-  },
   { clave: 'ancho', titulo: 'Ancho (mm)', soloCsv: true },
   { clave: 'alto', titulo: 'Alto (mm)', soloCsv: true },
   { clave: 'profundidad', titulo: 'Profundidad (mm)', soloCsv: true },
-  { clave: 'venta_directa', titulo: 'Venta directa', render: textoVentaDirecta },
+  { clave: 'venta_directa', titulo: 'Venta directa', soloCsv: true },
   {
     clave: 'precio_venta',
     titulo: 'Precio venta',
@@ -36,14 +30,29 @@ const columnas = [
     render: (fila) => <span className="whitespace-nowrap">{formatoCLP(fila.precio_venta)}</span>,
   },
   { clave: 'qty', titulo: 'Stock', alinear: 'derecha', render: (fila) => formatoNumero(fila.qty) },
+  { clave: 'descripcion', titulo: 'Descripción', soloCsv: true },
+]
+
+// Ficha de "Ver detalles": todos los campos del insumo.
+const detalle = [
+  { etiqueta: 'Nombre', valor: (fila) => fila.nombre, completo: true },
+  { etiqueta: 'Código', valor: (fila) => fila.codigo },
+  { etiqueta: 'Stock', valor: (fila) => formatoNumero(fila.qty) },
+  { etiqueta: 'Categoría (centro de costo)', valor: nombreCategoria },
+  { etiqueta: 'Subcategoría', valor: nombreSubcategoria },
   {
-    clave: 'descripcion',
-    titulo: 'Descripción',
-    render: (fila) => (
-      <span className="block max-w-xs truncate text-slate-600" title={fila.descripcion ?? undefined}>
-        {fila.descripcion}
-      </span>
-    ),
+    etiqueta: 'Dimensiones (ancho × alto × prof.)',
+    valor: (fila) => formatoDimensiones(fila.ancho, fila.alto, fila.profundidad),
+  },
+  { etiqueta: 'Venta directa', valor: textoVentaDirecta },
+  { etiqueta: 'Precio de venta', valor: (fila) => formatoCLP(fila.precio_venta) },
+  { etiqueta: 'Creado', valor: (fila) => formatoFechaLocal(fila.created_at) },
+  {
+    etiqueta: 'Descripción',
+    completo: true,
+    // whitespace-pre-line conserva los saltos de línea escritos en el formulario.
+    valor: (fila) =>
+      estaVacio(fila.descripcion) ? null : <span className="whitespace-pre-line">{fila.descripcion}</span>,
   },
 ]
 
@@ -119,6 +128,7 @@ function Insumos() {
       camposBusqueda={camposBusqueda}
       nombreArchivo="insumos-okima"
       etiquetaDuplicado={etiquetaDuplicado}
+      detalle={detalle}
     />
   )
 }
