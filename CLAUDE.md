@@ -106,14 +106,17 @@ Para Supabase, todas las tablas deben usar `id` (UUID o gen_random_uuid() como P
 - `id_proveedor` (uuid, FK a proveedores)
 - `numero_factura` (text) — `UNIQUE (id_proveedor, numero_factura)`
 - `fecha` (date)
-- `neto_total`, `descuento_total`, `iva`, `total` (numeric) - en CLP, incluidas las facturas de Google Workspace (monto ya convertido antes de ingresarlo); se ingresan tal cual figuran en la factura física; conviene que la interfaz avise si no cuadran con la suma de `detalle_facturas`
+- `descuento_pct` (numeric, % 0–100, default 0) - descuento global de la factura, en porcentaje; es lo único de los totales que ingresa el usuario, si aplica
+- `neto_total`, `iva`, `total` (numeric) - en CLP, incluidas las facturas de Google Workspace (monto ya convertido antes de ingresarlo); no se ingresan: los calcula la interfaz desde las líneas y se guardan ya calculados — neto = Σ subtotales × (1 − `descuento_pct`/100), IVA = 19 % del neto, total = neto + IVA (redondeados al peso)
 
 ### 6. detalle_facturas (Líneas)
 - `id` (uuid, PK)
 - `id_factura` (uuid, FK a facturas)
 - `id_insumo_proveedor` (uuid, FK a insumos_proveedores)
 - `id_solicitud_compra` (uuid, FK a solicitudes_compra, opcional) - Enlaza con la solicitud que originó la compra.
-- `cantidad`, `precio_neto`, `descuento`, `subtotal` (numeric)
+- `cantidad`, `precio_neto` (numeric)
+- `descuento_pct` (numeric, % 0–100, default 0) - descuento de la línea, en porcentaje
+- `subtotal` (numeric) - no se ingresa: lo calcula la interfaz, cantidad × precio_neto × (1 − `descuento_pct`/100), redondeado al peso
 - `id_insumo_stock` (uuid, FK a insumos, nullable) y `qty_stock` (numeric, nullable) - stock aplicado al guardar la línea; los llena el trigger, no la interfaz. Permiten revertir exactamente lo sumado si la línea se edita o se borra (incluido el borrado en cascada de la factura)
 
 ### 7. otros_gastos
@@ -170,6 +173,7 @@ Sin login: las 6 secciones quedan disponibles directamente y cada empleado se ca
    - Lista y vista de impresión basadas en `vista_solicitudes_pendientes`: solo 'Pendiente', ordenada por urgencia, mostrando insumo, fecha tope y proveedores sugeridos. Botón de impresión (`@media print` para ocultar menús).
 2. **Gestionar Facturas**
    - Maestro-detalle: se crea la factura y se agregan dinámicamente las líneas; selección de `proveedor` (nombre, luego rut si es nuevo) e `insumo_proveedor` con creación al vuelo.
+   - Montos calculados: el usuario ingresa cantidad y precio neto de cada línea y, si aplica, el descuento en % (por línea y global de la factura). Subtotal, neto, IVA (19 %) y total solo se calculan y se muestran; no son editables.
    - **Regla de negocio (trigger en la base):** línea con `id_solicitud_compra` (al insertarla o al asociarla después) → esa solicitud pasa a 'Comprada'.
    - **Regla de negocio (trigger en la base):** si al guardar la línea su `insumo_proveedor` ya tiene `id_insumo_okima` vinculado → `insumos.qty += cantidad × cantidad_formato` (`cantidad_formato` vacío cuenta como 1). Si no está vinculado, no se registra stock, y vincularlo después no lo aplica retroactivamente. Lo aplicado queda en `detalle_facturas.id_insumo_stock` / `qty_stock`, así que editar o borrar la línea (o la factura completa) revierte exactamente lo sumado.
 3. **Otros Gastos**

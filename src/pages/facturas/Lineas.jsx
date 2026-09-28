@@ -11,7 +11,7 @@ import { coincide } from '../../lib/texto'
 // Solo lo que muestra la tabla o exporta el CSV. !id_insumo_stock y
 // !id_solicitud_compra nombran la FK para que el embebido no sea ambiguo.
 const SELECT =
-  'id, id_factura, created_at, cantidad, precio_neto, descuento, subtotal, qty_stock, id_solicitud_compra, ' +
+  'id, id_factura, created_at, cantidad, precio_neto, descuento_pct, subtotal, qty_stock, id_solicitud_compra, ' +
   'factura:facturas(numero_factura, fecha, proveedor:proveedores(nombre, rut)), ' +
   'insumo_proveedor:insumos_proveedores(nombre, codigo, cantidad_formato, formato_unidad), ' +
   'insumo_stock:insumos!id_insumo_stock(nombre), ' +
@@ -78,7 +78,12 @@ const columnas = [
   },
   { clave: 'cantidad', titulo: 'Cantidad', alinear: 'derecha', render: (l) => formatoNumero(l.cantidad) },
   { clave: 'precio_neto', titulo: 'Precio neto', alinear: 'derecha', render: monto('precio_neto') },
-  { clave: 'descuento', titulo: 'Descuento', alinear: 'derecha', render: monto('descuento') },
+  {
+    clave: 'descuento_pct',
+    titulo: 'Descuento %',
+    alinear: 'derecha',
+    render: (l) => <span className="whitespace-nowrap">{formatoNumero(l.descuento_pct ?? 0)} %</span>,
+  },
   { clave: 'subtotal', titulo: 'Subtotal', alinear: 'derecha', render: monto('subtotal') },
   { clave: 'qty_stock', titulo: 'Stock sumado', alinear: 'derecha', render: (l) => formatoNumero(l.qty_stock) },
   {

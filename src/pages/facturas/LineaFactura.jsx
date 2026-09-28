@@ -1,9 +1,9 @@
 import { useId } from 'react'
-import { PackageCheck, PackageX, RotateCcw, Trash2, X } from 'lucide-react'
+import { PackageCheck, PackageX, Trash2, X } from 'lucide-react'
 import Combobox from '../../components/Combobox'
 import { claseInput } from '../../components/estilos'
-import { efectoStock } from '../../lib/facturas'
-import { formatoNumero } from '../../lib/formato'
+import { efectoStock, subtotalDe } from '../../lib/facturas'
+import { formatoCLP, formatoNumero } from '../../lib/formato'
 import Campo from './Campo'
 import SelectorInsumoProveedor from './SelectorInsumoProveedor'
 
@@ -34,7 +34,8 @@ function avisoStock(efecto, item, original) {
 }
 
 // Una línea de la factura: insumo del proveedor (con creación al vuelo), solicitud
-// opcional, cantidades y el aviso de stock. `original` es la línea guardada (null
+// opcional, cantidad, precio, descuento en % y el aviso de stock. El subtotal se
+// calcula y solo se muestra. `original` es la línea guardada (null
 // si es nueva) y `opcionesSolicitud` ya viene ordenada para esta línea.
 function LineaFactura({
   linea,
@@ -49,7 +50,6 @@ function LineaFactura({
   cargandoSolicitudes,
   original,
   onCambiar,
-  onRecalcular,
   onQuitar,
   puedeQuitar,
 }) {
@@ -68,7 +68,9 @@ function LineaFactura({
     original,
   )
 
-  const numerico = (campo, etiqueta, requerido = true) => (
+  const subtotal = subtotalDe(linea)
+
+  const numerico = (campo, etiqueta, { requerido = true, ...extra } = {}) => (
     <Campo id={`${idBase}-${campo}`} etiqueta={etiqueta} requerido={requerido} error={errores[campo]}>
       <input
         id={`${idBase}-${campo}`}
@@ -76,6 +78,7 @@ function LineaFactura({
         inputMode="decimal"
         step="any"
         min="0"
+        {...extra}
         value={linea[campo]}
         onChange={(e) => onCambiar(campo, e.target.value)}
         className={`${claseInput}${errores[campo] ? claseError : ''}`}
@@ -145,33 +148,17 @@ function LineaFactura({
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {numerico('cantidad', 'Cantidad')}
         {numerico('precio_neto', 'Precio neto')}
-        {numerico('descuento', 'Descuento', false)}
-        <Campo id={`${idBase}-subtotal`} etiqueta="Subtotal" requerido error={errores.subtotal}>
-          <div className="relative">
-            <input
-              id={`${idBase}-subtotal`}
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
-              value={linea.subtotal}
-              onChange={(e) => onCambiar('subtotal', e.target.value)}
-              title={linea.subtotalManual ? 'Escrito a mano' : 'Cantidad × precio neto − descuento'}
-              className={`${claseInput}${linea.subtotalManual ? ' pr-9' : ''}${errores.subtotal ? claseError : ''}`}
-            />
-            {linea.subtotalManual && (
-              <button
-                type="button"
-                onClick={onRecalcular}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-indigo-600 hover:bg-indigo-50"
-                aria-label="Recalcular subtotal"
-                title="Recalcular: cantidad × precio neto − descuento"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        </Campo>
+        {numerico('descuento_pct', 'Descuento %', { requerido: false, max: '100', placeholder: '0' })}
+        <div>
+          <span className="mb-1 block text-sm font-medium text-slate-700">Subtotal</span>
+          <p
+            className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-right text-sm font-semibold text-slate-800"
+            title="Cantidad × precio neto − descuento %"
+            aria-live="polite"
+          >
+            {formatoCLP(subtotal)}
+          </p>
+        </div>
       </div>
 
       {aviso && (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, Calculator, Loader2, Plus, Save } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Loader2, Plus, Save } from 'lucide-react'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
@@ -12,19 +12,15 @@ import {
   diffLineas,
   erroresCabecera,
   erroresLinea,
-  evaluarCuadre,
   lineaDesdeBase,
   lineaVacia,
   ordenarSolicitudesParaLinea,
-  recalcularSubtotal,
-  sumaSubtotales,
 } from '../../lib/facturas'
-import { formatoFecha, formatoNumero } from '../../lib/formato'
+import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
 import { hoyISO } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import Campo from './Campo'
 import LineaFactura from './LineaFactura'
-import PanelCuadre from './PanelCuadre'
 import SelectorProveedorFactura from './SelectorProveedorFactura'
 
 const SELECT_PROVEEDORES = 'id, nombre, rut'
@@ -36,25 +32,20 @@ const ORDEN_PENDIENTES = { columna: 'created_at', ascendente: true }
 // Las líneas traen lo aplicado por el trigger (para el aviso de stock) y su
 // solicitud, que ya no está en la vista de pendientes porque quedó 'Comprada'.
 const SELECT_FACTURA =
-  'id, id_proveedor, numero_factura, fecha, neto_total, descuento_total, iva, total, ' +
-  'lineas:detalle_facturas(id, created_at, id_insumo_proveedor, id_solicitud_compra, cantidad, precio_neto, descuento, subtotal, id_insumo_stock, qty_stock, ' +
+  'id, id_proveedor, numero_factura, fecha, descuento_pct, ' +
+  'lineas:detalle_facturas(id, created_at, id_insumo_proveedor, id_solicitud_compra, cantidad, precio_neto, descuento_pct, subtotal, id_insumo_stock, qty_stock, ' +
   'insumo_stock:insumos!id_insumo_stock(nombre), ' +
   'solicitud:solicitudes_compra!id_solicitud_compra(id, created_at, id_insumo_okima, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada, estado, insumo:insumos(nombre)))'
-
-const CAMPOS_TOTALES = [
-  { clave: 'neto_total', etiqueta: 'Neto', requerido: true },
-  { clave: 'descuento_total', etiqueta: 'Descuento', requerido: false },
-  { clave: 'iva', etiqueta: 'IVA', requerido: true },
-  { clave: 'total', etiqueta: 'Total', requerido: true },
-]
 
 const claseTarjeta = 'rounded-lg border border-slate-200 bg-white p-4 shadow-sm'
 const claseError = ' border-red-400 focus:border-red-500 focus:ring-red-500/30'
 
-const texto = (v) => (v === null || v === undefined ? '' : String(v))
+// Un descuento 0 se muestra vacío (el input tiene placeholder 0).
+const textoDescuento = (v) => (Number(v) ? String(v) : '')
 
+// Neto, IVA y total no son parte del estado: se calculan desde las líneas.
 function cabeceraVacia() {
-  return { id_proveedor: '', numero_factura: '', fecha: hoyISO(), neto_total: '', descuento_total: '0', iva: '', total: '' }
+  return { id_proveedor: '', numero_factura: '', fecha: hoyISO(), descuento_pct: '' }
 }
 
 // Opción del selector de solicitud: insumo × cantidad, y quién la pidió.
@@ -81,7 +72,8 @@ function PaginaFactura() {
 
 // Formulario maestro-detalle de una factura (página completa, no modal).
 // Guardado sin RPC (el cliente de Supabase no hace transacciones de varias
-// sentencias): cabecera y luego líneas. Stock y solicitudes 'Comprada' los
+// sentencias): cabecera y luego líneas. Subtotales, neto, IVA y total se calculan
+// en vivo y se guardan ya calculados. Stock y solicitudes 'Comprada' los
 // resuelven los triggers de detalle_facturas.
 function FormularioFactura({ id }) {
   const navigate = useNavigate()
@@ -142,10 +134,7 @@ function FormularioFactura({ id }) {
           id_proveedor: data.id_proveedor,
           numero_factura: data.numero_factura,
           fecha: data.fecha,
-          neto_total: texto(data.neto_total),
-          descuento_total: texto(data.descuento_total),
-          iva: texto(data.iva),
-          total: texto(data.total),
+          descuento_pct: textoDescuento(data.descuento_pct),
         })
         setOriginales(guardadas)
         setLineas(guardadas.length > 0 ? guardadas.map(lineaDesdeBase) : [lineaVacia(`nueva-${++siguienteClave.current}`)])
@@ -189,8 +178,8 @@ function FormularioFactura({ id }) {
     ).map((s) => opcionSolicitud(s, idInsumoOkima))
   }
 
-  const resultadosCuadre = evaluarCuadre(cabecera, lineas)
-  const suma = sumaSubtotales(lineas)
+  // Totales en vivo: son los mismos que se guardan (ver datosCabecera).
+  const totales = calcularTotales(lineas, cabecera.descuento_pct)
 
   const limpiarError = (grupo, clave, campo) =>
     setErrores((actuales) =>
@@ -242,12 +231,6 @@ function FormularioFactura({ id }) {
     setSucio(true)
   }
 
-  const recalcular = (clave) => {
-    setLineas((actuales) => actuales.map((l) => (l.clave === clave ? recalcularSubtotal(l) : l)))
-    limpiarError('lineas', clave, 'subtotal')
-    setSucio(true)
-  }
-
   const agregarLinea = () => {
     setLineas((actuales) => [...actuales, lineaVacia(nuevaClave())])
     setSucio(true)
@@ -255,22 +238,6 @@ function FormularioFactura({ id }) {
 
   const quitarLinea = (clave) => {
     setLineas((actuales) => actuales.filter((l) => l.clave !== clave))
-    setSucio(true)
-  }
-
-  // "Calcular desde líneas": neto, IVA y total a partir de los subtotales.
-  const calcular = () => {
-    const totales = calcularTotales(lineas, cabecera.descuento_total)
-    setCabecera((actual) => ({
-      ...actual,
-      neto_total: String(totales.neto_total),
-      iva: String(totales.iva),
-      total: String(totales.total),
-    }))
-    setErrores((actuales) => ({
-      ...actuales,
-      cabecera: { ...actuales.cabecera, neto_total: undefined, iva: undefined, total: undefined },
-    }))
     setSucio(true)
   }
 
@@ -331,7 +298,7 @@ function FormularioFactura({ id }) {
     e.preventDefault()
     if (guardando) return
 
-    const datosCab = datosCabecera(cabecera)
+    const datosCab = datosCabecera(cabecera, lineas)
     const erroresCab = erroresCabecera(datosCab)
     const datosLineas = lineas.map(datosLinea)
     const erroresLineas = {}
@@ -421,8 +388,8 @@ function FormularioFactura({ id }) {
         {esNueva ? 'Nueva factura' : `Editar factura N° ${numeroOriginal}`}
       </h2>
       <p className="mt-1 text-sm text-slate-600">
-        Ingresa los datos tal como figuran en la factura física. Las líneas con insumo vinculado a un insumo Okima suman
-        stock al guardar.
+        Ingresa las líneas tal como figuran en la factura física y, si aplica, los descuentos en %. Subtotales, neto, IVA
+        y total se calculan solos. Las líneas con insumo vinculado a un insumo Okima suman stock al guardar.
       </p>
 
       {erroresCarga.length > 0 && (
@@ -472,6 +439,25 @@ function FormularioFactura({ id }) {
                 className={`${claseInput}${errores.cabecera.fecha ? claseError : ''}`}
               />
             </Campo>
+            <Campo
+              id="factura-descuento"
+              etiqueta="Descuento % de la factura"
+              error={errores.cabecera.descuento_pct}
+              ayuda="Opcional: descuento global sobre la suma de las líneas."
+            >
+              <input
+                id="factura-descuento"
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min="0"
+                max="100"
+                placeholder="0"
+                value={cabecera.descuento_pct}
+                onChange={(e) => cambiarCabecera('descuento_pct', e.target.value)}
+                className={`${claseInput}${errores.cabecera.descuento_pct ? claseError : ''}`}
+              />
+            </Campo>
           </div>
         </div>
 
@@ -497,7 +483,6 @@ function FormularioFactura({ id }) {
                 cargandoSolicitudes={cargandoPendientes}
                 original={linea.id ? (originalesPorId.get(linea.id) ?? null) : null}
                 onCambiar={(campo, valor) => cambiarLinea(linea.clave, campo, valor)}
-                onRecalcular={() => recalcular(linea.clave)}
                 onQuitar={() => quitarLinea(linea.clave)}
                 puedeQuitar={lineas.length > 1}
               />
@@ -510,37 +495,31 @@ function FormularioFactura({ id }) {
         </div>
 
         <div className={claseTarjeta}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Totales de la factura (CLP)</h3>
-            <button
-              type="button"
-              onClick={calcular}
-              className={claseBotonSecundario}
-              title="Neto = Σ subtotales − descuento; IVA = 19 % del neto; total = neto + IVA"
-            >
-              <Calculator className="h-4 w-4" />
-              Calcular desde líneas
-            </button>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="grid grid-cols-2 content-start gap-4">
-              {CAMPOS_TOTALES.map(({ clave, etiqueta, requerido }) => (
-                <Campo key={clave} id={`factura-${clave}`} etiqueta={etiqueta} requerido={requerido} error={errores.cabecera[clave]}>
-                  <input
-                    id={`factura-${clave}`}
-                    type="number"
-                    inputMode="numeric"
-                    step="1"
-                    min="0"
-                    value={cabecera[clave]}
-                    onChange={(e) => cambiarCabecera(clave, e.target.value)}
-                    className={`${claseInput}${errores.cabecera[clave] ? claseError : ''}`}
-                  />
-                </Campo>
-              ))}
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Totales de la factura (CLP)</h3>
+          <dl className="ml-auto max-w-sm space-y-1.5 text-sm" aria-live="polite">
+            <div className="flex justify-between gap-4 text-slate-600">
+              <dt>Σ subtotales de las líneas</dt>
+              <dd className="whitespace-nowrap">{formatoCLP(totales.sumaSubtotales)}</dd>
             </div>
-            <PanelCuadre resultados={resultadosCuadre} suma={suma} />
-          </div>
+            {totales.montoDescuento > 0 && (
+              <div className="flex justify-between gap-4 text-slate-600">
+                <dt>Descuento {formatoNumero(cabecera.descuento_pct)} %</dt>
+                <dd className="whitespace-nowrap">−{formatoCLP(totales.montoDescuento)}</dd>
+              </div>
+            )}
+            <div className="flex justify-between gap-4 border-t border-slate-200 pt-1.5 text-slate-700">
+              <dt>Neto</dt>
+              <dd className="whitespace-nowrap font-medium">{formatoCLP(totales.neto_total)}</dd>
+            </div>
+            <div className="flex justify-between gap-4 text-slate-700">
+              <dt>IVA 19 %</dt>
+              <dd className="whitespace-nowrap font-medium">{formatoCLP(totales.iva)}</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-slate-200 pt-1.5 text-base font-semibold text-slate-800">
+              <dt>Total</dt>
+              <dd className="whitespace-nowrap">{formatoCLP(totales.total)}</dd>
+            </div>
+          </dl>
         </div>
 
         {errorGuardar && (

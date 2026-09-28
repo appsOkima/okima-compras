@@ -7,21 +7,19 @@ import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
-import { cuadra, evaluarCuadre, sumaSubtotales, textoDiferencias } from '../../lib/facturas'
-import { formatoCLP, formatoFecha } from '../../lib/formato'
+import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
 import { mesDe, mesesPresentes } from '../../lib/gastos'
 import { coincide, normalizarRut } from '../../lib/texto'
 import DetalleFactura from './DetalleFactura'
-import EtiquetaCuadre from './EtiquetaCuadre'
 
-// El listado trae solo los subtotales de las líneas: bastan para el cuadre.
-const SELECT = '*, proveedor:proveedores(id, nombre, rut), lineas:detalle_facturas(subtotal)'
+// De las líneas basta la cantidad (el detalle las consulta al abrirse).
+const SELECT = '*, proveedor:proveedores(id, nombre, rut), lineas:detalle_facturas(count)'
 
 // Más reciente primero; a igual fecha, la última ingresada arriba.
 const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }
 
 const nombreProveedor = (f) => f.proveedor?.nombre ?? ''
-const numeroLineas = (f) => f.lineas?.length ?? 0
+const numeroLineas = (f) => f.lineas?.[0]?.count ?? 0
 const monto = (clave) => (f) => <span className="whitespace-nowrap">{formatoCLP(f[clave])}</span>
 
 const columnas = [
@@ -34,20 +32,18 @@ const columnas = [
   { clave: 'rut', titulo: 'RUT proveedor', soloCsv: true, csv: (f) => f.proveedor?.rut ?? '' },
   { clave: 'numero_factura', titulo: 'N° factura' },
   { clave: 'neto_total', titulo: 'Neto', alinear: 'derecha', render: monto('neto_total') },
-  { clave: 'descuento_total', titulo: 'Descuento', soloCsv: true },
+  {
+    clave: 'descuento_pct',
+    titulo: 'Descuento %',
+    alinear: 'derecha',
+    render: (f) => (Number(f.descuento_pct) ? `${formatoNumero(f.descuento_pct)} %` : ''),
+  },
   { clave: 'iva', titulo: 'IVA', alinear: 'derecha', render: monto('iva') },
   { clave: 'total', titulo: 'Total', alinear: 'derecha', render: monto('total') },
-  { clave: 'suma_lineas', titulo: 'Suma de líneas', soloCsv: true, csv: (f) => sumaSubtotales(f.lineas) },
   { clave: 'n_lineas', titulo: 'Líneas', alinear: 'derecha', render: numeroLineas, csv: numeroLineas },
-  {
-    clave: 'cuadre',
-    titulo: 'Cuadre',
-    render: (f) => <EtiquetaCuadre resultados={f.cuadre} />,
-    csv: (f) => (cuadra(f.cuadre) ? 'OK' : textoDiferencias(f.cuadre)),
-  },
 ]
 
-// Listado de facturas con su estado de cuadre. Crear y editar abren el
+// Listado de facturas (totales ya calculados al guardar). Crear y editar abren el
 // formulario maestro-detalle en su propia página (/facturas/nueva, /facturas/:id).
 function Facturas() {
   const navigate = useNavigate()
@@ -56,7 +52,6 @@ function Facturas() {
   const [busqueda, setBusqueda] = useState('')
   // '' = todos los meses; si no, 'YYYY-MM'.
   const [mes, setMes] = useState('')
-  const [soloDescuadradas, setSoloDescuadradas] = useState(false)
   const [idDetalle, setIdDetalle] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
   // Aviso de éxito que deja el formulario al guardar (location.state).
@@ -67,24 +62,20 @@ function Facturas() {
     if (location.state?.mensaje) navigate(location.pathname, { replace: true, state: null })
   }, [location, navigate])
 
-  const conCuadre = useMemo(() => filas.map((f) => ({ ...f, cuadre: evaluarCuadre(f, f.lineas) })), [filas])
-
-  const delMes = useMemo(() => (mes ? conCuadre.filter((f) => mesDe(f.fecha) === mes) : conCuadre), [conCuadre, mes])
-  const totalDescuadradas = useMemo(() => delMes.filter((f) => !cuadra(f.cuadre)).length, [delMes])
   const visibles = useMemo(
     () =>
-      delMes.filter(
+      filas.filter(
         (f) =>
-          (!soloDescuadradas || !cuadra(f.cuadre)) &&
+          (!mes || mesDe(f.fecha) === mes) &&
           (!busqueda ||
             [nombreProveedor(f), f.numero_factura, f.proveedor?.rut, normalizarRut(f.proveedor?.rut)].some((v) =>
               coincide(v, busqueda),
             )),
       ),
-    [delMes, soloDescuadradas, busqueda],
+    [filas, mes, busqueda],
   )
 
-  const filaDetalle = idDetalle ? conCuadre.find((f) => f.id === idDetalle) : null
+  const filaDetalle = idDetalle ? filas.find((f) => f.id === idDetalle) : null
   const titulo = (f) => `Factura N° ${f.numero_factura} — ${nombreProveedor(f)}`
 
   const borrar = async (f) => {
@@ -116,29 +107,10 @@ function Facturas() {
         />
       </div>
       <FiltroMes meses={mesesPresentes(filas)} valor={mes} onChange={setMes} />
-      <button
-        type="button"
-        aria-pressed={soloDescuadradas}
-        onClick={() => setSoloDescuadradas(!soloDescuadradas)}
-        className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
-          soloDescuadradas
-            ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-            : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-        }`}
-      >
-        Solo las que no cuadran
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-            totalDescuadradas > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'
-          }`}
-        >
-          {totalDescuadradas}
-        </span>
-      </button>
     </>
   )
 
-  const filtrando = busqueda || mes || soloDescuadradas
+  const filtrando = busqueda || mes
 
   return (
     <section className="mt-6">
@@ -146,8 +118,8 @@ function Facturas() {
         <div>
           <h2 className="text-xl font-semibold text-slate-800">Facturas</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Facturas de proveedores, de la más reciente a la más antigua. "No cuadra" avisa si los totales no calzan con
-            las líneas (tolerancia ±1 peso).
+            Facturas de proveedores, de la más reciente a la más antigua. Neto, IVA y total se calculan desde las líneas
+            y el descuento en %.
           </p>
         </div>
         <Link to="/facturas/nueva" className={claseBotonPrimario}>

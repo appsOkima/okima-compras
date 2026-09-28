@@ -1,16 +1,13 @@
-// Reglas de Facturas: subtotales, cuadre de totales, diff de líneas al editar y
+// Reglas de Facturas: subtotales y totales calculados, diff de líneas al editar y
 // aviso de stock (sin React ni Supabase, para poder verificarlas con node).
-import { formatoCLP } from './formato.js'
 import { compararPendientes } from './solicitudes.js'
 
 export const TASA_IVA = 0.19
 
-// Diferencia aceptada en el cuadre: redondeos de la factura física.
-export const TOLERANCIA_CUADRE = 1
-
-// Campos de una línea que escribe la interfaz. id_insumo_stock y qty_stock no
-// están: los llena el trigger de stock y nunca se envían.
-export const CAMPOS_LINEA = ['id_insumo_proveedor', 'id_solicitud_compra', 'cantidad', 'precio_neto', 'descuento', 'subtotal']
+// Campos de una línea que escribe la interfaz. subtotal no se ingresa: se calcula
+// (ver subtotalLinea). id_insumo_stock y qty_stock no están: los llena el
+// trigger de stock y nunca se envían.
+export const CAMPOS_LINEA = ['id_insumo_proveedor', 'id_solicitud_compra', 'cantidad', 'precio_neto', 'descuento_pct', 'subtotal']
 
 // Valor de un input → número, o null si está vacío o no es un número. Acepta
 // coma decimal ("1,5").
@@ -26,70 +23,36 @@ export function aNumero(valor) {
 // Quita el ruido de coma flotante (3 × 1,1 = 3,3000000000000003) antes de redondear.
 const limpiar = (n) => Number(n.toFixed(6))
 
-// cantidad × precio_neto − descuento, redondeado al peso; null si falta cantidad o precio.
-export function subtotalLinea(cantidad, precioNeto, descuento = 0) {
+// Aplica un descuento en % (vacío = 0) a un monto.
+const conDescuento = (monto, descuentoPct) => monto * (1 - (aNumero(descuentoPct) ?? 0) / 100)
+
+// cantidad × precio_neto × (1 − descuento_pct / 100), redondeado al peso; null si
+// falta cantidad o precio.
+export function subtotalLinea(cantidad, precioNeto, descuentoPct = 0) {
   const c = aNumero(cantidad)
   const p = aNumero(precioNeto)
   if (c === null || p === null) return null
-  const d = aNumero(descuento) ?? 0
-  return Math.round(limpiar(c * p - d))
+  return Math.round(limpiar(conDescuento(c * p, descuentoPct)))
 }
 
-// Σ subtotales de las líneas; ignora los vacíos.
+// Subtotal de una línea (del formulario o de la base), calculado desde sus campos.
+export const subtotalDe = (linea) => subtotalLinea(linea?.cantidad, linea?.precio_neto, linea?.descuento_pct)
+
+// Σ subtotales de las líneas; las que no tienen cantidad o precio cuentan 0.
 export function sumaSubtotales(lineas) {
   let suma = 0
-  for (const linea of lineas ?? []) suma += aNumero(linea?.subtotal) ?? 0
-  return limpiar(suma)
+  for (const linea of lineas ?? []) suma += subtotalDe(linea) ?? 0
+  return suma
 }
 
-// "Calcular desde líneas": neto = Σ subtotales − descuento_total, IVA 19 % al peso
-// y total = neto + IVA. El usuario puede corregirlos después a mano.
-export function calcularTotales(lineas, descuentoTotal = 0) {
-  const neto = Math.round(limpiar(sumaSubtotales(lineas) - (aNumero(descuentoTotal) ?? 0)))
-  const iva = Math.round(limpiar(neto * TASA_IVA))
-  return { neto_total: neto, iva, total: neto + iva }
-}
-
-// Cuadre de la cabecera contra sus líneas (solo aviso, nunca bloquea el guardado).
-// diferencia = lo escrito en la factura − lo esperado. Un total vacío cuenta como 0.
-// 'iva' es informativo: hay facturas con IVA redondeado distinto o exentas.
-export function evaluarCuadre(cabecera, lineas) {
+// Totales de la factura, siempre calculados (el usuario solo ingresa el descuento
+// global en %): neto = Σ subtotales × (1 − descuento_pct / 100) al peso, IVA 19 %
+// al peso y total = neto + IVA. montoDescuento = lo que resta el descuento global.
+export function calcularTotales(lineas, descuentoPct = 0) {
   const suma = sumaSubtotales(lineas)
-  const neto = aNumero(cabecera?.neto_total) ?? 0
-  const descuento = aNumero(cabecera?.descuento_total) ?? 0
-  const iva = aNumero(cabecera?.iva) ?? 0
-  const total = aNumero(cabecera?.total) ?? 0
-
-  const resultado = (tipo, declarado, esperado, informativo = false) => {
-    const diferencia = Math.round(limpiar(declarado - esperado) * 100) / 100
-    return { tipo, declarado, esperado, diferencia, ok: Math.abs(diferencia) <= TOLERANCIA_CUADRE, informativo }
-  }
-
-  return [
-    resultado('neto', neto, limpiar(suma - descuento)),
-    resultado('total', total, limpiar(neto + iva)),
-    resultado('iva', iva, Math.round(limpiar(neto * TASA_IVA)), true),
-  ]
-}
-
-// Qué compara cada chequeo de evaluarCuadre, para avisos y tooltips.
-export const NOMBRES_CUADRE = {
-  neto: 'Neto vs. Σ subtotales − descuento',
-  total: 'Total vs. neto + IVA',
-  iva: 'IVA vs. 19 % del neto',
-}
-
-// La factura cuadra si no falla ningún chequeo que no sea informativo.
-export function cuadra(resultados) {
-  return (resultados ?? []).every((r) => r.ok || r.informativo)
-}
-
-// Diferencias que no cuadran, una por línea (tooltip del listado y CSV); '' si cuadra.
-export function textoDiferencias(resultados) {
-  return (resultados ?? [])
-    .filter((r) => !r.ok && !r.informativo)
-    .map((r) => `${NOMBRES_CUADRE[r.tipo]}: diferencia ${formatoCLP(r.diferencia)}`)
-    .join('\n')
+  const neto = Math.round(limpiar(conDescuento(suma, descuentoPct)))
+  const iva = Math.round(limpiar(neto * TASA_IVA))
+  return { sumaSubtotales: suma, neto_total: neto, iva, total: neto + iva, montoDescuento: suma - neto }
 }
 
 // Qué suma al stock una línea vinculada: cantidad × cantidad_formato (vacío = 1),
@@ -144,10 +107,12 @@ export function diffLineas(originales, actuales) {
 }
 
 // ---------------------------------------------------------------------------
-// Estado del formulario: las líneas se editan como texto (valores de inputs).
+// Estado del formulario: las líneas se editan como texto (valores de inputs). El
+// subtotal no es parte del estado: se calcula al mostrar y al guardar.
 
 const textoNumero = (n) => (n === null || n === undefined ? '' : String(n))
-const textoSubtotal = (l) => textoNumero(subtotalLinea(l.cantidad, l.precio_neto, l.descuento))
+// Un descuento 0 se muestra vacío (el input tiene placeholder 0).
+const textoDescuento = (n) => (aNumero(n) ? String(n) : '')
 
 export function lineaVacia(clave) {
   return {
@@ -156,52 +121,44 @@ export function lineaVacia(clave) {
     id_solicitud_compra: '',
     cantidad: '',
     precio_neto: '',
-    descuento: '0',
-    subtotal: '',
-    subtotalManual: false,
+    descuento_pct: '',
   }
 }
 
-// Línea guardada → línea editable. Si el subtotal guardado no es el calculado,
-// se trata como escrito a mano para no pisarlo al editar otro campo.
+// Línea guardada → línea editable.
 export function lineaDesdeBase(fila) {
-  const linea = {
+  return {
     clave: fila.id,
     id: fila.id,
     id_insumo_proveedor: fila.id_insumo_proveedor ?? '',
     id_solicitud_compra: fila.id_solicitud_compra ?? '',
     cantidad: textoNumero(fila.cantidad),
     precio_neto: textoNumero(fila.precio_neto),
-    descuento: textoNumero(fila.descuento ?? 0),
-    subtotal: textoNumero(fila.subtotal),
+    descuento_pct: textoDescuento(fila.descuento_pct),
   }
-  return { ...linea, subtotalManual: !mismoValor(linea.subtotal, textoSubtotal(linea)) }
 }
 
-// Cambia un campo de la línea. El subtotal se recalcula solo hasta que el usuario
-// lo escribe a mano; desde ahí se respeta hasta que pida recalcular.
 export function aplicarCambioLinea(linea, campo, valor) {
-  if (campo === 'subtotal') return { ...linea, subtotal: valor, subtotalManual: true }
-  const nueva = { ...linea, [campo]: valor }
-  return nueva.subtotalManual ? nueva : { ...nueva, subtotal: textoSubtotal(nueva) }
-}
-
-export function recalcularSubtotal(linea) {
-  return { ...linea, subtotalManual: false, subtotal: textoSubtotal(linea) }
+  return { ...linea, [campo]: valor }
 }
 
 // Línea editable → valores para la base (solo CAMPOS_LINEA, conserva el id).
+// Descuento vacío = 0; el subtotal se calcula.
 export function datosLinea(linea) {
+  const descuentoPct = aNumero(linea.descuento_pct) ?? 0
   return {
     ...(linea.id ? { id: linea.id } : {}),
     id_insumo_proveedor: linea.id_insumo_proveedor || null,
     id_solicitud_compra: linea.id_solicitud_compra || null,
     cantidad: aNumero(linea.cantidad),
     precio_neto: aNumero(linea.precio_neto),
-    descuento: aNumero(linea.descuento) ?? 0,
-    subtotal: aNumero(linea.subtotal),
+    descuento_pct: descuentoPct,
+    subtotal: subtotalLinea(linea.cantidad, linea.precio_neto, descuentoPct),
   }
 }
+
+const ERROR_PORCENTAJE = 'Debe estar entre 0 y 100.'
+const porcentajeValido = (n) => n >= 0 && n <= 100
 
 // Errores de una línea ya convertida con datosLinea: { campo: mensaje }.
 export function erroresLinea(datos) {
@@ -211,22 +168,23 @@ export function erroresLinea(datos) {
   else if (datos.cantidad <= 0) errores.cantidad = 'Debe ser mayor que 0.'
   if (datos.precio_neto === null) errores.precio_neto = 'Obligatorio.'
   else if (datos.precio_neto < 0) errores.precio_neto = 'No puede ser negativo.'
-  if (datos.descuento < 0) errores.descuento = 'No puede ser negativo.'
-  if (datos.subtotal === null) errores.subtotal = 'Obligatorio.'
-  else if (datos.subtotal < 0) errores.subtotal = 'No puede ser negativo.'
+  if (!porcentajeValido(datos.descuento_pct)) errores.descuento_pct = ERROR_PORCENTAJE
   return errores
 }
 
-// Cabecera editable → valores para la base; descuento vacío = 0.
-export function datosCabecera(cabecera) {
+// Cabecera editable + líneas del formulario → valores para la base. Descuento
+// vacío = 0; neto, IVA y total se calculan desde las líneas (calcularTotales).
+export function datosCabecera(cabecera, lineas) {
+  const descuentoPct = aNumero(cabecera.descuento_pct) ?? 0
+  const { neto_total, iva, total } = calcularTotales(lineas, descuentoPct)
   return {
     id_proveedor: cabecera.id_proveedor || null,
     numero_factura: String(cabecera.numero_factura ?? '').trim(),
     fecha: cabecera.fecha || null,
-    neto_total: aNumero(cabecera.neto_total),
-    descuento_total: aNumero(cabecera.descuento_total) ?? 0,
-    iva: aNumero(cabecera.iva),
-    total: aNumero(cabecera.total),
+    descuento_pct: descuentoPct,
+    neto_total,
+    iva,
+    total,
   }
 }
 
@@ -236,11 +194,7 @@ export function erroresCabecera(datos) {
   if (!datos.id_proveedor) errores.id_proveedor = 'Elige o crea el proveedor.'
   if (!datos.numero_factura) errores.numero_factura = 'Obligatorio.'
   if (!datos.fecha) errores.fecha = 'Obligatoria.'
-  for (const campo of ['neto_total', 'iva', 'total']) {
-    if (datos[campo] === null) errores[campo] = 'Obligatorio.'
-    else if (datos[campo] < 0) errores[campo] = 'No puede ser negativo.'
-  }
-  if (datos.descuento_total < 0) errores.descuento_total = 'No puede ser negativo.'
+  if (!porcentajeValido(datos.descuento_pct)) errores.descuento_pct = ERROR_PORCENTAJE
   return errores
 }
 
