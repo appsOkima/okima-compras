@@ -43,6 +43,8 @@ function esVisible(campo, valores) {
 // Opcionales por campo: `validar(valor, salida)` devuelve un mensaje de error o
 // nada (ej. cantidad > 0) y `sugerencias` (lista de textos) agrega autocompletado
 // a un campo de texto sin restringir lo que se escribe.
+// `textoDuplicados(duplicados)` (opcional) reemplaza el encabezado del aviso de
+// duplicados (ej. "Ya registraste Arriendo en septiembre 2026").
 function FormularioRegistro({
   campos,
   valoresIniciales = {},
@@ -50,6 +52,7 @@ function FormularioRegistro({
   onCancelar,
   buscarDuplicados,
   etiquetaDuplicado = (r) => r.nombre,
+  textoDuplicados,
   textoGuardar = 'Guardar',
 }) {
   const idBase = useId()
@@ -136,7 +139,9 @@ function FormularioRegistro({
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800" role="alert">
           <p className="flex items-center gap-2 font-medium">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            Ya existe{duplicados.length === 1 ? ' un registro parecido' : 'n registros parecidos'}:
+            {textoDuplicados
+              ? textoDuplicados(duplicados)
+              : `Ya existe${duplicados.length === 1 ? ' un registro parecido' : 'n registros parecidos'}:`}
           </p>
           <ul className="mt-1 list-disc pl-9">
             {duplicados.slice(0, 5).map((r) => (

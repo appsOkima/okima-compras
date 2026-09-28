@@ -5,6 +5,9 @@ import SeccionConPestanas from './components/SeccionConPestanas'
 import Categorias from './pages/centros-costo/Categorias'
 import SeccionCentrosCosto from './pages/centros-costo/SeccionCentrosCosto'
 import Subcategorias from './pages/centros-costo/Subcategorias'
+import Gastos from './pages/gastos/Gastos'
+import Plantillas from './pages/gastos/Plantillas'
+import SeccionGastos from './pages/gastos/SeccionGastos'
 import Insumos from './pages/insumos/Insumos'
 import Catalogo from './pages/proveedores/Catalogo'
 import PorVincular from './pages/proveedores/PorVincular'
@@ -17,7 +20,7 @@ import { secciones } from './secciones'
 
 // Secciones que ya tienen pantalla propia (con subrutas); el resto sigue con
 // PaginaPendiente hasta que se construya en la Fase 4.
-const conPantalla = new Set(['/solicitudes', '/insumos', '/proveedores', '/centros-costo'])
+const conPantalla = new Set(['/solicitudes', '/gastos', '/insumos', '/proveedores', '/centros-costo'])
 
 // Sin login: todas las secciones quedan disponibles directamente.
 function App() {
@@ -34,6 +37,10 @@ function App() {
           <Route path="/solicitudes" element={<SeccionSolicitudes />}>
             <Route index element={<Pendientes />} />
             <Route path="todas" element={<Todas />} />
+          </Route>
+          <Route path="/gastos" element={<SeccionGastos />}>
+            <Route index element={<Gastos />} />
+            <Route path="plantillas" element={<Plantillas />} />
           </Route>
           {/* Una sola pantalla: encabezado de sección sin barra de pestañas. */}
           <Route path="/insumos" element={<SeccionConPestanas path="/insumos" />}>

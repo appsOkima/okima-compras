@@ -15,10 +15,19 @@ const BUSQUEDA_POR_DEFECTO = ['nombre']
 // Valor de búsqueda de una fila: clave directa o función (ej. nombre de la categoría embebida).
 const valorBusqueda = (fila, campo) => (typeof campo === 'function' ? campo(fila) : fila[campo])
 
+const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
+
 // Estructura común de todos los Mantenedores: encabezado, filtros, tabla con CSV
 // y formulario modal. Cada pantalla solo declara columnas y campos.
 // `detalle` (opcional, ver DetalleRegistro) agrega la acción "Ver detalles" para
 // consultar campos que no caben en la tabla.
+// Opcionales para tablas sin `nombre` o con más filtros (ej. Otros Gastos):
+// - `nombreRegistro(fila)`: texto que identifica la fila en títulos y avisos.
+// - `duplicadosPorNombre = false`: sin aviso de parecidos por nombre.
+// - `filtroExtra = { render(filas), aplica(fila), activo }`: control propio en la
+//   barra (recibe todas las filas cargadas); se aplica antes de búsqueda e Incompletos.
+// - `antesDeTabla({ filas, crear })`: contenido entre el encabezado y la tabla.
+// - `resumen(filasVisibles)`: línea bajo la tabla (ej. total de lo filtrado).
 function Mantenedor({
   titulo,
   descripcion,
@@ -37,6 +46,11 @@ function Mantenedor({
   duplicadosAdicionales,
   etiquetaDuplicado,
   detalle,
+  nombreRegistro = NOMBRE_POR_DEFECTO,
+  duplicadosPorNombre = true,
+  filtroExtra,
+  antesDeTabla,
+  resumen,
 }) {
   const { filas, cargando, error, crear, actualizar, eliminar } = useTabla(tabla, { select, orden })
   const [busqueda, setBusqueda] = useState('')
@@ -51,9 +65,14 @@ function Mantenedor({
 
   const filaDetalle = idDetalle ? filas.find((f) => f.id === idDetalle) : null
 
+  const aplicaFiltroExtra = filtroExtra?.aplica
   const filasActivas = useMemo(
-    () => (tieneActivo && !mostrarInactivos ? filas.filter((f) => f.activo !== false) : filas),
-    [filas, tieneActivo, mostrarInactivos],
+    () =>
+      filas.filter(
+        (f) =>
+          (!tieneActivo || mostrarInactivos || f.activo !== false) && (!aplicaFiltroExtra || aplicaFiltroExtra(f)),
+      ),
+    [filas, tieneActivo, mostrarInactivos, aplicaFiltroExtra],
   )
   const totalIncompletos = useMemo(
     () => (esIncompleto ? filasActivas.filter(esIncompleto).length : 0),
@@ -84,7 +103,7 @@ function Mantenedor({
       registro &&
       normalizar(valores.nombre) === normalizar(registro.nombre) &&
       (!filtroDuplicados || filtroDuplicados(registro, valores))
-    const porNombre = nombreSinCambios ? [] : buscarSimilares(valores.nombre, candidatos)
+    const porNombre = !duplicadosPorNombre || nombreSinCambios ? [] : buscarSimilares(valores.nombre, candidatos)
     if (!duplicadosAdicionales) return porNombre
     const yaListados = new Set(porNombre.map((r) => r.id))
     const extra = (duplicadosAdicionales(valores, candidatos, registro) ?? []).filter((r) => !yaListados.has(r.id))
@@ -99,7 +118,7 @@ function Mantenedor({
   }
 
   const borrar = async (fila) => {
-    if (!window.confirm(`¿Eliminar "${fila.nombre ?? 'este registro'}"? Esta acción no se puede deshacer.`)) return
+    if (!window.confirm(`¿Eliminar "${nombreRegistro(fila) ?? 'este registro'}"? Esta acción no se puede deshacer.`)) return
     setErrorAccion('')
     try {
       await eliminar(fila.id)
@@ -122,6 +141,7 @@ function Mantenedor({
           className={`${claseInput} pl-9`}
         />
       </div>
+      {filtroExtra?.render(filas)}
       {esIncompleto && (
         <Interruptor activo={soloIncompletos} onCambiar={setSoloIncompletos}>
           Incompletos
@@ -168,6 +188,8 @@ function Mantenedor({
         </div>
       )}
 
+      {antesDeTabla?.({ filas, crear })}
+
       <div className="mt-4">
         <TablaDatos
           columnas={columnas}
@@ -175,7 +197,11 @@ function Mantenedor({
           nombreArchivo={nombreArchivo}
           cargando={cargando}
           error={error}
-          vacio={busqueda || soloIncompletos ? 'Ningún registro coincide con los filtros.' : 'Todavía no hay registros.'}
+          vacio={
+            busqueda || soloIncompletos || filtroExtra?.activo
+              ? 'Ningún registro coincide con los filtros.'
+              : 'Todavía no hay registros.'
+          }
           barra={barra}
           acciones={(fila) => (
             <div className="inline-flex gap-1">
@@ -184,7 +210,7 @@ function Mantenedor({
                   type="button"
                   onClick={() => setIdDetalle(fila.id)}
                   className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
-                  aria-label={`Ver detalles de ${fila.nombre ?? ''}`}
+                  aria-label={`Ver detalles de ${nombreRegistro(fila) ?? ''}`}
                   title="Ver detalles"
                 >
                   <Eye className="h-4 w-4" />
@@ -194,7 +220,7 @@ function Mantenedor({
                 type="button"
                 onClick={() => setEdicion({ registro: fila })}
                 className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
-                aria-label={`Editar ${fila.nombre ?? ''}`}
+                aria-label={`Editar ${nombreRegistro(fila) ?? ''}`}
                 title="Editar"
               >
                 <Pencil className="h-4 w-4" />
@@ -203,7 +229,7 @@ function Mantenedor({
                 type="button"
                 onClick={() => borrar(fila)}
                 className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                aria-label={`Eliminar ${fila.nombre ?? ''}`}
+                aria-label={`Eliminar ${nombreRegistro(fila) ?? ''}`}
                 title="Eliminar"
               >
                 <Trash2 className="h-4 w-4" />
@@ -211,10 +237,11 @@ function Mantenedor({
             </div>
           )}
         />
+        {resumen && !cargando && !error && <div className="mt-2 text-right text-sm text-slate-600">{resumen(filasVisibles)}</div>}
       </div>
 
       {detalle && filaDetalle && (
-        <Modal titulo={filaDetalle.nombre ?? 'Detalles'} onCerrar={() => setIdDetalle(null)}>
+        <Modal titulo={nombreRegistro(filaDetalle) ?? 'Detalles'} onCerrar={() => setIdDetalle(null)}>
           <DetalleRegistro
             detalle={detalle}
             fila={filaDetalle}
@@ -228,7 +255,10 @@ function Mantenedor({
       )}
 
       {edicion && (
-        <Modal titulo={registro ?`Editar: ${registro.nombre ?? ''}` : `Nuevo registro — ${titulo}`} onCerrar={() => setEdicion(null)}>
+        <Modal
+          titulo={registro ? `Editar: ${nombreRegistro(registro) ?? ''}` : `Nuevo registro — ${titulo}`}
+          onCerrar={() => setEdicion(null)}
+        >
           <FormularioRegistro
             // key: al cambiar de registro el formulario parte con sus valores.
             key={registro?.id ?? 'nuevo'}
@@ -236,7 +266,7 @@ function Mantenedor({
             valoresIniciales={registro ?? valoresIniciales}
             onGuardar={guardar}
             onCancelar={() => setEdicion(null)}
-            buscarDuplicados={buscarDuplicados}
+            buscarDuplicados={duplicadosPorNombre || duplicadosAdicionales ? buscarDuplicados : undefined}
             etiquetaDuplicado={etiquetaDuplicado}
           />
         </Modal>

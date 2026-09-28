@@ -21,10 +21,13 @@ function comparar(columna, ascendente) {
 
 // Carga una tabla de Supabase y expone el CRUD básico sobre ella.
 // Las opciones se desarman en primitivos para que un objeto literal nuevo en
-// cada render no dispare otra consulta.
+// cada render no dispare otra consulta. `orden.luego` (opcional) desempata con
+// una segunda columna, ej. { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }.
 export function useTabla(tabla, { select = '*', orden = ORDEN_POR_DEFECTO } = {}) {
   const columna = orden?.columna ?? ORDEN_POR_DEFECTO.columna
   const ascendente = orden?.ascendente ?? ORDEN_POR_DEFECTO.ascendente
+  const columnaDesempate = orden?.luego?.columna ?? null
+  const ascendenteDesempate = orden?.luego?.ascendente ?? true
 
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -32,20 +35,26 @@ export function useTabla(tabla, { select = '*', orden = ORDEN_POR_DEFECTO } = {}
   // Descarta respuestas de consultas viejas si se recarga antes de que terminen.
   const ultimaConsulta = useRef(0)
 
-  const ordenar = useCallback((lista) => [...lista].sort(comparar(columna, ascendente)), [columna, ascendente])
+  const ordenar = useCallback(
+    (lista) => {
+      const principal = comparar(columna, ascendente)
+      const desempate = columnaDesempate ? comparar(columnaDesempate, ascendenteDesempate) : () => 0
+      return [...lista].sort((a, b) => principal(a, b) || desempate(a, b))
+    },
+    [columna, ascendente, columnaDesempate, ascendenteDesempate],
+  )
 
   // Consulta y vuelca el resultado; el estado solo se toca cuando llega la respuesta.
   const consultar = useCallback(async () => {
     const consulta = ++ultimaConsulta.current
-    const { data, error: errorConsulta } = await supabase
-      .from(tabla)
-      .select(select)
-      .order(columna, { ascending: ascendente, nullsFirst: false })
+    let peticion = supabase.from(tabla).select(select).order(columna, { ascending: ascendente, nullsFirst: false })
+    if (columnaDesempate) peticion = peticion.order(columnaDesempate, { ascending: ascendenteDesempate, nullsFirst: false })
+    const { data, error: errorConsulta } = await peticion
     if (consulta !== ultimaConsulta.current) return
     setError(errorConsulta ?? null)
     setFilas(errorConsulta ? [] : ordenar(data ?? []))
     setCargando(false)
-  }, [tabla, select, columna, ascendente, ordenar])
+  }, [tabla, select, columna, ascendente, columnaDesempate, ascendenteDesempate, ordenar])
 
   useEffect(() => {
     const contador = ultimaConsulta
