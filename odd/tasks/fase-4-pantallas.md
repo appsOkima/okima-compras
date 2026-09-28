@@ -40,6 +40,7 @@ Slices (rama apilada sobre la anterior, destino final `main`; la Fase 1–3 va a
 - **S1** `feat/fase-4-mantenedor-base` — T1, T2.
 - **S2** `feat/fase-4-insumos` — T3.
 - **S3** `feat/fase-4-proveedores` — T4.
+- **S3b** `feat/fase-4-ajustes-mantenedores` — T4b, T4c.
 - **S4** `feat/fase-4-solicitudes` — T5. **S5** `feat/fase-4-gastos` — T6. **S6** `feat/fase-4-facturas` — T7.
 
 ## Tareas
@@ -48,6 +49,8 @@ Slices (rama apilada sobre la anterior, destino final `main`; la Fase 1–3 va a
 - [x] **T3 — Insumos Okima.** Ruta: delegado. `/insumos`: CRUD con `SelectorSubcategoria` (agrupado por categoría, solo activas), `venta_directa` habilita `precio_venta`, `qty` solo lectura, filtro Incompletos. Aceptación: lint + build.
 - [x] **T4 — Proveedores, catálogo e Insumos por vincular.** Ruta: delegado. `/proveedores` (CRUD proveedores), `/proveedores/catalogo` (CRUD `insumos_proveedores`), `/proveedores/por-vincular` (asignar `id_insumo_okima` con selector buscable; aviso de que vincular no suma stock retroactivo). Aceptación: lint + build.
 - [ ] **Checkpoint** — usuario revisa Mantenedores en el navegador.
+- [x] **T4b — Tabla de Insumos más compacta + "Ver detalles".** Pedido del usuario en el checkpoint (2026-09-28). Ruta: delegado (writer trigger: `Mantenedor.jsx` + `Insumos.jsx`). La tabla de Insumos deja de mostrar descripción, dimensiones, categoría y venta directa; siguen en el CSV. Acción genérica "Ver detalles" en `Mantenedor` (prop `detalle`) con todos los campos. Aceptación: lint + build; CSV conserva todas las columnas.
+- [x] **T4c — Panel propio "Centros de Costo".** Pedido del usuario (afecta también a Otros Gastos). Ruta: delegado (mismo writer). Nueva sección de menú `/centros-costo` con pestañas Categorías / Subcategorías; se quitan de Insumos Okima. Docs: `CLAUDE.md` (6 secciones; Funciones 5–6) e `historial-decisiones.md`. Aceptación: lint + build; rutas nuevas; `/insumos` sin pestañas de categorías.
 - [ ] **T5 — Solicitudes de Compra.** (pendiente de checkpoint)
 - [ ] **T6 — Otros Gastos.** (pendiente)
 - [ ] **T7 — Facturas.** (pendiente)
@@ -58,7 +61,9 @@ Slices (rama apilada sobre la anterior, destino final `main`; la Fase 1–3 va a
 - **T2** — commit `ae37b88` (S1). Rutas anidadas bajo `/insumos`; duplicados de subcategoría solo dentro de la misma categoría. Mismos checks que T1. RDD: disabled/unmanaged.
 - **T3** — commit `0a3d224` (S2 `feat/fase-4-insumos`). Writer delegado. `qty` nunca se envía (no es campo del formulario). Extensión de la base: columnas `soloCsv`/`soloTabla` en TablaDatos; CSV exporta decimales con coma (Excel es-CL leía 1.5 como 15). oxlint 0 diagnósticos; build OK; 12/12 aserciones node. RDD: disabled/unmanaged.
 - **T4** — commit `447d2a7` (S3 `feat/fase-4-proveedores`). `SeccionConPestanas` genérico (Insumos y Proveedores); aviso de RUT duplicado normalizado; Catálogo sin edición de `id_insumo_okima`; Por vincular con `Combobox` buscable (preparado para `onCrear`), filtra en el navegador. oxlint 0; build OK; 13/13 aserciones node. RDD: disabled/unmanaged.
-- Líneas autoradas S2: ~170; S3: ~660.
+- **T4b** — commit `f5d4a2f` (S3b `feat/fase-4-ajustes-mantenedores`). Writer delegado. Archivos: `src/components/DetalleRegistro.jsx` (nuevo, ficha genérica con Editar/Cerrar; ítems con `completo` ocupan el ancho), `Mantenedor.jsx` (prop `detalle`, botón Eye "Ver detalles"; guarda el id para mostrar datos recargados), `lib/formato.js` (`formatoFechaLocal`: `created_at` UTC → fecha local), `pages/insumos/Insumos.jsx` (tabla: nombre, código, subcategoría, precio venta, stock; CSV conserva categoría, ancho/alto/profundidad, venta directa y descripción vía `soloCsv`). oxlint 0 diagnósticos; build OK (mismo aviso de chunk > 500 kB); 7/7 aserciones node sobre `formatoFechaLocal`. RDD: disabled/unmanaged.
+- **T4c** — commit `2c0614b` (S3b). Writer delegado. Sección `/centros-costo` (ícono FolderTree, última del menú) con pestañas Categorías (index) / Subcategorías; `Categorias.jsx` y `Subcategorias.jsx` movidos con `git mv` a `src/pages/centros-costo/` + `SeccionCentrosCosto.jsx`; `/insumos` usa `SeccionConPestanas` sin pestañas (prop opcional) y se elimina `SeccionInsumos.jsx`. Docs: `CLAUDE.md` (6 secciones, Función 6, Fase 4), `historial-decisiones.md` (2 viñetas del 2026-09-28), skill `mantenedor-crud`. oxlint 0 diagnósticos (32 archivos); build OK. Sin referencias a `/insumos/categorias` en `src/`. Nota: la decisión de diseño "Subsecciones como rutas anidadas" de arriba queda superada para categorías/subcategorías (ahora bajo `/centros-costo`). RDD: disabled/unmanaged.
+- Líneas autoradas S2: ~170; S3: ~660; S3b: ~215 (T4b ~135, T4c ~80 incl. docs).
 - Líneas autoradas S1: ~1.300 (sobre el heurístico: la base compartida es una unidad coherente que usan todos los mantenedores).
 
 ## Siguiente paso
