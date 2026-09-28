@@ -19,3 +19,5 @@ El cliente de Supabase está en `src/lib/supabase.js`; lee `VITE_SUPABASE_URL` y
 El esquema completo está en `supabase/schema.sql`. Se ejecuta a mano en el SQL Editor del panel de Supabase.
 
 Si la base se creó con un `schema.sql` anterior, ejecuta en orden los archivos pendientes de `supabase/migraciones/` (cada uno una sola vez).
+
+Para borrar datos de prueba: `supabase/limpiar-datos.sql` vacía todas las tablas salvo `categorias` y `subcategorias` (irreversible).

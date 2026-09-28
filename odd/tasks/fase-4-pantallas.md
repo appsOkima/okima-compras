@@ -77,6 +77,7 @@ Slices (rama apilada sobre la anterior, destino final `main`; la Fase 1–3 va a
 - Líneas autoradas S1: ~1.300 (sobre el heurístico: la base compartida es una unidad coherente que usan todos los mantenedores).
 - **T5c** — Pestañas "Compradas" y "Canceladas" en Solicitudes (pedido del usuario 2026-09-28: "vista de compradas y anuladas o un filtro por estado"; el filtro ya existía en "Todas", se agregan pestañas directas). Ruta: inline (cambio chico: prop `estadoFijo` en `Todas.jsx` + 2 rutas). Commit `8cb7640` en S7. oxlint exit 0; build OK. RDD: disabled/unmanaged.
 - Usuario ejecutó la migración `2026-09-28-descuento-pct.sql` y confirmó que la app funciona contra Supabase. Decisión: guardar sin responder la pregunta de vínculo queda como está (sin aviso).
+- **Script de limpieza** — pedido del usuario (2026-09-28): `supabase/limpiar-datos.sql` vacía todas las tablas salvo `categorias` y `subcategorias` (TRUNCATE sin CASCADE, en transacción; re-siembra de plantillas opcional comentada). Ruta: inline (1 archivo). PGlite: con datos en todas las tablas → 8 tablas en 0, 10 categorías y 34 subcategorías intactas, inserts posteriores OK. El usuario hará las pruebas contra su Supabase él mismo.
 
 ## Siguiente paso
-Pruebas contra el Supabase del usuario antes de la Fase 5 (pendiente aclarar si las hace el usuario o el orquestador con autorización explícita). Con su aprobación, Fase 4 completa → Fase 5.
+El usuario prueba contra su Supabase y limpia con `supabase/limpiar-datos.sql`. Con su aprobación, Fase 4 completa → Fase 5.
