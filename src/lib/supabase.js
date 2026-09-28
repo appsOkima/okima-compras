@@ -11,6 +11,13 @@ if (!url || !key) {
   )
 }
 
+// La librería agrega /rest/v1 sola; una URL con ruta rompe todas las consultas.
+if (new URL(url).pathname !== '/') {
+  throw new Error(
+    `VITE_SUPABASE_URL debe ser solo la Project URL (ej. https://tu-proyecto.supabase.co), sin /rest/v1 ni otra ruta. Valor actual: ${url}`,
+  )
+}
+
 export const supabase = createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
 })

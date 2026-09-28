@@ -12,7 +12,9 @@ function App() {
       .from('categorias')
       .select('*', { count: 'exact', head: true })
       .then(({ count, error }) => {
-        setEstado(error ? { tipo: 'error', mensaje: error.message } : { tipo: 'ok', count })
+        if (error) setEstado({ tipo: 'error', mensaje: error.message })
+        else if (count == null) setEstado({ tipo: 'error', mensaje: 'la respuesta no trae el conteo (¿URL de Supabase correcta?)' })
+        else setEstado({ tipo: 'ok', count })
       })
   }, [])
 
