@@ -25,3 +25,7 @@ Para borrar datos de prueba: `supabase/limpiar-datos.sql` vacía todas las tabla
 Para cargar datos de prueba en todas las tablas: `supabase/datos-prueba.sql` (proveedores, insumos, solicitudes, facturas, gastos…; pasa por los triggers reales). Se detiene si ya están cargados: correr antes `limpiar-datos.sql`.
 
 Para cargar las facturas reales de la hoja de cálculo original: `supabase/cargar-facturas-reales.sql` (50 facturas, 110 líneas; crea los proveedores e insumos de proveedor que falten, sin vincular ni mover stock). Se detiene si las facturas ya están cargadas. Los proveedores nuevos quedan con RUT `POR COMPLETAR`.
+
+## Despliegue (Vercel)
+
+Importar el repositorio en Vercel (framework Vite; `vercel.json` ya redirige todas las rutas a `index.html` para react-router) y definir en Project Settings → Environment Variables: `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`. Las variables `VITE_*` se incrustan al compilar: tras cambiarlas hay que redesplegar. La app no tiene login y el RLS es permisivo, así que cualquiera con la URL puede leer y escribir la base.
