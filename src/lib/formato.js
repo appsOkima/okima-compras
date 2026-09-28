@@ -32,6 +32,16 @@ export function formatoFecha(isoDate) {
   return `${m[3]}-${m[2]}-${m[1]}`
 }
 
+// Formato de compra de un insumo de proveedor: "caja de 12", "caja", "12 unid.".
+export function formatoCompra(cantidadFormato, formatoUnidad) {
+  const unidad = String(formatoUnidad ?? '').trim()
+  const cantidad = esVacio(cantidadFormato) ? '' : formatoNumero(cantidadFormato)
+  if (unidad && cantidad) return `${unidad} de ${cantidad}`
+  if (unidad) return unidad
+  if (cantidad) return `${cantidad} unid.`
+  return VACIO
+}
+
 // Ancho × alto × profundidad en milímetros; '—' si no hay ninguna medida.
 export function formatoDimensiones(ancho, alto, profundidad) {
   const medidas = [ancho, alto, profundidad]

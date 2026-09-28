@@ -60,6 +60,13 @@ export function buscarSimilares(texto, registros, campo = 'nombre') {
   return [...exactos, ...parecidos]
 }
 
+// RUT comparable: sin puntos, guiones ni espacios y con la K en mayúscula
+// ("76.123.456-k" → "76123456K"). No valida el dígito verificador.
+export function normalizarRut(rut) {
+  if (rut === null || rut === undefined) return ''
+  return String(rut).replace(/[.\-\s]/g, '').toUpperCase()
+}
+
 // Vacío para los filtros "Incompletos": null, undefined o texto en blanco.
 export function estaVacio(valor) {
   return valor === null || valor === undefined || String(valor).trim() === ''

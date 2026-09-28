@@ -31,6 +31,7 @@ function Mantenedor({
   antesDeGuardar,
   tieneActivo = false,
   filtroDuplicados,
+  duplicadosAdicionales,
   etiquetaDuplicado,
 }) {
   const { filas, cargando, error, crear, actualizar, eliminar } = useTabla(tabla, { select, orden })
@@ -64,16 +65,21 @@ function Mantenedor({
 
   // Parecidos por nombre entre las filas cargadas (incluidas las inactivas), sin el
   // propio registro. Al editar solo se avisa si cambió el nombre o su ámbito.
+  // `duplicadosAdicionales(valores, candidatos, registro)` suma otros criterios
+  // (ej. mismo RUT) y decide por su cuenta si aplican al editar.
   const buscarDuplicados = (valores) => {
-    if (registro) {
-      const mismoNombre = normalizar(valores.nombre) === normalizar(registro.nombre)
-      const mismoAmbito = !filtroDuplicados || filtroDuplicados(registro, valores)
-      if (mismoNombre && mismoAmbito) return []
-    }
     const candidatos = filas.filter(
       (f) => f.id !== registro?.id && (!filtroDuplicados || filtroDuplicados(f, valores)),
     )
-    return buscarSimilares(valores.nombre, candidatos)
+    const nombreSinCambios =
+      registro &&
+      normalizar(valores.nombre) === normalizar(registro.nombre) &&
+      (!filtroDuplicados || filtroDuplicados(registro, valores))
+    const porNombre = nombreSinCambios ? [] : buscarSimilares(valores.nombre, candidatos)
+    if (!duplicadosAdicionales) return porNombre
+    const yaListados = new Set(porNombre.map((r) => r.id))
+    const extra = (duplicadosAdicionales(valores, candidatos, registro) ?? []).filter((r) => !yaListados.has(r.id))
+    return [...porNombre, ...extra]
   }
 
   const guardar = async (valores) => {

@@ -1,0 +1,23 @@
+import { Outlet } from 'react-router-dom'
+import { secciones } from '../secciones'
+import Pestanas from './Pestanas'
+
+// Encabezado de una sección (título, ícono y descripción de secciones.js) con sus
+// pestañas; cada subsección se renderiza en el Outlet.
+function SeccionConPestanas({ path, pestanas }) {
+  const { titulo, descripcion, icono: Icono } = secciones.find((s) => s.path === path)
+
+  return (
+    <div>
+      <div className="flex items-center gap-3">
+        <Icono className="h-7 w-7 text-indigo-600" />
+        <h1 className="text-2xl font-semibold">{titulo}</h1>
+      </div>
+      <p className="mt-2 text-slate-600">{descripcion}</p>
+      <Pestanas pestanas={pestanas} />
+      <Outlet />
+    </div>
+  )
+}
+
+export default SeccionConPestanas
