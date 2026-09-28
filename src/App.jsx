@@ -1,26 +1,29 @@
+import { lazy } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import PaginaPendiente from './components/PaginaPendiente'
 import SeccionConPestanas from './components/SeccionConPestanas'
-import Categorias from './pages/centros-costo/Categorias'
 import SeccionCentrosCosto from './pages/centros-costo/SeccionCentrosCosto'
-import Subcategorias from './pages/centros-costo/Subcategorias'
-import Facturas from './pages/facturas/Facturas'
-import FormularioFactura from './pages/facturas/FormularioFactura'
-import Lineas from './pages/facturas/Lineas'
 import SeccionFacturas from './pages/facturas/SeccionFacturas'
-import Gastos from './pages/gastos/Gastos'
-import Plantillas from './pages/gastos/Plantillas'
 import SeccionGastos from './pages/gastos/SeccionGastos'
-import Insumos from './pages/insumos/Insumos'
-import Catalogo from './pages/proveedores/Catalogo'
-import PorVincular from './pages/proveedores/PorVincular'
-import Proveedores from './pages/proveedores/Proveedores'
 import SeccionProveedores from './pages/proveedores/SeccionProveedores'
-import Pendientes from './pages/solicitudes/Pendientes'
 import SeccionSolicitudes from './pages/solicitudes/SeccionSolicitudes'
-import Todas from './pages/solicitudes/Todas'
 import { secciones } from './secciones'
+
+// Cada pantalla se descarga al visitarla: el bundle inicial queda liviano.
+const Categorias = lazy(() => import('./pages/centros-costo/Categorias'))
+const Subcategorias = lazy(() => import('./pages/centros-costo/Subcategorias'))
+const Facturas = lazy(() => import('./pages/facturas/Facturas'))
+const FormularioFactura = lazy(() => import('./pages/facturas/FormularioFactura'))
+const Lineas = lazy(() => import('./pages/facturas/Lineas'))
+const Gastos = lazy(() => import('./pages/gastos/Gastos'))
+const Plantillas = lazy(() => import('./pages/gastos/Plantillas'))
+const Insumos = lazy(() => import('./pages/insumos/Insumos'))
+const Catalogo = lazy(() => import('./pages/proveedores/Catalogo'))
+const PorVincular = lazy(() => import('./pages/proveedores/PorVincular'))
+const Proveedores = lazy(() => import('./pages/proveedores/Proveedores'))
+const Pendientes = lazy(() => import('./pages/solicitudes/Pendientes'))
+const Todas = lazy(() => import('./pages/solicitudes/Todas'))
 
 // Secciones que ya tienen pantalla propia (con subrutas); el resto sigue con
 // PaginaPendiente hasta que se construya en la Fase 4.

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { Menu, PackageSearch, X } from 'lucide-react'
 import { secciones } from '../secciones'
@@ -56,7 +56,9 @@ function Layout() {
       </aside>
 
       <main className="min-w-0 flex-1 p-4 md:p-8 print:p-0">
-        <Outlet />
+        <Suspense fallback={<p className="text-sm text-slate-500" role="status">Cargando…</p>}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   )
