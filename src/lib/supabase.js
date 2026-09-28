@@ -7,7 +7,7 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 
 if (!url || !key) {
   throw new Error(
-    'Faltan VITE_SUPABASE_URL o VITE_SUPABASE_PUBLISHABLE_KEY: copia .env.example a .env.local y complétalo.',
+    'Faltan VITE_SUPABASE_URL o VITE_SUPABASE_PUBLISHABLE_KEY: defínelas en .env.local (Project URL y clave pública de Supabase).',
   )
 }
 

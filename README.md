@@ -8,7 +8,7 @@ Stack: React + Vite, Tailwind CSS, `lucide-react`, `react-router-dom`, Supabase 
 
 ```bash
 npm install
-cp .env.example .env.local   # completar URL y clave pública de Supabase
+# crear .env.local con VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY
 npm run dev
 ```
 
