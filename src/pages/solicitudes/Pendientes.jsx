@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { AlertCircle, Ban, Pencil, Plus, Printer, Search, X } from 'lucide-react'
+import { AlertCircle, Pencil, Plus, Printer, Search, X } from 'lucide-react'
 import EtiquetaUrgencia from '../../components/EtiquetaUrgencia'
 import Modal from '../../components/Modal'
 import TablaDatos from '../../components/TablaDatos'
@@ -11,6 +11,8 @@ import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/format
 import { compararPendientes, estadoFechaTope, hoyISO, metaUrgencia } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import { coincide } from '../../lib/texto'
+import AccionesEstado from './AccionesEstado'
+import { confirmarCambioEstado } from './confirmarCambioEstado'
 import FormularioSolicitud from './FormularioSolicitud'
 
 // La vista se consulta por su columna de antigüedad (la vista no tiene `nombre`,
@@ -38,6 +40,8 @@ function Pendientes() {
   // null = cerrado; { registro: null } = nueva; { registro } = edición.
   const [edicion, setEdicion] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
+  // id de la solicitud cuyo estado se está cambiando (evita doble clic).
+  const [enCurso, setEnCurso] = useState(null)
   // Momento de impresión: se fija justo antes de imprimir (también con Ctrl+P).
   const [impreso, setImpreso] = useState(() => new Date())
 
@@ -70,15 +74,23 @@ function Pendientes() {
     await recargar({ silencioso: true })
   }
 
-  const cancelar = async (fila) => {
-    if (!window.confirm(`¿Cancelar la solicitud de "${fila.insumo_nombre}"? Saldrá de la lista de pendientes.`)) return
+  // Marcar comprada o cancelar a mano (con confirmación); la fila sale de la lista al recargar.
+  const cambiarEstado = async (fila, nuevoEstado) => {
     setErrorAccion('')
-    const { error: errorCancelar } = await supabase
-      .from('solicitudes_compra')
-      .update({ estado: 'Cancelada' })
-      .eq('id', fila.id)
-    if (errorCancelar) setErrorAccion(mensajeError(errorCancelar))
-    else await recargar({ silencioso: true })
+    setEnCurso(fila.id)
+    try {
+      if (!(await confirmarCambioEstado(fila, nuevoEstado))) return
+      const { error: errorCambio } = await supabase
+        .from('solicitudes_compra')
+        .update({ estado: nuevoEstado })
+        .eq('id', fila.id)
+      if (errorCambio) throw errorCambio
+      await recargar({ silencioso: true })
+    } catch (e) {
+      setErrorAccion(mensajeError(e))
+    } finally {
+      setEnCurso(null)
+    }
   }
 
   const columnas = [
@@ -129,7 +141,8 @@ function Pendientes() {
         <div>
           <h2 className="text-xl font-semibold text-slate-800">Pendientes</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Ordenadas por urgencia y fecha tope. Pasan a "Comprada" solas al asociarlas a una línea de factura.
+            Ordenadas por urgencia y fecha tope. Pasan a "Comprada" solas al asociarlas a una línea de factura, o
+            a mano con "Marcar comprada".
           </p>
         </div>
         <div className="flex gap-2">
@@ -195,15 +208,12 @@ function Pendientes() {
               >
                 <Pencil className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                onClick={() => cancelar(fila)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                aria-label={`Cancelar solicitud de ${fila.insumo_nombre}`}
-                title="Cancelar solicitud"
-              >
-                <Ban className="h-4 w-4" />
-              </button>
+              <AccionesEstado
+                estado="Pendiente"
+                nombre={fila.insumo_nombre}
+                deshabilitado={enCurso === fila.id}
+                onCambiar={(nuevo) => cambiarEstado(fila, nuevo)}
+              />
             </div>
           )}
         />

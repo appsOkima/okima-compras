@@ -1,5 +1,6 @@
 // Reglas de presentación de las solicitudes de compra (sin React ni Supabase,
 // para poder verificarlas con node). La extensión .js explícita es para node.
+import { formatoFecha } from './formato.js'
 import { normalizar } from './texto.js'
 
 // En el orden del enum nivel_urgencia de la base (Baja < Media < Alta).
@@ -60,6 +61,78 @@ const CLASES_ESTADO = {
 
 export function claseEstado(estado) {
   return CLASES_ESTADO[estado] ?? CLASES_ESTADO.Cancelada
+}
+
+// Cambio manual de estado desde el panel (etapa inicial: muchas facturas se
+// ingresan sin asociar la solicitud). Cualquier estado puede pasar a cualquier
+// otro; un estado desconocido ofrece los tres.
+export function transicionesDisponibles(estado) {
+  return ESTADOS_SOLICITUD.filter((e) => e !== estado)
+}
+
+// Nombre de la acción que lleva a cada estado (botones y confirmación).
+const ACCIONES_ESTADO = {
+  Pendiente: 'Volver a pendiente',
+  Comprada: 'Marcar comprada',
+  Cancelada: 'Cancelar solicitud',
+}
+
+export function accionEstado(nuevoEstado) {
+  return ACCIONES_ESTADO[nuevoEstado] ?? `Pasar a ${nuevoEstado}`
+}
+
+// Solo al dejar de estar comprada (Pendiente o Cancelada) importa avisar qué
+// facturas la referencian: el vínculo de la línea no se toca.
+export function avisaFacturas(nuevoEstado) {
+  return nuevoEstado === 'Pendiente' || nuevoEstado === 'Cancelada'
+}
+
+// Líneas de detalle_facturas con `factura:facturas(numero_factura, fecha,
+// proveedor:proveedores(nombre))` → facturas distintas, como texto
+// "N° 123 de Proveedor (dd-mm-aaaa)". Varias líneas de una misma factura cuentan una vez.
+export function facturasDeLineas(lineas) {
+  const vistas = new Map()
+  for (const linea of lineas ?? []) {
+    const f = linea?.factura
+    if (!f) continue
+    const proveedor = f.proveedor?.nombre ?? ''
+    const clave = `${f.numero_factura ?? ''}|${proveedor}`
+    if (vistas.has(clave)) continue
+    let texto = `N° ${f.numero_factura ?? '?'}`
+    if (proveedor) texto += ` de ${proveedor}`
+    if (f.fecha) texto += ` (${formatoFecha(f.fecha)})`
+    vistas.set(clave, texto)
+  }
+  return [...vistas.values()]
+}
+
+const unirConY = (lista) =>
+  lista.length <= 1 ? (lista[0] ?? '') : `${lista.slice(0, -1).join(', ')} y ${lista[lista.length - 1]}`
+
+// Texto del window.confirm al cambiar el estado. `solicitud` puede venir de la
+// vista (insumo_nombre) o de la tabla con el insumo embebido (insumo.nombre);
+// `facturas` es la salida de facturasDeLineas (solo se menciona al pasar a
+// Pendiente o Cancelada; avisa, no bloquea).
+const PREGUNTAS_ESTADO = {
+  Pendiente: 'Volver a dejar como pendiente',
+  Comprada: 'Marcar como comprada',
+  Cancelada: 'Cancelar',
+}
+
+export function textoConfirmacionEstado(solicitud, nuevoEstado, facturas = []) {
+  const nombre = solicitud?.insumo_nombre ?? solicitud?.insumo?.nombre ?? ''
+  const estado = solicitud?.estado
+  const pregunta = PREGUNTAS_ESTADO[nuevoEstado] ?? `Pasar a '${nuevoEstado}'`
+  let texto = `¿${pregunta} la solicitud de "${nombre}"? Hoy está '${estado ?? '—'}'.`
+  if (nuevoEstado === 'Pendiente') texto += ' Volverá a la lista de pendientes.'
+  else if (estado === 'Pendiente') texto += ' Saldrá de la lista de pendientes.'
+  if (avisaFacturas(nuevoEstado) && facturas?.length) {
+    const varias = facturas.length > 1
+    texto +=
+      `\n\nEstá asociada a ${varias ? 'las facturas' : 'la factura'} ${unirConY(facturas)}; ` +
+      `el vínculo con ${varias ? 'las facturas' : 'la factura'} se mantiene.`
+  }
+  return texto
 }
 
 // Fecha local de hoy como 'YYYY-MM-DD' (no toISOString: eso es UTC y en Chile,

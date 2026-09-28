@@ -10,7 +10,7 @@ Resumen operativo — el detalle y el razonamiento de cada punto está en `histo
 - Todo en CLP, sin excepciones.
 - Creación al vuelo para `insumo_okima`, `proveedor` e `insumo_proveedor` (ver sección dedicada) — varios campos quedan nullable.
 - `insumos.qty` (numeric, acepta decimales) se actualiza solo al guardar una línea de factura cuyo `insumo_proveedor` ya esté vinculado; vincular después no aplica stock retroactivo.
-- Reglas de negocio de facturas (stock y solicitud 'Comprada') implementadas como triggers en la base.
+- Reglas de negocio de facturas (stock y solicitud 'Comprada') implementadas como triggers en la base; en la etapa inicial el estado de la solicitud también se gestiona a mano desde su panel.
 - `categorias` = centros de costo, con `subcategorias`; `insumos`, `otros_gastos` y `plantillas_gastos_recurrentes` referencian solo `id_subcategoria` (la categoría se obtiene a través de ella).
 - Vínculo `insumo_proveedor` → `insumo_okima`: nunca al crear el `insumo_proveedor` al vuelo ni en silencio. Lo hace el administrador en su revisión semanal ("Por vincular") o, en Facturas, al asociar una línea a una solicitud, solo con confirmación explícita del usuario.
 - Gasto recurrente vía `plantillas_gastos_recurrentes` (monto editable), no un valor fijo.
@@ -171,6 +171,7 @@ Sin login: las 6 secciones quedan disponibles directamente y cada empleado se ca
    - Crear y ver `solicitudes_compra`; selección de `insumo_okima` con creación al vuelo.
    - Alertas visuales por color según `nivel_urgencia`.
    - Lista y vista de impresión basadas en `vista_solicitudes_pendientes`: solo 'Pendiente', ordenada por urgencia, mostrando insumo, fecha tope y proveedores sugeridos. Botón de impresión (`@media print` para ocultar menús).
+   - **Estado gestionable a mano desde el panel** ('Pendiente', 'Comprada', 'Cancelada'), con confirmación: en Pendientes, "Marcar comprada" y "Cancelar"; en Todas, cambio a cualquier otro estado. En esta etapa inicial muchas facturas se ingresarán sin asociar la solicitud, así que no se depende solo del trigger, que sigue marcando 'Comprada' al asociar una línea de factura. Al pasar a 'Pendiente' o 'Cancelada' una solicitud asociada a líneas de factura, se avisa cuáles (sin bloquear; el vínculo se mantiene).
 2. **Gestionar Facturas**
    - Maestro-detalle: se crea la factura y se agregan dinámicamente las líneas; selección de `proveedor` (nombre, luego rut si es nuevo) e `insumo_proveedor` con creación al vuelo.
    - Montos calculados: el usuario ingresa cantidad y precio neto de cada línea y, si aplica, el descuento en % (por línea y global de la factura). Subtotal, neto, IVA (19 %) y total solo se calculan y se muestran; no son editables.

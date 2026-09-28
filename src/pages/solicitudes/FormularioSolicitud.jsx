@@ -17,8 +17,8 @@ import SelectorInsumo from './SelectorInsumo'
 const SELECT_INSUMOS = 'id, nombre, subcategoria:subcategorias(nombre)'
 
 // Crear o editar una solicitud (registro = null → nueva). El estado no se toca
-// aquí: nace 'Pendiente' (default de la base) y 'Comprada' la pone el trigger de
-// facturas; cancelar y reactivar son acciones aparte en las listas.
+// aquí: nace 'Pendiente' (default de la base); 'Comprada' la pone el trigger de
+// facturas o se marca a mano, y los cambios de estado son acciones aparte en las listas.
 function FormularioSolicitud({ registro, onGuardar, onCancelar }) {
   const { filas: insumos, cargando, error, crear: crearInsumo } = useTabla('insumos', { select: SELECT_INSUMOS })
   const [solicitantes, setSolicitantes] = useState([])

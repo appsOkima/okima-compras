@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { AlertCircle, Pencil, RotateCcw, Search, X } from 'lucide-react'
+import { AlertCircle, Pencil, Search, X } from 'lucide-react'
 import EtiquetaUrgencia from '../../components/EtiquetaUrgencia'
 import Modal from '../../components/Modal'
 import TablaDatos from '../../components/TablaDatos'
@@ -9,6 +9,8 @@ import { mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
 import { ESTADOS_SOLICITUD, claseEstado } from '../../lib/solicitudes'
 import { coincide } from '../../lib/texto'
+import AccionesEstado from './AccionesEstado'
+import { confirmarCambioEstado } from './confirmarCambioEstado'
 import FormularioSolicitud from './FormularioSolicitud'
 
 const SELECT = '*, insumo:insumos(id, nombre)'
@@ -18,14 +20,17 @@ const FILTROS = ['Todas', ...ESTADOS_SOLICITUD]
 const nombreInsumo = (fila) => fila.insumo?.nombre ?? ''
 
 // Historial completo de solicitudes, de la más nueva a la más antigua. Solo se
-// editan las pendientes; una cancelada se puede reactivar. 'Comprada' la pone el
-// trigger de facturas, nunca esta pantalla.
+// editan las pendientes; el estado se cambia a mano a cualquier otro (etapa
+// inicial: muchas facturas se ingresan sin asociar la solicitud). El trigger de
+// facturas sigue marcando 'Comprada' al asociar una línea.
 function Todas() {
   const { filas, cargando, error, actualizar } = useTabla('solicitudes_compra', { select: SELECT, orden: ORDEN })
   const [filtro, setFiltro] = useState('Todas')
   const [busqueda, setBusqueda] = useState('')
   const [edicion, setEdicion] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
+  // id de la solicitud cuyo estado se está cambiando (evita doble clic).
+  const [enCurso, setEnCurso] = useState(null)
 
   const totales = useMemo(() => {
     const cuenta = { Todas: filas.length }
@@ -48,13 +53,15 @@ function Todas() {
     setEdicion(null)
   }
 
-  const reactivar = async (fila) => {
-    if (!window.confirm(`¿Reactivar la solicitud de "${nombreInsumo(fila)}"? Volverá a la lista de pendientes.`)) return
+  const cambiarEstado = async (fila, nuevoEstado) => {
     setErrorAccion('')
+    setEnCurso(fila.id)
     try {
-      await actualizar(fila.id, { estado: 'Pendiente' })
+      if (await confirmarCambioEstado(fila, nuevoEstado)) await actualizar(fila.id, { estado: nuevoEstado })
     } catch (e) {
       setErrorAccion(mensajeError(e))
+    } finally {
+      setEnCurso(null)
     }
   }
 
@@ -132,7 +139,8 @@ function Todas() {
       <div>
         <h2 className="text-xl font-semibold text-slate-800">Todas las solicitudes</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Historial completo. Solo se editan las pendientes; las canceladas se pueden reactivar.
+          Historial completo. Solo se editan las pendientes; el estado de cualquier solicitud se cambia desde sus
+          acciones.
         </p>
       </div>
 
@@ -155,29 +163,27 @@ function Todas() {
           error={error}
           vacio={busqueda || filtro !== 'Todas' ? 'Ninguna solicitud coincide con los filtros.' : 'Todavía no hay solicitudes.'}
           barra={barra}
-          acciones={(fila) =>
-            fila.estado === 'Pendiente' ? (
-              <button
-                type="button"
-                onClick={() => setEdicion(fila)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
-                aria-label={`Editar solicitud de ${nombreInsumo(fila)}`}
-                title="Editar"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-            ) : fila.estado === 'Cancelada' ? (
-              <button
-                type="button"
-                onClick={() => reactivar(fila)}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-indigo-700"
-                title="Volver a Pendiente"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reactivar
-              </button>
-            ) : null
-          }
+          acciones={(fila) => (
+            <div className="inline-flex gap-1">
+              {fila.estado === 'Pendiente' && (
+                <button
+                  type="button"
+                  onClick={() => setEdicion(fila)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                  aria-label={`Editar solicitud de ${nombreInsumo(fila)}`}
+                  title="Editar"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              <AccionesEstado
+                estado={fila.estado}
+                nombre={nombreInsumo(fila)}
+                deshabilitado={enCurso === fila.id}
+                onCambiar={(nuevo) => cambiarEstado(fila, nuevo)}
+              />
+            </div>
+          )}
         />
       </div>
 
