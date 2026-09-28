@@ -150,6 +150,28 @@ create index detalle_facturas_id_factura_idx on detalle_facturas (id_factura);
 create index detalle_facturas_id_insumo_proveedor_idx on detalle_facturas (id_insumo_proveedor);
 create index detalle_facturas_id_solicitud_compra_idx on detalle_facturas (id_solicitud_compra);
 
+-- Regla de negocio: una línea de factura asociada a una solicitud de compra
+-- marca esa solicitud como 'Comprada' (al insertar la línea o al asociarla después).
+create function marcar_solicitud_comprada()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  update solicitudes_compra
+  set estado = 'Comprada'
+  where id = new.id_solicitud_compra
+    and estado <> 'Comprada';
+  return new;
+end;
+$$;
+
+create trigger detalle_facturas_marcar_solicitud_comprada
+after insert or update of id_solicitud_compra on detalle_facturas
+for each row
+when (new.id_solicitud_compra is not null)
+execute function marcar_solicitud_comprada();
+
 -- -----------------------------------------------------------------------------
 -- 9. plantillas_gastos_recurrentes
 -- -----------------------------------------------------------------------------
