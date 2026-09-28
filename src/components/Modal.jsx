@@ -2,7 +2,8 @@ import { useEffect, useId, useRef } from 'react'
 import { X } from 'lucide-react'
 
 // Diálogo simple: cierra con Escape o clic en el fondo y enfoca el primer campo.
-function Modal({ titulo, onCerrar, children }) {
+// `ancho` (clase max-w-*) agranda el diálogo cuando lleva una tabla (ej. factura).
+function Modal({ titulo, onCerrar, ancho = 'max-w-lg', children }) {
   const idTitulo = useId()
   const panel = useRef(null)
   // Referencia estable al callback para no re-suscribir el teclado en cada render.
@@ -38,7 +39,7 @@ function Modal({ titulo, onCerrar, children }) {
         aria-modal="true"
         aria-labelledby={idTitulo}
         tabIndex={-1}
-        className="my-8 w-full max-w-lg rounded-lg bg-white shadow-xl focus:outline-none"
+        className={`my-8 w-full ${ancho} rounded-lg bg-white shadow-xl focus:outline-none`}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <h2 id={idTitulo} className="text-lg font-semibold text-slate-800">

@@ -5,6 +5,10 @@ import SeccionConPestanas from './components/SeccionConPestanas'
 import Categorias from './pages/centros-costo/Categorias'
 import SeccionCentrosCosto from './pages/centros-costo/SeccionCentrosCosto'
 import Subcategorias from './pages/centros-costo/Subcategorias'
+import Facturas from './pages/facturas/Facturas'
+import FormularioFactura from './pages/facturas/FormularioFactura'
+import Lineas from './pages/facturas/Lineas'
+import SeccionFacturas from './pages/facturas/SeccionFacturas'
 import Gastos from './pages/gastos/Gastos'
 import Plantillas from './pages/gastos/Plantillas'
 import SeccionGastos from './pages/gastos/SeccionGastos'
@@ -20,7 +24,7 @@ import { secciones } from './secciones'
 
 // Secciones que ya tienen pantalla propia (con subrutas); el resto sigue con
 // PaginaPendiente hasta que se construya en la Fase 4.
-const conPantalla = new Set(['/solicitudes', '/gastos', '/insumos', '/proveedores', '/centros-costo'])
+const conPantalla = new Set(['/solicitudes', '/facturas', '/gastos', '/insumos', '/proveedores', '/centros-costo'])
 
 // Sin login: todas las secciones quedan disponibles directamente.
 function App() {
@@ -37,6 +41,13 @@ function App() {
           <Route path="/solicitudes" element={<SeccionSolicitudes />}>
             <Route index element={<Pendientes />} />
             <Route path="todas" element={<Todas />} />
+          </Route>
+          {/* El formulario maestro-detalle es una página de la sección (no un modal). */}
+          <Route path="/facturas" element={<SeccionFacturas />}>
+            <Route index element={<Facturas />} />
+            <Route path="lineas" element={<Lineas />} />
+            <Route path="nueva" element={<FormularioFactura />} />
+            <Route path=":id" element={<FormularioFactura />} />
           </Route>
           <Route path="/gastos" element={<SeccionGastos />}>
             <Route index element={<Gastos />} />
