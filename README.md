@@ -23,3 +23,5 @@ Si la base se creó con un `schema.sql` anterior, ejecuta en orden los archivos 
 Para borrar datos de prueba: `supabase/limpiar-datos.sql` vacía todas las tablas salvo `categorias` y `subcategorias` (irreversible).
 
 Para cargar datos de prueba en todas las tablas: `supabase/datos-prueba.sql` (proveedores, insumos, solicitudes, facturas, gastos…; pasa por los triggers reales). Se detiene si ya están cargados: correr antes `limpiar-datos.sql`.
+
+Para cargar las facturas reales de la hoja de cálculo original: `supabase/cargar-facturas-reales.sql` (50 facturas, 110 líneas; crea los proveedores e insumos de proveedor que falten, sin vincular ni mover stock). Se detiene si las facturas ya están cargadas. Los proveedores nuevos quedan con RUT `POR COMPLETAR`.
