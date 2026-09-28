@@ -59,3 +59,8 @@ export function buscarSimilares(texto, registros, campo = 'nombre') {
   }
   return [...exactos, ...parecidos]
 }
+
+// Vacío para los filtros "Incompletos": null, undefined o texto en blanco.
+export function estaVacio(valor) {
+  return valor === null || valor === undefined || String(valor).trim() === ''
+}

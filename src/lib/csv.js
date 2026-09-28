@@ -7,6 +7,8 @@ const FIN_LINEA = '\r\n'
 function celda(valor) {
   if (valor === null || valor === undefined) return ''
   if (typeof valor === 'boolean') return valor ? 'Sí' : 'No'
+  // Excel es-CL usa coma decimal: "1.5" lo leería como 15.
+  if (typeof valor === 'number') return String(valor).replace('.', ',')
   const texto = String(valor)
   if (/[;"\r\n]/.test(texto)) return `"${texto.replace(/"/g, '""')}"`
   return texto

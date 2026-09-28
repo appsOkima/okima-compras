@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import PaginaPendiente from './components/PaginaPendiente'
 import Categorias from './pages/insumos/Categorias'
+import Insumos from './pages/insumos/Insumos'
 import SeccionInsumos from './pages/insumos/SeccionInsumos'
 import Subcategorias from './pages/insumos/Subcategorias'
 import { secciones } from './secciones'
@@ -23,14 +24,7 @@ function App() {
               <Route key={seccion.path} path={seccion.path} element={<PaginaPendiente seccion={seccion} />} />
             ))}
           <Route path="/insumos" element={<SeccionInsumos />}>
-            <Route
-              index
-              element={
-                <p className="mt-6 rounded-md border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-                  El mantenedor de Insumos Okima se construye en la siguiente tarea.
-                </p>
-              }
-            />
+            <Route index element={<Insumos />} />
             <Route path="categorias" element={<Categorias />} />
             <Route path="subcategorias" element={<Subcategorias />} />
           </Route>

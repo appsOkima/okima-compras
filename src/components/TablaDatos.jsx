@@ -5,9 +5,22 @@ import { claseBotonSecundario } from './estilos'
 
 // Tabla única de la app, con exportación CSV de las filas que se están mostrando
 // (ya filtradas). Todas las vistas de tabla la reutilizan.
-function TablaDatos({ columnas, filas, nombreArchivo, cargando, error, vacio = 'No hay registros.', acciones, barra }) {
+// Una columna con `soloCsv` no se muestra en pantalla (ej. datos secundarios) y
+// una con `soloTabla` no se exporta (ej. controles o valores ya desglosados).
+function TablaDatos({
+  columnas: todasLasColumnas,
+  filas,
+  nombreArchivo,
+  cargando,
+  error,
+  vacio = 'No hay registros.',
+  acciones,
+  barra,
+}) {
+  const columnas = todasLasColumnas.filter((c) => !c.soloCsv)
+
   const exportar = () => {
-    const columnasCsv = columnas.map((c) => ({
+    const columnasCsv = todasLasColumnas.filter((c) => !c.soloTabla).map((c) => ({
       titulo: c.titulo,
       valor: (fila) => (c.csv ? c.csv(fila) : fila[c.clave]),
     }))

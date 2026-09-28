@@ -31,3 +31,10 @@ export function formatoFecha(isoDate) {
   if (!m) return String(isoDate)
   return `${m[3]}-${m[2]}-${m[1]}`
 }
+
+// Ancho × alto × profundidad en milímetros; '—' si no hay ninguna medida.
+export function formatoDimensiones(ancho, alto, profundidad) {
+  const medidas = [ancho, alto, profundidad]
+  if (medidas.every(esVacio)) return VACIO
+  return `${medidas.map(formatoNumero).join(' × ')} mm`
+}
