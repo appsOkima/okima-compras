@@ -132,8 +132,9 @@ create index solicitudes_compra_estado_idx on solicitudes_compra (estado);
 -- -----------------------------------------------------------------------------
 -- 5. facturas (cabecera)
 -- -----------------------------------------------------------------------------
--- Los totales se ingresan tal cual figuran en la factura física; la interfaz
--- avisa si no cuadran con la suma de detalle_facturas.
+-- El usuario solo ingresa el descuento global en %; neto, IVA y total los
+-- calcula la interfaz desde las líneas y se guardan ya calculados (para el ERP):
+--   neto = round(Σ subtotales × (1 − descuento_pct / 100)); iva = round(neto × 0,19); total = neto + iva.
 create table facturas (
   id               uuid primary key default gen_random_uuid(),
   created_at       timestamptz not null default now(),
@@ -141,7 +142,8 @@ create table facturas (
   numero_factura   text not null,
   fecha            date not null,
   neto_total       numeric not null default 0,
-  descuento_total  numeric not null default 0,
+  descuento_pct    numeric not null default 0
+                   constraint facturas_descuento_pct_check check (descuento_pct between 0 and 100),
   iva              numeric not null default 0,
   total            numeric not null default 0,
   constraint facturas_proveedor_numero_key unique (id_proveedor, numero_factura)
@@ -158,7 +160,9 @@ create table detalle_facturas (
   id_solicitud_compra  uuid references solicitudes_compra (id) on delete set null,
   cantidad             numeric not null check (cantidad > 0),
   precio_neto          numeric not null,
-  descuento            numeric not null default 0,
+  descuento_pct        numeric not null default 0
+                       constraint detalle_facturas_descuento_pct_check check (descuento_pct between 0 and 100),
+  -- Calculado por la interfaz: round(cantidad × precio_neto × (1 − descuento_pct / 100)).
   subtotal             numeric not null,
   -- Stock aplicado al guardar la línea (lo llena el trigger, no la interfaz):
   -- permite revertir exactamente lo sumado si la línea se edita o se borra.
