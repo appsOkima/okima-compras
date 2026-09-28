@@ -20,8 +20,9 @@ function detalleItem(item) {
 
 // Insumo del catálogo del proveedor elegido, con creación al vuelo (skill
 // creacion-al-vuelo): pide SOLO el nombre y hereda el proveedor de la factura.
-// Nunca se pide ni se ofrece el insumo Okima: ese vínculo lo hace el
-// administrador en Proveedores → Por vincular.
+// Nunca se pide ni se ofrece el insumo Okima al crear: ese vínculo se hace en
+// Proveedores → Por vincular o, con confirmación explícita, al asociar la línea a
+// una solicitud (ver vinculoPropuesto en lib/facturas).
 function SelectorInsumoProveedor({ id, valor, onChange, catalogo, idProveedor, onCrearInsumo, cargando = false }) {
   const idBase = useId()
   // null = sin mini-formulario abierto; si no, el nombre a crear.
@@ -124,7 +125,8 @@ function SelectorInsumoProveedor({ id, valor, onChange, catalogo, idProveedor, o
               className={claseInput}
             />
             <p className="mt-1 text-xs text-slate-500">
-              El resto de los datos (código, precio, formato) y el vínculo al insumo Okima se completan en Proveedores.
+              El resto de los datos (código, precio, formato) se completa en Proveedores. El vínculo al insumo Okima, allí
+              o, si asocias la línea a una solicitud, con tu confirmación.
             </p>
           </div>
 

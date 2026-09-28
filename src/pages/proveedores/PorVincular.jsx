@@ -16,8 +16,9 @@ const nombreProveedor = (fila) => fila.proveedor?.nombre ?? ''
 // Tiempo que queda visible la confirmación de un vínculo.
 const DURACION_CONFIRMACION = 5000
 
-// Único lugar de la app donde se vincula un insumo de proveedor con su insumo
-// Okima (revisión semanal del administrador). Se carga el catálogo completo y se
+// Lugar principal donde se vincula un insumo de proveedor con su insumo Okima
+// (revisión semanal del administrador; también se puede, con confirmación, desde
+// una línea de factura asociada a una solicitud). Se carga el catálogo completo y se
 // filtra aquí: al vincular, `actualizar` deja la fila con id_insumo_okima y sale sola.
 function PorVincular() {
   const { filas, cargando, error, actualizar } = useTabla('insumos_proveedores', { select: SELECT })

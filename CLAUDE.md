@@ -12,7 +12,7 @@ Resumen operativo — el detalle y el razonamiento de cada punto está en `histo
 - `insumos.qty` (numeric, acepta decimales) se actualiza solo al guardar una línea de factura cuyo `insumo_proveedor` ya esté vinculado; vincular después no aplica stock retroactivo.
 - Reglas de negocio de facturas (stock y solicitud 'Comprada') implementadas como triggers en la base.
 - `categorias` = centros de costo, con `subcategorias`; `insumos`, `otros_gastos` y `plantillas_gastos_recurrentes` referencian solo `id_subcategoria` (la categoría se obtiene a través de ella).
-- Vínculo `insumo_proveedor` → `insumo_okima`: no se hace al ingresar la factura; solo lo hace el administrador, en su revisión semanal.
+- Vínculo `insumo_proveedor` → `insumo_okima`: nunca al crear el `insumo_proveedor` al vuelo ni en silencio. Lo hace el administrador en su revisión semanal ("Por vincular") o, en Facturas, al asociar una línea a una solicitud, solo con confirmación explícita del usuario.
 - Gasto recurrente vía `plantillas_gastos_recurrentes` (monto editable), no un valor fijo.
 - `venta_directa` en `insumos` habilita `precio_venta`.
 
@@ -38,7 +38,7 @@ Patrón de UX para tres entidades: el input es un combobox con autocompletado so
 
 - **Solicitudes de Compra → `insumo_okima`:** captura `nombre` + `id_subcategoria` (ambos obligatorios). El resto queda nulo.
 - **Gestionar Facturas → `proveedor`:** primero `nombre` (para verificar si ya estaba ingresado), luego `rut` (obligatorio). El resto queda nulo.
-- **Gestionar Facturas → `insumo_proveedor`:** captura `nombre` y hereda `id_proveedor` del proveedor ya seleccionado en esa factura. `id_insumo_okima` **no se pide aquí** — queda vacío siempre; solo el administrador lo vincula, en su revisión semanal (ver Función 4).
+- **Gestionar Facturas → `insumo_proveedor`:** captura `nombre` y hereda `id_proveedor` del proveedor ya seleccionado en esa factura. `id_insumo_okima` **no se pide aquí** — queda vacío siempre al crearlo; se vincula después: el administrador en su revisión semanal (ver Función 4) o, con confirmación explícita, al asociar la línea de factura a una solicitud (ver Función 2).
 
 **Duplicados:** antes de ofrecer "crear nuevo", el autocompletado debería buscar coincidencias sin distinguir mayúsculas/tildes/espacios y avisar si hay algo parecido, en vez de crear silenciosamente un registro repetido. Esto es un chequeo de aplicación, no un `UNIQUE` en la base.
 
@@ -78,7 +78,7 @@ Para Supabase, todas las tablas deben usar `id` (UUID o gen_random_uuid() como P
 
 ### 3. insumos_proveedores (Catálogo)
 - `id` (uuid, PK)
-- `id_insumo_okima` (uuid, FK a insumos, nullable) — nunca se llena al crear el `insumo_proveedor`; solo el administrador lo vincula desde el Mantenedor, en su revisión semanal (ver Función 4)
+- `id_insumo_okima` (uuid, FK a insumos, nullable) — nunca se llena al crear el `insumo_proveedor`; lo vincula el administrador desde el Mantenedor, en su revisión semanal (ver Función 4), o el usuario desde Facturas, con confirmación explícita, al asociar una línea a una solicitud (ver Función 2)
 - `nombre` (text)
 - `codigo` (text, nullable)
 - `id_proveedor` (uuid, FK a proveedores)
@@ -176,13 +176,14 @@ Sin login: las 6 secciones quedan disponibles directamente y cada empleado se ca
    - Montos calculados: el usuario ingresa cantidad y precio neto de cada línea y, si aplica, el descuento en % (por línea y global de la factura). Subtotal, neto, IVA (19 %) y total solo se calculan y se muestran; no son editables.
    - **Regla de negocio (trigger en la base):** línea con `id_solicitud_compra` (al insertarla o al asociarla después) → esa solicitud pasa a 'Comprada'.
    - **Regla de negocio (trigger en la base):** si al guardar la línea su `insumo_proveedor` ya tiene `id_insumo_okima` vinculado → `insumos.qty += cantidad × cantidad_formato` (`cantidad_formato` vacío cuenta como 1). Si no está vinculado, no se registra stock, y vincularlo después no lo aplica retroactivamente. Lo aplicado queda en `detalle_facturas.id_insumo_stock` / `qty_stock`, así que editar o borrar la línea (o la factura completa) revierte exactamente lo sumado.
+   - **Vínculo desde la solicitud, con confirmación:** si una línea tiene solicitud y su `insumo_proveedor` no está vinculado, la interfaz pregunta en la línea si vincularlo con el `insumo_okima` de la solicitud ("Vincular" / "No vincular", cambiable hasta guardar). Nunca en silencio ni al crear el insumo al vuelo. Lo aceptado se aplica al guardar, antes de las líneas (solo si sigue sin vincular), así la línea nueva ya suma stock; una línea ya guardada no suma stock retroactivo. Si ya está vinculado a otro insumo, solo se avisa: aquí no se re-vincula.
 3. **Otros Gastos**
    - CRUD de `otros_gastos`.
    - CRUD de `plantillas_gastos_recurrentes`: pantalla simple donde el administrador mantiene Arriendo/Sueldos/IVA y edita el `monto_default` cuando cambie.
    - Ingreso rápido de gasto recurrente: se elige una plantilla y se pre-llenan `concepto`, `id_subcategoria` y `monto` desde ella. Solo queda por confirmar la `fecha` (default: hoy, editable a una fecha pasada).
 4. **Gestionar Proveedores y sus Insumos**
    - CRUD de `proveedores` e `insumos_proveedores`.
-   - Vista de "insumos por vincular": `insumos_proveedores` con `id_insumo_okima` vacío, con selector directo para asignarlo — es el único lugar donde se hace este vínculo, pensado para la revisión semanal del administrador.
+   - Vista de "insumos por vincular": `insumos_proveedores` con `id_insumo_okima` vacío, con selector directo para asignarlo — es el lugar principal de este vínculo, pensado para la revisión semanal del administrador (también se puede vincular desde Facturas, con confirmación, al asociar una línea a una solicitud; ver Función 2).
    - Filtro de registros incompletos (creados al vuelo).
 5. **Gestionar Insumos Okima**
    - CRUD de `insumos`.

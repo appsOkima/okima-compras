@@ -9,12 +9,15 @@ import {
   calcularTotales,
   datosCabecera,
   datosLinea,
+  decidirVinculo,
   diffLineas,
   erroresCabecera,
   erroresLinea,
   lineaDesdeBase,
   lineaVacia,
   ordenarSolicitudesParaLinea,
+  vinculoPropuesto,
+  vinculosAAplicar,
 } from '../../lib/facturas'
 import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
 import { hoyISO } from '../../lib/solicitudes'
@@ -48,6 +51,9 @@ function cabeceraVacia() {
   return { id_proveedor: '', numero_factura: '', fecha: hoyISO(), descuento_pct: '' }
 }
 
+// «insumo del proveedor» con «insumo Okima», para los mensajes de vínculos.
+const parVinculo = (v) => `«${v.nombreInsumoProveedor}» con «${v.nombreInsumoOkima}»`
+
 // Opción del selector de solicitud: insumo × cantidad, y quién la pidió.
 function opcionSolicitud(s, idInsumoOkima) {
   const detalle = [
@@ -74,7 +80,9 @@ function PaginaFactura() {
 // Guardado sin RPC (el cliente de Supabase no hace transacciones de varias
 // sentencias): cabecera y luego líneas. Subtotales, neto, IVA y total se calculan
 // en vivo y se guardan ya calculados. Stock y solicitudes 'Comprada' los
-// resuelven los triggers de detalle_facturas.
+// resuelven los triggers de detalle_facturas. Si una línea con solicitud tiene un
+// insumo del proveedor sin vincular, se pregunta si vincularlo con el insumo
+// Okima de la solicitud; los vínculos aceptados se aplican antes que las líneas.
 function FormularioFactura({ id }) {
   const navigate = useNavigate()
   const esNueva = id === null
@@ -89,6 +97,7 @@ function FormularioFactura({ id }) {
     cargando: cargandoCatalogo,
     error: errorCatalogo,
     crear: crearInsumoProveedor,
+    recargar: recargarCatalogo,
   } = useTabla('insumos_proveedores', { select: SELECT_CATALOGO })
   const {
     filas: pendientes,
@@ -165,13 +174,21 @@ function FormularioFactura({ id }) {
     }
     return lista
   }, [pendientes, originales])
+  const solicitudesPorId = useMemo(() => new Map(solicitudes.map((s) => [s.id, s])), [solicitudes])
+
+  // Vínculos aceptados que se aplicarán al guardar, por insumo del proveedor.
+  const vinculos = vinculosAAplicar(lineas, catalogoPorId, solicitudesPorId)
+  const vinculoPendientePorInsumo = new Map(vinculos.map((v) => [v.idInsumoProveedor, v]))
 
   // Una solicitud se asocia a una sola línea: se ocultan las elegidas en otras.
   const opcionesSolicitudPara = (linea) => {
     const enOtras = new Set(
       lineas.filter((l) => l.clave !== linea.clave && l.id_solicitud_compra).map((l) => l.id_solicitud_compra),
     )
-    const idInsumoOkima = catalogoPorId.get(linea.id_insumo_proveedor)?.id_insumo_okima ?? null
+    const idInsumoOkima =
+      catalogoPorId.get(linea.id_insumo_proveedor)?.id_insumo_okima ??
+      vinculoPendientePorInsumo.get(linea.id_insumo_proveedor)?.idInsumoOkima ??
+      null
     return ordenarSolicitudesParaLinea(
       solicitudes.filter((s) => !enOtras.has(s.id)),
       idInsumoOkima,
@@ -231,6 +248,11 @@ function FormularioFactura({ id }) {
     setSucio(true)
   }
 
+  const decidirVinculoLinea = (clave, propuesta, acepta) => {
+    setLineas((actuales) => actuales.map((l) => (l.clave === clave ? decidirVinculo(l, propuesta, acepta) : l)))
+    setSucio(true)
+  }
+
   const agregarLinea = () => {
     setLineas((actuales) => [...actuales, lineaVacia(nuevaClave())])
     setSucio(true)
@@ -239,6 +261,33 @@ function FormularioFactura({ id }) {
   const quitarLinea = (clave) => {
     setLineas((actuales) => actuales.filter((l) => l.clave !== clave))
     setSucio(true)
+  }
+
+  // Vínculos aceptados, antes que la cabecera y las líneas: así las líneas nuevas
+  // ya suman stock (el trigger lee el vínculo al insertar). La guarda
+  // `id_insumo_okima is null` no pisa un vínculo hecho entre tanto por otra
+  // persona (queda en `omitidos`). Si uno falla no se sigue guardando.
+  const aplicarVinculos = async () => {
+    const aplicados = []
+    const omitidos = []
+    for (const v of vinculos) {
+      const { data, error } = await supabase
+        .from('insumos_proveedores')
+        .update({ id_insumo_okima: v.idInsumoOkima })
+        .eq('id', v.idInsumoProveedor)
+        .is('id_insumo_okima', null)
+        .select('id')
+      if (error) {
+        const previos = aplicados.length > 0 ? ` Sí quedó vinculado: ${aplicados.map(parVinculo).join(', ')}.` : ''
+        throw new Error(
+          `No se pudo vincular ${parVinculo(v)}: ${mensajeError(error).replace(/\.$/, '')}. ` +
+            `${esNueva ? 'No se guardó la factura.' : 'No se guardaron los cambios de la factura.'}${previos}`,
+        )
+      }
+      if (data?.length > 0) aplicados.push(v)
+      else omitidos.push(v)
+    }
+    return { aplicados, omitidos }
   }
 
   // Nueva: cabecera y luego todas las líneas en un solo insert (todas o ninguna).
@@ -318,18 +367,34 @@ function FormularioFactura({ id }) {
 
     setErrorGuardar('')
     setGuardando(true)
+    let resultadoVinculos = null
     try {
+      resultadoVinculos = await aplicarVinculos()
       if (esNueva) await crearFactura(datosCab, datosLineas)
       else await actualizarFactura(datosCab, datosLineas)
+      const { aplicados, omitidos } = resultadoVinculos
+      const notas = [
+        aplicados.length > 0 && `Se ${aplicados.length === 1 ? 'vinculó' : 'vincularon'} ${aplicados.map(parVinculo).join(', ')}.`,
+        omitidos.length > 0 &&
+          `${omitidos.map((v) => `«${v.nombreInsumoProveedor}»`).join(', ')} ya ` +
+            `${omitidos.length === 1 ? 'estaba vinculado' : 'estaban vinculados'} (lo hizo otra persona entre tanto): no se cambió.`,
+      ].filter(Boolean)
       navigate('/facturas', {
-        state: { mensaje: `Factura N° ${datosCab.numero_factura} ${esNueva ? 'ingresada' : 'actualizada'}.` },
+        state: {
+          mensaje: [`Factura N° ${datosCab.numero_factura} ${esNueva ? 'ingresada' : 'actualizada'}.`, ...notas].join(' '),
+        },
       })
     } catch (error) {
+      const yaVinculados =
+        resultadoVinculos?.aplicados.length > 0 ? ' Los vínculos aceptados sí quedaron guardados.' : ''
       setErrorGuardar(
-        error?.code === '23505'
+        (error?.code === '23505'
           ? `Ya existe la factura N° ${datosCab.numero_factura} de este proveedor.`
-          : mensajeError(error),
+          : mensajeError(error)) + yaVinculados,
       )
+      // El catálogo refleja los vínculos ya aplicados (los avisos de stock y las
+      // propuestas se actualizan solos).
+      if (vinculos.length > 0) recargarCatalogo({ silencioso: true })
       setGuardando(false)
     }
   }
@@ -389,7 +454,8 @@ function FormularioFactura({ id }) {
       </h2>
       <p className="mt-1 text-sm text-slate-600">
         Ingresa las líneas tal como figuran en la factura física y, si aplica, los descuentos en %. Subtotales, neto, IVA
-        y total se calculan solos. Las líneas con insumo vinculado a un insumo Okima suman stock al guardar.
+        y total se calculan solos. Las líneas con insumo vinculado a un insumo Okima suman stock al guardar; al asociar
+        una solicitud a un insumo sin vincular, se te pregunta si vincularlo con el insumo de la solicitud.
       </p>
 
       {erroresCarga.length > 0 && (
@@ -468,25 +534,31 @@ function FormularioFactura({ id }) {
             </h3>
           </div>
           <div className="space-y-3">
-            {lineas.map((linea, i) => (
-              <LineaFactura
-                key={linea.clave}
-                linea={linea}
-                numero={i + 1}
-                errores={errores.lineas[linea.clave]}
-                catalogo={catalogoProveedor}
-                itemCatalogo={catalogoPorId.get(linea.id_insumo_proveedor) ?? null}
-                idProveedor={cabecera.id_proveedor}
-                onCrearInsumo={crearInsumoProveedor}
-                cargandoCatalogo={cargandoCatalogo}
-                opcionesSolicitud={opcionesSolicitudPara(linea)}
-                cargandoSolicitudes={cargandoPendientes}
-                original={linea.id ? (originalesPorId.get(linea.id) ?? null) : null}
-                onCambiar={(campo, valor) => cambiarLinea(linea.clave, campo, valor)}
-                onQuitar={() => quitarLinea(linea.clave)}
-                puedeQuitar={lineas.length > 1}
-              />
-            ))}
+            {lineas.map((linea, i) => {
+              const propuesta = vinculoPropuesto(linea, catalogoPorId, solicitudesPorId, lineas)
+              return (
+                <LineaFactura
+                  key={linea.clave}
+                  linea={linea}
+                  numero={i + 1}
+                  errores={errores.lineas[linea.clave]}
+                  catalogo={catalogoProveedor}
+                  itemCatalogo={catalogoPorId.get(linea.id_insumo_proveedor) ?? null}
+                  idProveedor={cabecera.id_proveedor}
+                  onCrearInsumo={crearInsumoProveedor}
+                  cargandoCatalogo={cargandoCatalogo}
+                  opcionesSolicitud={opcionesSolicitudPara(linea)}
+                  cargandoSolicitudes={cargandoPendientes}
+                  original={linea.id ? (originalesPorId.get(linea.id) ?? null) : null}
+                  propuestaVinculo={propuesta}
+                  vinculoPendiente={vinculoPendientePorInsumo.get(linea.id_insumo_proveedor) ?? null}
+                  onDecidirVinculo={(acepta) => decidirVinculoLinea(linea.clave, propuesta, acepta)}
+                  onCambiar={(campo, valor) => cambiarLinea(linea.clave, campo, valor)}
+                  onQuitar={() => quitarLinea(linea.clave)}
+                  puedeQuitar={lineas.length > 1}
+                />
+              )
+            })}
           </div>
           <button type="button" onClick={agregarLinea} className={`${claseBotonSecundario} mt-3`}>
             <Plus className="h-4 w-4" />

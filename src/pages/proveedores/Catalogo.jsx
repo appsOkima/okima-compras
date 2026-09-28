@@ -81,8 +81,9 @@ const mismoProveedor = (registro, valores) => registro.id_proveedor === valores.
 function Catalogo() {
   const { filas: proveedores, error: errorProveedores } = useTabla('proveedores', { select: 'id, nombre' })
 
-  // `id_insumo_okima` no es un campo: el vínculo se hace solo en "Por vincular"
-  // (revisión semanal del administrador) y el formulario nunca lo envía.
+  // `id_insumo_okima` no es un campo: el vínculo se hace en "Por vincular"
+  // (revisión semanal del administrador) o, con confirmación, desde una línea de
+  // factura asociada a una solicitud; este formulario nunca lo envía.
   const campos = [
     {
       clave: 'id_proveedor',

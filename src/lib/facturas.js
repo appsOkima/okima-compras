@@ -1,5 +1,6 @@
-// Reglas de Facturas: subtotales y totales calculados, diff de líneas al editar y
-// aviso de stock (sin React ni Supabase, para poder verificarlas con node).
+// Reglas de Facturas: subtotales y totales calculados, diff de líneas al editar,
+// aviso de stock y vínculo del insumo del proveedor desde la solicitud (sin React
+// ni Supabase, para poder verificarlas con node).
 import { compararPendientes } from './solicitudes.js'
 
 export const TASA_IVA = 0.19
@@ -108,7 +109,10 @@ export function diffLineas(originales, actuales) {
 
 // ---------------------------------------------------------------------------
 // Estado del formulario: las líneas se editan como texto (valores de inputs). El
-// subtotal no es parte del estado: se calcula al mostrar y al guardar.
+// subtotal no es parte del estado: se calcula al mostrar y al guardar. `vinculo`
+// es la decisión del usuario sobre vincular el insumo del proveedor con el insumo
+// Okima de la solicitud (ver vinculoPropuesto): null (sin decidir) o
+// { acepta, idInsumoProveedor, idInsumoOkima }. No se guarda en la línea.
 
 const textoNumero = (n) => (n === null || n === undefined ? '' : String(n))
 // Un descuento 0 se muestra vacío (el input tiene placeholder 0).
@@ -122,6 +126,7 @@ export function lineaVacia(clave) {
     cantidad: '',
     precio_neto: '',
     descuento_pct: '',
+    vinculo: null,
   }
 }
 
@@ -135,11 +140,15 @@ export function lineaDesdeBase(fila) {
     cantidad: textoNumero(fila.cantidad),
     precio_neto: textoNumero(fila.precio_neto),
     descuento_pct: textoDescuento(fila.descuento_pct),
+    vinculo: null,
   }
 }
 
+// Cambiar el insumo del proveedor o la solicitud anula la decisión de vincular:
+// la pregunta pasa a ser otra.
 export function aplicarCambioLinea(linea, campo, valor) {
-  return { ...linea, [campo]: valor }
+  const reinicia = (campo === 'id_insumo_proveedor' || campo === 'id_solicitud_compra') && linea[campo] !== valor
+  return { ...linea, [campo]: valor, ...(reinicia ? { vinculo: null } : {}) }
 }
 
 // Línea editable → valores para la base (solo CAMPOS_LINEA, conserva el id).
@@ -218,6 +227,118 @@ export function efectoStock({ idInsumoProveedor, cantidad, cantidadFormato, idIn
   const revierte = original?.id_insumo_stock ? aNumero(original.qty_stock) : null
   if (!idInsumoOkima) return { tipo: 'sin-vinculo', qty: null, idInsumo: null, revierte }
   return { tipo: 'suma', qty: stockQueSuma(cantidad, cantidadFormato), idInsumo: idInsumoOkima, revierte }
+}
+
+// ---------------------------------------------------------------------------
+// Vínculo insumo_proveedor → insumo Okima desde la solicitud. Una línea asociada a
+// una solicitud ya dice de qué insumo Okima se trata: si su insumo del proveedor
+// está sin vincular, se propone vincularlo, solo con confirmación explícita del
+// usuario (nunca en silencio; nunca al crear el insumo al vuelo). El vínculo se
+// aplica al guardar, antes de las líneas, para que las nuevas ya sumen stock.
+
+// Busca por id en un Map o en un arreglo de registros con `id`.
+function buscar(coleccion, id) {
+  if (!coleccion || !id) return undefined
+  if (coleccion instanceof Map) return coleccion.get(id)
+  return coleccion.find((r) => r.id === id)
+}
+
+const nombreInsumoSolicitud = (s) => s?.insumo_nombre ?? s?.insumo?.nombre ?? ''
+
+// Decisión de la línea, solo si sigue siendo sobre el mismo par (defensivo: al
+// cambiar insumo o solicitud ya se anula, ver aplicarCambioLinea).
+function decisionVigente(linea, idInsumoOkima) {
+  const v = linea?.vinculo
+  if (!v || v.idInsumoProveedor !== linea.id_insumo_proveedor || v.idInsumoOkima !== idInsumoOkima) return null
+  return v.acepta ? 'aceptado' : 'rechazado'
+}
+
+// Vínculo aceptado de una línea, o null.
+function vinculoAceptado(linea) {
+  const v = linea?.vinculo
+  return v?.acepta && v.idInsumoProveedor === linea.id_insumo_proveedor ? v : null
+}
+
+// Qué mostrar en la línea sobre el vínculo. `catalogo` y `solicitudes` pueden ser
+// Map o arreglo; `lineas` son todas las del formulario (para los conflictos).
+// → { tipo: 'ninguno' }
+//   { tipo: 'proponer', idInsumoProveedor, idInsumoOkima, nombreInsumoProveedor,
+//     nombreInsumoOkima, decision: null | 'aceptado' | 'rechazado' }
+//   { tipo: 'ya-vinculado', nombreVinculado, nombreInsumoOkima }: vinculado a otro
+//     insumo distinto al de la solicitud (solo aviso; aquí no se re-vincula).
+//   { tipo: 'conflicto', nombreInsumoProveedor, nombreInsumoOkima, nombreOtro }:
+//     otra línea ya aceptó vincular este insumo con otro insumo Okima.
+export function vinculoPropuesto(linea, catalogo, solicitudes, lineas = []) {
+  const ninguno = { tipo: 'ninguno' }
+  if (!linea?.id_insumo_proveedor || !linea?.id_solicitud_compra) return ninguno
+  const item = buscar(catalogo, linea.id_insumo_proveedor)
+  const solicitud = buscar(solicitudes, linea.id_solicitud_compra)
+  const idInsumoOkima = solicitud?.id_insumo_okima
+  // Catálogo o solicitudes aún cargando: no se propone nada todavía.
+  if (!item || !idInsumoOkima) return ninguno
+  const nombreInsumoOkima = nombreInsumoSolicitud(solicitud)
+
+  if (item.id_insumo_okima) {
+    if (item.id_insumo_okima === idInsumoOkima) return ninguno
+    return { tipo: 'ya-vinculado', nombreVinculado: item.insumo_okima?.nombre ?? '', nombreInsumoOkima }
+  }
+
+  // Un insumo del proveedor se vincula a un solo insumo Okima: vale la primera
+  // línea que lo aceptó; las demás que apunten a otro insumo solo ven el aviso.
+  if (decisionVigente(linea, idInsumoOkima) !== 'aceptado') {
+    const otra = (lineas ?? []).find((l) => {
+      if (l === linea || (l.clave !== undefined && l.clave === linea.clave)) return false
+      const v = vinculoAceptado(l)
+      return v && v.idInsumoProveedor === item.id && v.idInsumoOkima !== idInsumoOkima
+    })
+    if (otra) {
+      return {
+        tipo: 'conflicto',
+        nombreInsumoProveedor: item.nombre,
+        nombreInsumoOkima,
+        nombreOtro: nombreInsumoSolicitud(buscar(solicitudes, otra.id_solicitud_compra)),
+      }
+    }
+  }
+
+  return {
+    tipo: 'proponer',
+    idInsumoProveedor: item.id,
+    idInsumoOkima,
+    nombreInsumoProveedor: item.nombre,
+    nombreInsumoOkima,
+    decision: decisionVigente(linea, idInsumoOkima),
+  }
+}
+
+// Registra en la línea la decisión sobre la propuesta ('proponer') que se le mostró.
+export function decidirVinculo(linea, propuesta, acepta) {
+  return {
+    ...linea,
+    vinculo: { acepta: Boolean(acepta), idInsumoProveedor: propuesta.idInsumoProveedor, idInsumoOkima: propuesta.idInsumoOkima },
+  }
+}
+
+// Vínculos aceptados a aplicar al guardar, uno por insumo del proveedor (vale la
+// primera línea que lo aceptó) y solo si el insumo sigue sin vincular en el
+// catálogo cargado. → [{ idInsumoProveedor, idInsumoOkima, nombreInsumoProveedor,
+// nombreInsumoOkima }]
+export function vinculosAAplicar(lineas, catalogo, solicitudes) {
+  const porInsumo = new Map()
+  for (const linea of lineas ?? []) {
+    const v = vinculoAceptado(linea)
+    if (!v || porInsumo.has(v.idInsumoProveedor)) continue
+    const item = buscar(catalogo, v.idInsumoProveedor)
+    const solicitud = buscar(solicitudes, linea.id_solicitud_compra)
+    if (!item || item.id_insumo_okima || solicitud?.id_insumo_okima !== v.idInsumoOkima) continue
+    porInsumo.set(v.idInsumoProveedor, {
+      idInsumoProveedor: v.idInsumoProveedor,
+      idInsumoOkima: v.idInsumoOkima,
+      nombreInsumoProveedor: item.nombre,
+      nombreInsumoOkima: nombreInsumoSolicitud(solicitud),
+    })
+  }
+  return [...porInsumo.values()]
 }
 
 // Solicitudes pendientes para el selector de una línea: primero las del insumo
