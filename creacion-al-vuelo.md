@@ -13,7 +13,7 @@ Patrón de UX para seleccionar `insumo_okima`, `proveedor` o `insumo_proveedor` 
 3. Si el texto escrito no calza con nada, se ofrece la opción "Crear '<texto>'". Al elegirla, se crea el registro con ese texto como `nombre` (más los campos adicionales obligatorios de cada caso, ver abajo). El resto de los campos queda `null`.
 
 ## Campos obligatorios por entidad
-- **`insumo_okima`** (desde Solicitudes de Compra): `nombre` + `id_categoria` (dropdown de categorías existentes, obligatorio — no se puede crear sin categoría).
+- **`insumo_okima`** (desde Solicitudes de Compra): `nombre` + `id_subcategoria` (dropdown de subcategorías activas, agrupadas por categoría/centro de costo; obligatorio — no se puede crear sin subcategoría). La categoría no se guarda aparte: se obtiene a través de la subcategoría.
 - **`proveedor`** (desde Gestionar Facturas): primero `nombre` (para verificar si ya existe), luego `rut` (obligatorio, se necesita para facturar). El resto queda nulo.
 - **`insumo_proveedor`** (desde Gestionar Facturas): `nombre`, hereda `id_proveedor` del proveedor ya seleccionado en esa factura. **`id_insumo_okima` NO se pide aquí — nunca se vincula al vuelo.** Ese vínculo lo hace solo el administrador desde Gestionar Proveedores y sus Insumos.
 

@@ -1,11 +1,11 @@
 ---
 name: mantenedor-crud
-description: Estructura estándar de las pantallas CRUD (Mantenedores) del proyecto Okima — Proveedores, Insumos, Categorías. Úsalo al construir cualquiera de estas pantallas en la Fase 4.
+description: Estructura estándar de las pantallas CRUD (Mantenedores) del proyecto Okima — Proveedores, Insumos, Categorías y Subcategorías. Úsalo al construir cualquiera de estas pantallas en la Fase 4.
 ---
 
 # Mantenedor CRUD
 
-Estructura común para las pantallas de gestión de `proveedores`, `insumos_proveedores`, `insumos` y `categorias`.
+Estructura común para las pantallas de gestión de `proveedores`, `insumos_proveedores`, `insumos`, `categorias` y `subcategorias`. `categorias` son los centros de costo y `subcategorias` su desglose (cada una con su `id_categoria`); en `insumos` se elige solo la subcategoría.
 
 ## Layout
 1. Tabla con los registros, con botón de exportar a CSV — es un componente reutilizable, impleméntalo una sola vez y compártelo entre todos los Mantenedores, no lo repitas por pantalla.
