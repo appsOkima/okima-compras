@@ -40,7 +40,10 @@ function App() {
             ))}
           <Route path="/solicitudes" element={<SeccionSolicitudes />}>
             <Route index element={<Pendientes />} />
-            <Route path="todas" element={<Todas />} />
+            {/* key: cada pestaña parte con su propio estado de búsqueda y filtro. */}
+            <Route path="compradas" element={<Todas key="compradas" estadoFijo="Comprada" />} />
+            <Route path="canceladas" element={<Todas key="canceladas" estadoFijo="Cancelada" />} />
+            <Route path="todas" element={<Todas key="todas" />} />
           </Route>
           {/* El formulario maestro-detalle es una página de la sección (no un modal). */}
           <Route path="/facturas" element={<SeccionFacturas />}>

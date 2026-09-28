@@ -23,9 +23,18 @@ const nombreInsumo = (fila) => fila.insumo?.nombre ?? ''
 // editan las pendientes; el estado se cambia a mano a cualquier otro (etapa
 // inicial: muchas facturas se ingresan sin asociar la solicitud). El trigger de
 // facturas sigue marcando 'Comprada' al asociar una línea.
-function Todas() {
+// Con `estadoFijo` sirve de vista de un solo estado (pestañas Compradas y
+// Canceladas): sin botones de filtro, que ahí serían redundantes.
+const VISTAS_ESTADO = {
+  Comprada: { titulo: 'Solicitudes compradas', archivo: 'solicitudes-compradas' },
+  Cancelada: { titulo: 'Solicitudes canceladas', archivo: 'solicitudes-canceladas' },
+}
+
+function Todas({ estadoFijo }) {
   const { filas, cargando, error, actualizar } = useTabla('solicitudes_compra', { select: SELECT, orden: ORDEN })
-  const [filtro, setFiltro] = useState('Todas')
+  const [filtroElegido, setFiltro] = useState('Todas')
+  const filtro = estadoFijo ?? filtroElegido
+  const vista = VISTAS_ESTADO[estadoFijo]
   const [busqueda, setBusqueda] = useState('')
   const [edicion, setEdicion] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
@@ -113,34 +122,37 @@ function Todas() {
           className={`${claseInput} pl-9`}
         />
       </div>
-      <div className="inline-flex flex-wrap gap-1" role="group" aria-label="Filtrar por estado">
-        {FILTROS.map((opcion) => (
-          <button
-            key={opcion}
-            type="button"
-            aria-pressed={filtro === opcion}
-            onClick={() => setFiltro(opcion)}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium ${
-              filtro === opcion
-                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            {opcion}
-            <span className="rounded-full bg-slate-100 px-1.5 text-xs text-slate-500">{totales[opcion] ?? 0}</span>
-          </button>
-        ))}
-      </div>
+      {!estadoFijo && (
+        <div className="inline-flex flex-wrap gap-1" role="group" aria-label="Filtrar por estado">
+          {FILTROS.map((opcion) => (
+            <button
+              key={opcion}
+              type="button"
+              aria-pressed={filtro === opcion}
+              onClick={() => setFiltro(opcion)}
+              className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium ${
+                filtro === opcion
+                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {opcion}
+              <span className="rounded-full bg-slate-100 px-1.5 text-xs text-slate-500">{totales[opcion] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </>
   )
 
   return (
     <section className="mt-6">
       <div>
-        <h2 className="text-xl font-semibold text-slate-800">Todas las solicitudes</h2>
+        <h2 className="text-xl font-semibold text-slate-800">{vista?.titulo ?? 'Todas las solicitudes'}</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Historial completo. Solo se editan las pendientes; el estado de cualquier solicitud se cambia desde sus
-          acciones.
+          {vista
+            ? 'El estado se cambia desde las acciones de cada fila; al cambiarlo, la solicitud sale de esta lista.'
+            : 'Historial completo. Solo se editan las pendientes; el estado de cualquier solicitud se cambia desde sus acciones.'}
         </p>
       </div>
 
@@ -158,10 +170,16 @@ function Todas() {
         <TablaDatos
           columnas={columnas}
           filas={visibles}
-          nombreArchivo="solicitudes-compra"
+          nombreArchivo={vista?.archivo ?? 'solicitudes-compra'}
           cargando={cargando}
           error={error}
-          vacio={busqueda || filtro !== 'Todas' ? 'Ninguna solicitud coincide con los filtros.' : 'Todavía no hay solicitudes.'}
+          vacio={
+            vista && !busqueda
+              ? `No hay ${vista.titulo.toLowerCase()}.`
+              : busqueda || filtro !== 'Todas'
+                ? 'Ninguna solicitud coincide con los filtros.'
+                : 'Todavía no hay solicitudes.'
+          }
           barra={barra}
           acciones={(fila) => (
             <div className="inline-flex gap-1">
