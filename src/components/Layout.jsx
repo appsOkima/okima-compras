@@ -1,5 +1,5 @@
-import { Suspense, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Suspense, useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Menu, PackageSearch, X } from 'lucide-react'
 import { secciones } from '../secciones'
 
@@ -8,6 +8,12 @@ import { secciones } from '../secciones'
 function Layout() {
   const [menuAbierto, setMenuAbierto] = useState(false)
   const cerrarMenu = () => setMenuAbierto(false)
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    const seccion = secciones.find(({ path }) => pathname === path || pathname.startsWith(`${path}/`))
+    document.title = seccion ? `${seccion.titulo} · Okima Compras` : 'Okima Compras'
+  }, [pathname])
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 md:flex print:block print:bg-white">

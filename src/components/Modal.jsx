@@ -1,7 +1,11 @@
 import { useEffect, useId, useRef } from 'react'
 import { X } from 'lucide-react'
 
-// Diálogo simple: cierra con Escape o clic en el fondo y enfoca el primer campo.
+const FOCALIZABLES =
+  'a[href], button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+// Diálogo simple: cierra con Escape o clic en el fondo, enfoca el primer campo,
+// mantiene el Tab dentro del panel y devuelve el foco a quien lo abrió al cerrar.
 // `ancho` (clase max-w-*) agranda el diálogo cuando lleva una tabla (ej. factura).
 function Modal({ titulo, onCerrar, ancho = 'max-w-lg', children }) {
   const idTitulo = useId()
@@ -14,15 +18,32 @@ function Modal({ titulo, onCerrar, ancho = 'max-w-lg', children }) {
 
   useEffect(() => {
     const alPresionar = (e) => {
-      if (e.key === 'Escape') cerrar.current?.()
+      if (e.key === 'Escape') return cerrar.current?.()
+      if (e.key !== 'Tab' || !panel.current) return
+      const items = [...panel.current.querySelectorAll(FOCALIZABLES)].filter((el) => el.offsetParent !== null)
+      if (items.length === 0) return e.preventDefault()
+      const primero = items[0]
+      const ultimo = items[items.length - 1]
+      const activo = document.activeElement
+      if (e.shiftKey && (activo === primero || activo === panel.current)) {
+        e.preventDefault()
+        ultimo.focus()
+      } else if (!e.shiftKey && activo === ultimo) {
+        e.preventDefault()
+        primero.focus()
+      }
     }
     document.addEventListener('keydown', alPresionar)
     return () => document.removeEventListener('keydown', alPresionar)
   }, [])
 
   useEffect(() => {
+    const previo = document.activeElement
     const primero = panel.current?.querySelector('input:not([type=hidden]), select, textarea')
     ;(primero ?? panel.current)?.focus()
+    return () => {
+      if (previo instanceof HTMLElement && previo.isConnected) previo.focus()
+    }
   }, [])
 
   return (
