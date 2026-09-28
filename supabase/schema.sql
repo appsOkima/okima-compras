@@ -80,7 +80,7 @@ create table insumos (
   profundidad      numeric,  -- mm
   venta_directa    boolean,
   precio_venta     numeric,  -- aplica cuando venta_directa = true
-  qty              integer not null default 0,  -- se actualiza al guardar líneas de factura
+  qty              numeric not null default 0,  -- acepta decimales; lo mueve el trigger de stock
   descripcion      text
 );
 
@@ -159,12 +159,17 @@ create table detalle_facturas (
   cantidad             numeric not null check (cantidad > 0),
   precio_neto          numeric not null,
   descuento            numeric not null default 0,
-  subtotal             numeric not null
+  subtotal             numeric not null,
+  -- Stock aplicado al guardar la línea (lo llena el trigger, no la interfaz):
+  -- permite revertir exactamente lo sumado si la línea se edita o se borra.
+  id_insumo_stock      uuid references insumos (id),
+  qty_stock            numeric
 );
 
 create index detalle_facturas_id_factura_idx on detalle_facturas (id_factura);
 create index detalle_facturas_id_insumo_proveedor_idx on detalle_facturas (id_insumo_proveedor);
 create index detalle_facturas_id_solicitud_compra_idx on detalle_facturas (id_solicitud_compra);
+create index detalle_facturas_id_insumo_stock_idx on detalle_facturas (id_insumo_stock);
 
 -- Regla de negocio: una línea de factura asociada a una solicitud de compra
 -- marca esa solicitud como 'Comprada' (al insertar la línea o al asociarla después).
@@ -187,6 +192,69 @@ after insert or update of id_solicitud_compra on detalle_facturas
 for each row
 when (new.id_solicitud_compra is not null)
 execute function marcar_solicitud_comprada();
+
+-- Regla de negocio: si al guardar la línea su insumo_proveedor ya está vinculado
+-- a un insumo Okima, insumos.qty += cantidad × cantidad_formato (1 si está vacío).
+-- Sin vínculo no se guarda stock, y vincular después no lo aplica retroactivamente.
+create function calcular_stock_detalle()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  -- Editar otros campos de la línea conserva el stock ya aplicado.
+  if tg_op = 'UPDATE'
+     and new.cantidad = old.cantidad
+     and new.id_insumo_proveedor = old.id_insumo_proveedor then
+    new.id_insumo_stock := old.id_insumo_stock;
+    new.qty_stock := old.qty_stock;
+    return new;
+  end if;
+
+  select ip.id_insumo_okima, new.cantidad * coalesce(ip.cantidad_formato, 1)
+  into new.id_insumo_stock, new.qty_stock
+  from insumos_proveedores ip
+  where ip.id = new.id_insumo_proveedor;
+
+  if new.id_insumo_stock is null then
+    new.qty_stock := null;
+  end if;
+  return new;
+end;
+$$;
+
+create function aplicar_stock_detalle()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'UPDATE'
+     and new.id_insumo_stock is not distinct from old.id_insumo_stock
+     and new.qty_stock is not distinct from old.qty_stock then
+    return null;
+  end if;
+
+  if tg_op in ('UPDATE', 'DELETE') and old.id_insumo_stock is not null then
+    update insumos set qty = qty - old.qty_stock where id = old.id_insumo_stock;
+  end if;
+
+  if tg_op in ('INSERT', 'UPDATE') and new.id_insumo_stock is not null then
+    update insumos set qty = qty + new.qty_stock where id = new.id_insumo_stock;
+  end if;
+  return null;
+end;
+$$;
+
+create trigger detalle_facturas_calcular_stock
+before insert or update on detalle_facturas
+for each row
+execute function calcular_stock_detalle();
+
+create trigger detalle_facturas_aplicar_stock
+after insert or update or delete on detalle_facturas
+for each row
+execute function aplicar_stock_detalle();
 
 -- -----------------------------------------------------------------------------
 -- 9. plantillas_gastos_recurrentes
