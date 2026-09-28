@@ -1,0 +1,261 @@
+import { useId, useState } from 'react'
+import { AlertCircle, AlertTriangle, Loader2 } from 'lucide-react'
+import { mensajeError } from '../lib/errores'
+import OpcionesSelect from './OpcionesSelect'
+import { claseBotonAdvertencia, claseBotonPrimario, claseBotonSecundario, claseInput } from './estilos'
+
+// Valor de la base → valor editable del input. Los <input> no aceptan null.
+function aEditable(campo, valor) {
+  if (campo.tipo === 'booleano') {
+    if (campo.anulable) return valor === true ? 'true' : valor === false ? 'false' : ''
+    return Boolean(valor)
+  }
+  if (campo.tipo === 'personalizado') return valor ?? ''
+  return valor === null || valor === undefined ? '' : String(valor)
+}
+
+// Valor editable → valor para la base: '' queda null y los números como Number.
+function aGuardable(campo, valor) {
+  switch (campo.tipo) {
+    case 'booleano':
+      if (!campo.anulable) return Boolean(valor)
+      return valor === 'true' ? true : valor === 'false' ? false : null
+    case 'numero': {
+      const texto = String(valor ?? '').trim().replace(',', '.')
+      return texto === '' ? null : Number(texto)
+    }
+    case 'texto':
+    case 'area': {
+      const texto = String(valor ?? '').trim()
+      return texto === '' ? null : texto
+    }
+    default:
+      return valor === '' || valor === undefined ? null : valor
+  }
+}
+
+function esVisible(campo, valores) {
+  return campo.visible ? campo.visible(valores) : true
+}
+
+// Formulario de creación/edición guiado por la lista de `campos`.
+// Solo envía las claves declaradas en `campos` (no las relaciones embebidas).
+function FormularioRegistro({
+  campos,
+  valoresIniciales = {},
+  onGuardar,
+  onCancelar,
+  buscarDuplicados,
+  etiquetaDuplicado = (r) => r.nombre,
+  textoGuardar = 'Guardar',
+}) {
+  const idBase = useId()
+  const [valores, setValores] = useState(() =>
+    Object.fromEntries(campos.map((c) => [c.clave, aEditable(c, valoresIniciales[c.clave])])),
+  )
+  const [errores, setErrores] = useState({})
+  const [errorGuardar, setErrorGuardar] = useState('')
+  const [duplicados, setDuplicados] = useState([])
+  const [guardando, setGuardando] = useState(false)
+
+  const cambiar = (clave, valor) => {
+    setValores((actuales) => ({ ...actuales, [clave]: valor }))
+    setErrores((actuales) => ({ ...actuales, [clave]: undefined }))
+    // Cualquier cambio invalida el aviso de duplicados: se vuelve a chequear al guardar.
+    setDuplicados([])
+  }
+
+  const enviar = async (e) => {
+    e.preventDefault()
+    if (guardando) return
+
+    const salida = {}
+    const nuevosErrores = {}
+    for (const campo of campos) {
+      // Un campo oculto no aplica (ej. precio_venta sin venta directa): se guarda vacío.
+      if (!esVisible(campo, valores)) {
+        salida[campo.clave] = campo.tipo === 'booleano' && !campo.anulable ? false : null
+        continue
+      }
+      const valor = aGuardable(campo, valores[campo.clave])
+      if (campo.tipo === 'numero' && valor !== null && !Number.isFinite(valor)) {
+        nuevosErrores[campo.clave] = 'Debe ser un número.'
+      } else if (campo.requerido && valor === null) {
+        nuevosErrores[campo.clave] = 'Este campo es obligatorio.'
+      }
+      salida[campo.clave] = valor
+    }
+    setErrores(nuevosErrores)
+    setErrorGuardar('')
+    if (Object.keys(nuevosErrores).length > 0) return
+
+    // Primer clic: si hay registros parecidos se avisa; el segundo clic guarda igual.
+    if (buscarDuplicados && duplicados.length === 0) {
+      const encontrados = buscarDuplicados(salida) ?? []
+      if (encontrados.length > 0) {
+        setDuplicados(encontrados)
+        return
+      }
+    }
+
+    setGuardando(true)
+    try {
+      await onGuardar(salida)
+    } catch (error) {
+      setErrorGuardar(mensajeError(error))
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <form onSubmit={enviar} noValidate className="space-y-4">
+      {campos
+        .filter((campo) => esVisible(campo, valores))
+        .map((campo) => (
+          <Campo
+            key={campo.clave}
+            id={`${idBase}-${campo.clave}`}
+            campo={campo}
+            valor={valores[campo.clave]}
+            valores={valores}
+            error={errores[campo.clave]}
+            onChange={(valor) => cambiar(campo.clave, valor)}
+          />
+        ))}
+
+      {duplicados.length > 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800" role="alert">
+          <p className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            Ya existe{duplicados.length === 1 ? ' un registro parecido' : 'n registros parecidos'}:
+          </p>
+          <ul className="mt-1 list-disc pl-9">
+            {duplicados.slice(0, 5).map((r) => (
+              <li key={r.id}>{etiquetaDuplicado(r)}</li>
+            ))}
+            {duplicados.length > 5 && <li>y {duplicados.length - 5} más…</li>}
+          </ul>
+          <p className="mt-2">Revisa que no sea el mismo antes de guardar.</p>
+        </div>
+      )}
+
+      {errorGuardar && (
+        <p className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          {errorGuardar}
+        </p>
+      )}
+
+      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+        <button type="button" onClick={onCancelar} className={claseBotonSecundario}>
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={guardando}
+          className={duplicados.length > 0 ? claseBotonAdvertencia : claseBotonPrimario}
+        >
+          {guardando && <Loader2 className="h-4 w-4 animate-spin" />}
+          {duplicados.length > 0 ? 'Guardar de todos modos' : textoGuardar}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function Campo({ id, campo, valor, valores, error, onChange }) {
+  const { etiqueta, tipo, requerido, ayuda } = campo
+  const idAyuda = ayuda ? `${id}-ayuda` : undefined
+  const claseError = error ? ' border-red-400 focus:border-red-500 focus:ring-red-500/30' : ''
+
+  // Booleano no anulable: casilla con la etiqueta al lado.
+  if (tipo === 'booleano' && !campo.anulable) {
+    return (
+      <div>
+        <label htmlFor={id} className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <input
+            id={id}
+            type="checkbox"
+            checked={valor}
+            onChange={(e) => onChange(e.target.checked)}
+            aria-describedby={idAyuda}
+            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          {etiqueta}
+        </label>
+        {ayuda && (
+          <p id={idAyuda} className="mt-1 pl-6 text-xs text-slate-500">
+            {ayuda}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  const comunes = {
+    id,
+    'aria-describedby': idAyuda,
+    'aria-invalid': error ? true : undefined,
+    className: claseInput + claseError,
+  }
+
+  let control
+  if (tipo === 'personalizado') {
+    control = campo.render({ id, valor, onChange, valores, requerido })
+  } else if (tipo === 'area') {
+    control = <textarea {...comunes} rows={3} value={valor} onChange={(e) => onChange(e.target.value)} />
+  } else if (tipo === 'seleccion') {
+    control = (
+      <select {...comunes} value={valor} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{requerido ? 'Selecciona…' : 'Sin definir'}</option>
+        <OpcionesSelect opciones={campo.opciones ?? []} />
+      </select>
+    )
+  } else if (tipo === 'booleano') {
+    control = (
+      <select {...comunes} value={valor} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Sin definir</option>
+        <option value="true">Sí</option>
+        <option value="false">No</option>
+      </select>
+    )
+  } else if (tipo === 'numero') {
+    control = (
+      <input
+        {...comunes}
+        type="number"
+        inputMode="decimal"
+        step={campo.paso ?? 'any'}
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    )
+  } else {
+    control = (
+      <input
+        {...comunes}
+        type={tipo === 'fecha' ? 'date' : 'text'}
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    )
+  }
+
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-700">
+        {etiqueta}
+        {requerido && <span className="text-red-600"> *</span>}
+      </label>
+      {control}
+      {ayuda && (
+        <p id={idAyuda} className="mt-1 text-xs text-slate-500">
+          {ayuda}
+        </p>
+      )}
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+  )
+}
+
+export default FormularioRegistro
