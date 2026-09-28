@@ -1,6 +1,6 @@
-import { ClipboardList, Package, Receipt, Truck, Wallet } from 'lucide-react'
+import { ClipboardList, FolderTree, Package, Receipt, Truck, Wallet } from 'lucide-react'
 
-// Las 5 secciones de Funcionalidades Core (CLAUDE.md), en el orden del menú.
+// Las 6 secciones de Funcionalidades Core (CLAUDE.md), en el orden del menú.
 // Las usan tanto el menú lateral como el enrutador.
 export const secciones = [
   {
@@ -30,7 +30,14 @@ export const secciones = [
   {
     path: '/insumos',
     titulo: 'Insumos Okima',
-    descripcion: 'Insumos internos, categorías (centros de costo) y subcategorías.',
+    descripcion: 'Insumos internos de Okima: subcategoría, venta directa y stock.',
     icono: Package,
+  },
+  // Sección propia (no dentro de Insumos): la usan también Otros Gastos y las plantillas.
+  {
+    path: '/centros-costo',
+    titulo: 'Centros de Costo',
+    descripcion: 'Categorías (centros de costo) y sus subcategorías, usadas por insumos, gastos y plantillas.',
+    icono: FolderTree,
   },
 ]

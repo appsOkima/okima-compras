@@ -162,7 +162,7 @@ Desglose de cada categoría (centro de costo). Es lo que referencian `insumos`, 
 
 ## Funcionalidades Core a Desarrollar
 
-Sin login: las 5 secciones quedan disponibles directamente y cada empleado se capacita en la que usa.
+Sin login: las 6 secciones quedan disponibles directamente y cada empleado se capacita en la que usa.
 
 1. **Solicitudes de Compra**
    - Crear y ver `solicitudes_compra`; selección de `insumo_okima` con creación al vuelo.
@@ -181,8 +181,10 @@ Sin login: las 5 secciones quedan disponibles directamente y cada empleado se ca
    - Vista de "insumos por vincular": `insumos_proveedores` con `id_insumo_okima` vacío, con selector directo para asignarlo — es el único lugar donde se hace este vínculo, pensado para la revisión semanal del administrador.
    - Filtro de registros incompletos (creados al vuelo).
 5. **Gestionar Insumos Okima**
-   - CRUD de `insumos` (incluye gestión de `categorias` y `subcategorias`).
+   - CRUD de `insumos`.
    - Filtro de registros incompletos creados al vuelo.
+6. **Centros de Costo**
+   - CRUD de `categorias` (centros de costo) y `subcategorias`. Sección propia, no dentro de Insumos Okima: las subcategorías las usan `insumos`, `otros_gastos` y `plantillas_gastos_recurrentes`.
 
 Transversal: botón reutilizable de exportación a CSV en todas las vistas de tabla.
 
@@ -199,7 +201,7 @@ Para garantizar el éxito de este MVP, trabaja estrictamente bajo estas fases. *
 - **Fase 3: Layout y Enrutamiento.**
   Crea la estructura de navegación básica (Sidebar/Navbar) con React Router, con las 5 secciones de Funcionalidades Core.
 - **Fase 4: Desarrollo de Pantallas.**
-  Comenzaremos pantalla por pantalla. Primero los Mantenedores (Proveedores, Insumos, Categorías y Subcategorías), luego Solicitudes, Otros Gastos y finalmente Facturación.
+  Comenzaremos pantalla por pantalla. Primero los Mantenedores (Proveedores, Insumos, Centros de Costo: Categorías y Subcategorías), luego Solicitudes, Otros Gastos y finalmente Facturación.
 - **Fase 5: UI/UX y Exportación.**
   Refinamiento de estilos, lógica de impresión y botones de exportación CSV.
 

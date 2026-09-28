@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 
-// Sub-navegación de una sección (ej. Insumos / Categorías / Subcategorías).
+// Sub-navegación de una sección (ej. Proveedores / Catálogo / Por vincular).
 function Pestanas({ pestanas }) {
   return (
     <nav className="mt-6 flex gap-1 overflow-x-auto border-b border-slate-200 print:hidden">

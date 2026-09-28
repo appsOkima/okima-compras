@@ -1,10 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import PaginaPendiente from './components/PaginaPendiente'
-import Categorias from './pages/insumos/Categorias'
+import SeccionConPestanas from './components/SeccionConPestanas'
+import Categorias from './pages/centros-costo/Categorias'
+import SeccionCentrosCosto from './pages/centros-costo/SeccionCentrosCosto'
+import Subcategorias from './pages/centros-costo/Subcategorias'
 import Insumos from './pages/insumos/Insumos'
-import SeccionInsumos from './pages/insumos/SeccionInsumos'
-import Subcategorias from './pages/insumos/Subcategorias'
 import Catalogo from './pages/proveedores/Catalogo'
 import PorVincular from './pages/proveedores/PorVincular'
 import Proveedores from './pages/proveedores/Proveedores'
@@ -13,7 +14,7 @@ import { secciones } from './secciones'
 
 // Secciones que ya tienen pantalla propia (con subrutas); el resto sigue con
 // PaginaPendiente hasta que se construya en la Fase 4.
-const conPantalla = new Set(['/insumos', '/proveedores'])
+const conPantalla = new Set(['/insumos', '/proveedores', '/centros-costo'])
 
 // Sin login: todas las secciones quedan disponibles directamente.
 function App() {
@@ -27,15 +28,18 @@ function App() {
             .map((seccion) => (
               <Route key={seccion.path} path={seccion.path} element={<PaginaPendiente seccion={seccion} />} />
             ))}
-          <Route path="/insumos" element={<SeccionInsumos />}>
+          {/* Una sola pantalla: encabezado de sección sin barra de pestañas. */}
+          <Route path="/insumos" element={<SeccionConPestanas path="/insumos" />}>
             <Route index element={<Insumos />} />
-            <Route path="categorias" element={<Categorias />} />
-            <Route path="subcategorias" element={<Subcategorias />} />
           </Route>
           <Route path="/proveedores" element={<SeccionProveedores />}>
             <Route index element={<Proveedores />} />
             <Route path="catalogo" element={<Catalogo />} />
             <Route path="por-vincular" element={<PorVincular />} />
+          </Route>
+          <Route path="/centros-costo" element={<SeccionCentrosCosto />}>
+            <Route index element={<Categorias />} />
+            <Route path="subcategorias" element={<Subcategorias />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
