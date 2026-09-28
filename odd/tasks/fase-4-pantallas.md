@@ -45,8 +45,8 @@ Slices (rama apilada sobre la anterior, destino final `main`; la Fase 1–3 va a
 ## Tareas
 - [x] **T1 — Base compartida de Mantenedores.** Ruta: delegado (writer trigger: 4+ archivos nuevos no triviales). `src/lib/texto.js` (normalizar, similares), `src/lib/csv.js`, `src/lib/formato.js` (CLP, fechas), hook `useTabla`, componentes `TablaDatos` (con botón CSV), `Mantenedor` (búsqueda, filtro Incompletos, Nuevo, formulario modal con aviso de duplicados, editar, borrar con manejo de FK), `Pestanas` para subsecciones. Aceptación: lint + build; funciones puras verificadas con node.
 - [x] **T2 — Categorías y Subcategorías.** Ruta: delegado (junto a T1, mismo writer). Rutas `/insumos/categorias` y `/insumos/subcategorias`; subcategoría con selector de categoría, `descripcion`, `activo`. Aceptación: lint + build; CRUD visible en el navegador (checkpoint).
-- [ ] **T3 — Insumos Okima.** Ruta: delegado. `/insumos`: CRUD con `SelectorSubcategoria` (agrupado por categoría, solo activas), `venta_directa` habilita `precio_venta`, `qty` solo lectura, filtro Incompletos. Aceptación: lint + build.
-- [ ] **T4 — Proveedores, catálogo e Insumos por vincular.** Ruta: delegado. `/proveedores` (CRUD proveedores), `/proveedores/catalogo` (CRUD `insumos_proveedores`), `/proveedores/por-vincular` (asignar `id_insumo_okima` con selector buscable; aviso de que vincular no suma stock retroactivo). Aceptación: lint + build.
+- [x] **T3 — Insumos Okima.** Ruta: delegado. `/insumos`: CRUD con `SelectorSubcategoria` (agrupado por categoría, solo activas), `venta_directa` habilita `precio_venta`, `qty` solo lectura, filtro Incompletos. Aceptación: lint + build.
+- [x] **T4 — Proveedores, catálogo e Insumos por vincular.** Ruta: delegado. `/proveedores` (CRUD proveedores), `/proveedores/catalogo` (CRUD `insumos_proveedores`), `/proveedores/por-vincular` (asignar `id_insumo_okima` con selector buscable; aviso de que vincular no suma stock retroactivo). Aceptación: lint + build.
 - [ ] **Checkpoint** — usuario revisa Mantenedores en el navegador.
 - [ ] **T5 — Solicitudes de Compra.** (pendiente de checkpoint)
 - [ ] **T6 — Otros Gastos.** (pendiente)
@@ -56,7 +56,10 @@ Slices (rama apilada sobre la anterior, destino final `main`; la Fase 1–3 va a
 - Prerrequisito: commit `dfc2a96` elimina `.env.example` (pedido del usuario) en `feat/fase-3-layout`.
 - **T1** — commit `9b48265` (S1). Writer delegado; orquestador revisó `useTabla` y `Mantenedor`. `npx oxlint` exit 0; `npm run build` OK (aviso de chunk > 500 kB por el cliente Supabase, a optimizar en Fase 5 con code-splitting); 26/26 aserciones node sobre `src/lib` (normalizar, coincide, buscarSimilares, CSV, formatos, mensajeError). Desviaciones aceptadas: props `filtroDuplicados`, `etiquetaDuplicado`, `booleano.anulable`, campos ocultos se guardan null, textos con trim. No verificado: CRUD real contra Supabase (checkpoint). RDD: disabled/unmanaged.
 - **T2** — commit `ae37b88` (S1). Rutas anidadas bajo `/insumos`; duplicados de subcategoría solo dentro de la misma categoría. Mismos checks que T1. RDD: disabled/unmanaged.
+- **T3** — commit `0a3d224` (S2 `feat/fase-4-insumos`). Writer delegado. `qty` nunca se envía (no es campo del formulario). Extensión de la base: columnas `soloCsv`/`soloTabla` en TablaDatos; CSV exporta decimales con coma (Excel es-CL leía 1.5 como 15). oxlint 0 diagnósticos; build OK; 12/12 aserciones node. RDD: disabled/unmanaged.
+- **T4** — commit `447d2a7` (S3 `feat/fase-4-proveedores`). `SeccionConPestanas` genérico (Insumos y Proveedores); aviso de RUT duplicado normalizado; Catálogo sin edición de `id_insumo_okima`; Por vincular con `Combobox` buscable (preparado para `onCrear`), filtra en el navegador. oxlint 0; build OK; 13/13 aserciones node. RDD: disabled/unmanaged.
+- Líneas autoradas S2: ~170; S3: ~660.
 - Líneas autoradas S1: ~1.300 (sobre el heurístico: la base compartida es una unidad coherente que usan todos los mantenedores).
 
 ## Siguiente paso
-T3 en `feat/fase-4-insumos` y T4 en `feat/fase-4-proveedores` (apiladas).
+Checkpoint: el usuario prueba los Mantenedores en el navegador (CRUD real contra Supabase no verificado aún). Luego T5 Solicitudes en `feat/fase-4-solicitudes`.
