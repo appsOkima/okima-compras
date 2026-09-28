@@ -26,10 +26,12 @@ Entrega: `disabled/unmanaged`. Estrategia: `stacked-to-main` (elegida en Fase 4)
 
 ## Tareas
 - [x] **T1 — Code-splitting.** Ruta: inline (App.jsx + Layout; sin cambios en vite.config: Rolldown ya separa `supabase-js` en un chunk compartido). Páginas con `React.lazy` + `Suspense` en el Layout; los contenedores de sección (pestañas) quedan eager para que no parpadeen. Aceptación: build sin aviso de >500 kB; todas las rutas siguen resolviendo.
-- [ ] **T2 — Ordenar y paginar `TablaDatos`.** Ruta: delegado (writer trigger: componente + lib pura nueva). Clic en encabezado ordena asc/desc (números y fechas por valor, texto sin distinguir tildes); paginación de 50 con "Anterior/Siguiente" y contador; el orden inicial de cada vista se conserva hasta el primer clic; en papel se imprimen todas las filas; CSV con todas las filtradas en el orden mostrado. Lógica en `src/lib/tabla.js`, verificada con node. Aceptación: lint + build + aserciones.
+- [x] **T2 — Ordenar y paginar `TablaDatos`.** Ruta: delegado (writer trigger: componente + lib pura nueva). Clic en encabezado ordena asc/desc (números y fechas por valor, texto sin distinguir tildes); paginación de 50 con "Anterior/Siguiente" y contador; el orden inicial de cada vista se conserva hasta el primer clic; en papel se imprimen todas las filas; CSV con todas las filtradas en el orden mostrado. Lógica en `src/lib/tabla.js`, verificada con node. Aceptación: lint + build + aserciones.
 - [x] **T3 — Pulido.** Ruta: inline. Título de pestaña por sección (`document.title`), Modal con trampa de foco y devolución del foco al cerrar. Aceptación: lint + build.
 
 ## Progreso / evidencia
+
+- T2 (delegado a writer, revisado por el orquestador): `src/lib/tabla.js` + `TablaDatos.jsx`. Aserciones node (orden números/tildes/vacíos/estabilidad, paginación N=0/50/51/121) OK; `npx oxlint` y `npm run build` limpios. Limitación conocida: si una búsqueda cambia las filas pero deja igual el total y el id de la primera, la página no se reinicia. Sin prueba en navegador.
 
 - T3: `document.title` por sección en Layout (`<Sección> · Okima Compras`); Modal con trampa de Tab/Shift+Tab y devolución del foco al cerrar. `npx oxlint` y `npm run build` limpios. Verificación visual/teclado pendiente del usuario (sin navegador disponible).
 - T1: `npm run build` sin aviso de >500 kB; mayor chunk 275 kB (index) + 219 kB (compartido con supabase-js); 30 chunks por pantalla. `npx oxlint` sin hallazgos.
