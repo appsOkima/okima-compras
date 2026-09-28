@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { coincide } from '../lib/texto'
+import { AlertTriangle, ChevronDown, Plus } from 'lucide-react'
+import { filtrarOpciones } from '../lib/opciones'
 import { claseInput } from './estilos'
 
 // Tope de opciones dibujadas: con catálogos grandes se acota escribiendo.
@@ -12,9 +12,21 @@ const ALTO_LISTA = 240
 // opciones = [{ valor, etiqueta, detalle? }]; onChange recibe el valor elegido, o
 // '' cuando se borra la selección escribiendo encima. `etiqueta` es el nombre
 // accesible cuando no hay un <label htmlFor={id}> (ej. dentro de una tabla).
-// Pensado para sumar después `onCrear` (creación al vuelo): iría como una opción
-// extra al final de la lista cuando el texto no calce con ninguna.
-function Combobox({ opciones, valor, onChange, placeholder = 'Buscar…', id, etiqueta, disabled = false, className = '' }) {
+// `onCrear(texto)` (opcional, creación al vuelo): si el texto no es igual a
+// ninguna opción, agrega al final "Crear '<texto>'"; con opciones parecidas las
+// muestra primero y avisa en esa opción. Quien la recibe decide cómo crear
+// (nunca se crea en silencio desde aquí).
+function Combobox({
+  opciones,
+  valor,
+  onChange,
+  onCrear,
+  placeholder = 'Buscar…',
+  id,
+  etiqueta,
+  disabled = false,
+  className = '',
+}) {
   const idLista = useId()
   const input = useRef(null)
   // null = no se está escribiendo: el input muestra la opción elegida.
@@ -24,12 +36,13 @@ function Combobox({ opciones, valor, onChange, placeholder = 'Buscar…', id, et
   const [posicion, setPosicion] = useState(null)
 
   const seleccionada = opciones.find((o) => o.valor === valor) ?? null
-  const coincidentes = useMemo(
-    () => opciones.filter((o) => coincide(`${o.etiqueta} ${o.detalle ?? ''}`, texto ?? '')),
-    [opciones, texto],
+  const { visibles, restantes, crear } = useMemo(
+    () => filtrarOpciones(opciones, texto, { conCrear: Boolean(onCrear), maximo: MAXIMO_VISIBLES }),
+    [opciones, texto, onCrear],
   )
-  const visibles = coincidentes.slice(0, MAXIMO_VISIBLES)
-  const indice = Math.min(resaltado, visibles.length - 1)
+  // La opción "Crear" va después de las visibles, con el índice siguiente.
+  const totalItems = visibles.length + (crear ? 1 : 0)
+  const indice = Math.min(resaltado, totalItems - 1)
 
   // La lista va con position: fixed para que no la recorte una tabla con scroll
   // horizontal; se abre hacia arriba si no cabe abajo.
@@ -77,6 +90,17 @@ function Combobox({ opciones, valor, onChange, placeholder = 'Buscar…', id, et
     cerrar()
   }
 
+  const proponerCreacion = () => {
+    const propuesta = crear.texto
+    cerrar()
+    onCrear(propuesta)
+  }
+
+  const activar = (i) => {
+    if (i < visibles.length) elegir(visibles[i])
+    else if (crear) proponerCreacion()
+  }
+
   const alEscribir = (e) => {
     setTexto(e.target.value)
     setResaltado(0)
@@ -89,13 +113,13 @@ function Combobox({ opciones, valor, onChange, placeholder = 'Buscar…', id, et
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       if (!abierto) abrir()
-      else setResaltado(Math.min(indice + 1, visibles.length - 1))
+      else setResaltado(Math.min(indice + 1, totalItems - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setResaltado(Math.max(indice - 1, 0))
-    } else if (e.key === 'Enter' && abierto && visibles[indice]) {
+    } else if (e.key === 'Enter' && abierto && indice >= 0) {
       e.preventDefault()
-      elegir(visibles[indice])
+      activar(indice)
     } else if (e.key === 'Escape' && abierto) {
       // Sin propagar: dentro de un Modal, Escape cierra la lista y no el diálogo.
       e.preventDefault()
@@ -134,7 +158,7 @@ function Combobox({ opciones, valor, onChange, placeholder = 'Buscar…', id, et
           style={{ position: 'fixed', ...posicion }}
           className="z-50 max-h-60 overflow-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg"
         >
-          {visibles.length === 0 ? (
+          {visibles.length === 0 && !crear ? (
             <li className="px-3 py-2 text-slate-500">Sin coincidencias</li>
           ) : (
             visibles.map((opcion, i) => (
@@ -154,9 +178,36 @@ function Combobox({ opciones, valor, onChange, placeholder = 'Buscar…', id, et
               </li>
             ))
           )}
-          {coincidentes.length > MAXIMO_VISIBLES && (
-            <li className="px-3 py-2 text-xs text-slate-500">
-              {coincidentes.length - MAXIMO_VISIBLES} más… escribe para acotar.
+          {restantes > 0 && (
+            <li className="px-3 py-2 text-xs text-slate-500">{restantes} más… escribe para acotar.</li>
+          )}
+          {crear && (
+            <li
+              id={`${idLista}-${visibles.length}`}
+              role="option"
+              aria-selected={false}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={proponerCreacion}
+              onMouseEnter={() => setResaltado(visibles.length)}
+              className={`flex cursor-pointer items-start gap-2 border-t border-slate-100 px-3 py-2 ${
+                crear.conSimilares
+                  ? indice === visibles.length
+                    ? 'bg-amber-100 text-amber-900'
+                    : 'text-amber-800'
+                  : indice === visibles.length
+                    ? 'bg-indigo-50 text-indigo-800'
+                    : 'text-indigo-700'
+              }`}
+            >
+              {crear.conSimilares ? (
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              ) : (
+                <Plus className="mt-0.5 h-4 w-4 shrink-0" />
+              )}
+              <span className="min-w-0 break-words">
+                {crear.conSimilares ? 'Ya existen parecidos — crear de todos modos ' : 'Crear '}
+                <span className="font-semibold">'{crear.texto}'</span>
+              </span>
             </li>
           )}
         </ul>

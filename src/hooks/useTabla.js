@@ -56,11 +56,16 @@ export function useTabla(tabla, { select = '*', orden = ORDEN_POR_DEFECTO } = {}
     }
   }, [consultar])
 
-  // Recarga manual (desde un evento): aquí sí se marca "cargando" de inmediato.
-  const recargar = useCallback(() => {
-    setCargando(true)
-    return consultar()
-  }, [consultar])
+  // Recarga manual (desde un evento): aquí sí se marca "cargando" de inmediato,
+  // salvo `silencioso` (ej. tras guardar), que mantiene las filas a la vista hasta
+  // que llega la respuesta.
+  const recargar = useCallback(
+    ({ silencioso = false } = {}) => {
+      if (!silencioso) setCargando(true)
+      return consultar()
+    },
+    [consultar],
+  )
 
   // crear/actualizar devuelven la fila con sus relaciones embebidas y lanzan el
   // error para que el formulario lo muestre.

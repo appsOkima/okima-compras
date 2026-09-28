@@ -7,6 +7,8 @@ import { claseBotonSecundario } from './estilos'
 // (ya filtradas). Todas las vistas de tabla la reutilizan.
 // Una columna con `soloCsv` no se muestra en pantalla (ej. datos secundarios) y
 // una con `soloTabla` no se exporta (ej. controles o valores ya desglosados).
+// Una con `noImprimir` se ve en pantalla pero no en papel; `claseFila(fila)`
+// agrega clases a cada fila (ej. un acento de color por urgencia).
 function TablaDatos({
   columnas: todasLasColumnas,
   filas,
@@ -16,6 +18,7 @@ function TablaDatos({
   vacio = 'No hay registros.',
   acciones,
   barra,
+  claseFila,
 }) {
   const columnas = todasLasColumnas.filter((c) => !c.soloCsv)
 
@@ -27,11 +30,11 @@ function TablaDatos({
     descargarCsv(nombreArchivo, generarCsv(filas, columnasCsv))
   }
 
-  const alinear = (c) => (c.alinear === 'derecha' ? 'text-right' : 'text-left')
+  const alinear = (c) => `${c.alinear === 'derecha' ? 'text-right' : 'text-left'}${c.noImprimir ? ' print:hidden' : ''}`
   const totalColumnas = columnas.length + (acciones ? 1 : 0)
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm print:rounded-none print:border-0 print:shadow-none">
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3 print:hidden">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">{barra}</div>
         <span className="text-xs text-slate-500">
@@ -48,8 +51,9 @@ function TablaDatos({
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
+      {/* En papel no hay scroll: la tabla se ajusta al ancho de la hoja (ver index.css). */}
+      <div className="overflow-x-auto print:overflow-visible">
+        <table className="tabla-datos min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
               {columnas.map((c) => (
@@ -81,7 +85,10 @@ function TablaDatos({
               <FilaMensaje columnas={totalColumnas}>{vacio}</FilaMensaje>
             ) : (
               filas.map((fila) => (
-                <tr key={fila.id} className="odd:bg-white even:bg-slate-50/60 hover:bg-indigo-50/50">
+                <tr
+                  key={fila.id}
+                  className={`odd:bg-white even:bg-slate-50/60 hover:bg-indigo-50/50 ${claseFila ? claseFila(fila) : ''}`}
+                >
                   {columnas.map((c) => (
                     <td key={c.clave} className={`px-4 py-2.5 align-top text-slate-700 ${alinear(c)}`}>
                       {c.render ? c.render(fila) : fila[c.clave]}

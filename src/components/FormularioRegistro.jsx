@@ -40,6 +40,9 @@ function esVisible(campo, valores) {
 
 // Formulario de creación/edición guiado por la lista de `campos`.
 // Solo envía las claves declaradas en `campos` (no las relaciones embebidas).
+// Opcionales por campo: `validar(valor, salida)` devuelve un mensaje de error o
+// nada (ej. cantidad > 0) y `sugerencias` (lista de textos) agrega autocompletado
+// a un campo de texto sin restringir lo que se escribe.
 function FormularioRegistro({
   campos,
   valoresIniciales = {},
@@ -84,6 +87,12 @@ function FormularioRegistro({
         nuevosErrores[campo.clave] = 'Este campo es obligatorio.'
       }
       salida[campo.clave] = valor
+    }
+    // Validaciones propias, con la salida completa ya convertida.
+    for (const campo of campos) {
+      if (nuevosErrores[campo.clave] || !campo.validar || !esVisible(campo, valores)) continue
+      const mensaje = campo.validar(salida[campo.clave], salida)
+      if (mensaje) nuevosErrores[campo.clave] = mensaje
     }
     setErrores(nuevosErrores)
     setErrorGuardar('')
@@ -231,13 +240,26 @@ function Campo({ id, campo, valor, valores, error, onChange }) {
       />
     )
   } else {
+    // Con sugerencias, el navegador ofrece solo esas (no su historial de formularios).
+    const idSugerencias = campo.sugerencias?.length ? `${id}-sugerencias` : undefined
     control = (
-      <input
-        {...comunes}
-        type={tipo === 'fecha' ? 'date' : 'text'}
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <>
+        <input
+          {...comunes}
+          type={tipo === 'fecha' ? 'date' : 'text'}
+          value={valor}
+          list={idSugerencias}
+          autoComplete={idSugerencias ? 'off' : undefined}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {idSugerencias && (
+          <datalist id={idSugerencias}>
+            {campo.sugerencias.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+        )}
+      </>
     )
   }
 

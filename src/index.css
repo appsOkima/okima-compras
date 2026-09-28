@@ -1,1 +1,34 @@
 @import "tailwindcss";
+
+/* Impresión (ej. solicitudes pendientes): hoja blanca, tabla con bordes visibles
+   en blanco y negro, encabezado repetido en cada página y filas sin cortar. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .tabla-datos {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+
+  .tabla-datos thead {
+    display: table-header-group;
+  }
+
+  .tabla-datos th,
+  .tabla-datos td {
+    border: 1px solid #555;
+    padding: 4pt 6pt;
+    color: #000;
+  }
+
+  .tabla-datos tr {
+    break-inside: avoid;
+  }
+}

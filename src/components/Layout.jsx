@@ -10,7 +10,7 @@ function Layout() {
   const cerrarMenu = () => setMenuAbierto(false)
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 md:flex">
+    <div className="min-h-screen bg-slate-50 text-slate-800 md:flex print:block print:bg-white">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden print:hidden">
         <Marca />
         <button
@@ -55,7 +55,7 @@ function Layout() {
         </nav>
       </aside>
 
-      <main className="min-w-0 flex-1 p-4 md:p-8">
+      <main className="min-w-0 flex-1 p-4 md:p-8 print:p-0">
         <Outlet />
       </main>
     </div>
