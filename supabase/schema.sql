@@ -22,7 +22,7 @@ begin;
 create type nivel_urgencia as enum ('Baja', 'Media', 'Alta');
 
 -- -----------------------------------------------------------------------------
--- 8. categorias (compartida por insumos, otros_gastos y plantillas)
+-- 8. categorias (centros de costo)
 -- -----------------------------------------------------------------------------
 create table categorias (
   id          uuid primary key default gen_random_uuid(),
@@ -30,6 +30,22 @@ create table categorias (
   nombre      text not null,
   activo      boolean not null default true
 );
+
+-- -----------------------------------------------------------------------------
+-- 10. subcategorias (compartida por insumos, otros_gastos y plantillas)
+-- -----------------------------------------------------------------------------
+-- Insumos, gastos y plantillas referencian solo la subcategoría; la categoría
+-- (centro de costo) se obtiene a través de ella.
+create table subcategorias (
+  id            uuid primary key default gen_random_uuid(),
+  created_at    timestamptz not null default now(),
+  id_categoria  uuid not null references categorias (id),
+  nombre        text not null,
+  descripcion   text,  -- ítems incluidos, ej: "Papeles, Toner (solo negro)"
+  activo        boolean not null default true
+);
+
+create index subcategorias_id_categoria_idx on subcategorias (id_categoria);
 
 -- -----------------------------------------------------------------------------
 -- 1. proveedores
@@ -54,21 +70,21 @@ create table proveedores (
 -- 2. insumos (insumos internos de Okima)
 -- -----------------------------------------------------------------------------
 create table insumos (
-  id             uuid primary key default gen_random_uuid(),
-  created_at     timestamptz not null default now(),
-  nombre         text not null,
-  id_categoria   uuid not null references categorias (id),  -- obligatoria incluso al vuelo
-  codigo         text,
-  ancho          numeric,  -- mm
-  alto           numeric,  -- mm
-  profundidad    numeric,  -- mm
-  venta_directa  boolean,
-  precio_venta   numeric,  -- aplica cuando venta_directa = true
-  qty            integer not null default 0,  -- se actualiza al guardar líneas de factura
-  descripcion    text
+  id               uuid primary key default gen_random_uuid(),
+  created_at       timestamptz not null default now(),
+  nombre           text not null,
+  id_subcategoria  uuid not null references subcategorias (id),  -- obligatoria incluso al vuelo
+  codigo           text,
+  ancho            numeric,  -- mm
+  alto             numeric,  -- mm
+  profundidad      numeric,  -- mm
+  venta_directa    boolean,
+  precio_venta     numeric,  -- aplica cuando venta_directa = true
+  qty              integer not null default 0,  -- se actualiza al guardar líneas de factura
+  descripcion      text
 );
 
-create index insumos_id_categoria_idx on insumos (id_categoria);
+create index insumos_id_subcategoria_idx on insumos (id_subcategoria);
 
 -- -----------------------------------------------------------------------------
 -- 3. insumos_proveedores (catálogo de cada proveedor)
@@ -178,10 +194,10 @@ execute function marcar_solicitud_comprada();
 create table plantillas_gastos_recurrentes (
   id             uuid primary key default gen_random_uuid(),
   created_at     timestamptz not null default now(),
-  nombre         text not null,  -- ej: Arriendo, Sueldos, Pago IVA
-  id_categoria   uuid references categorias (id),
-  monto_default  numeric not null default 0,  -- editable; pre-llena el monto del gasto
-  activo         boolean not null default true
+  nombre           text not null,  -- ej: Arriendo, Sueldos, Pago IVA
+  id_subcategoria  uuid references subcategorias (id),
+  monto_default    numeric not null default 0,  -- editable; pre-llena el monto del gasto
+  activo           boolean not null default true
 );
 
 -- -----------------------------------------------------------------------------
@@ -191,7 +207,7 @@ create table otros_gastos (
   id                       uuid primary key default gen_random_uuid(),
   created_at               timestamptz not null default now(),
   concepto                 text not null,
-  id_categoria             uuid references categorias (id),
+  id_subcategoria          uuid references subcategorias (id),
   -- Si viene de un atajo de gasto recurrente, indica de cuál plantilla.
   id_plantilla_recurrente  uuid references plantillas_gastos_recurrentes (id),
   id_proveedor             uuid references proveedores (id),
@@ -201,7 +217,7 @@ create table otros_gastos (
   notas                    text
 );
 
-create index otros_gastos_id_categoria_idx on otros_gastos (id_categoria);
+create index otros_gastos_id_subcategoria_idx on otros_gastos (id_subcategoria);
 create index otros_gastos_id_plantilla_recurrente_idx on otros_gastos (id_plantilla_recurrente);
 create index otros_gastos_id_proveedor_idx on otros_gastos (id_proveedor);
 create index otros_gastos_fecha_idx on otros_gastos (fecha);
@@ -245,6 +261,7 @@ declare
 begin
   foreach t in array array[
     'categorias',
+    'subcategorias',
     'proveedores',
     'insumos',
     'insumos_proveedores',
@@ -267,12 +284,68 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Datos semilla
 -- -----------------------------------------------------------------------------
--- Categorías: pendiente la lista inicial. Cuando esté, agregar aquí, ej.:
--- insert into categorias (nombre) values ('Papelería'), ('Embalaje');
+-- Categorías (centros de costo) y subcategorías, desde centros_de_costo.csv.
+-- La columna "Items Incluidos" queda en subcategorias.descripcion.
+insert into categorias (nombre) values
+  ('GASTOS ADMINISTRATIVOS Y FIJOS'),
+  ('IMPRESIÓN GRAN FORMATO (PLOTTERS)'),
+  ('IMPRESIÓN DIGITAL Y PAPELERÍA'),
+  ('IMPRESIÓN DIRECTA Y GRABADO LÁSER'),
+  ('MARQUETERÍA'),
+  ('SUBLIMACIÓN Y ESTAMPADOS'),
+  ('FOTOGRAFÍA QUÍMICA'),
+  ('TIENDA / PRODUCTO DIRECTO'),
+  ('HERRAMIENTAS Y TALLER'),
+  ('INVERSIONES Y PROYECTOS ESPECIALES');
 
-insert into plantillas_gastos_recurrentes (nombre, monto_default) values
-  ('Arriendo', 0),
-  ('Sueldos', 0),
-  ('Pago IVA', 0);
+insert into subcategorias (id_categoria, nombre, descripcion)
+select c.id, v.nombre, v.descripcion
+from (values
+  ('GASTOS ADMINISTRATIVOS Y FIJOS',     'Remuneraciones',                        'Sueldos líquidos, Imposiciones'),
+  ('GASTOS ADMINISTRATIVOS Y FIJOS',     'Infraestructura',                       'Arriendo, Servicios básicos (Luz, agua, internet)'),
+  ('GASTOS ADMINISTRATIVOS Y FIJOS',     'Impuestos y Finanzas',                  'IVA, Patentes, Gastos bancarios'),
+  ('GASTOS ADMINISTRATIVOS Y FIJOS',     'Operación de Oficina',                  'Artículos de aseo, Útiles de oficina'),
+  ('IMPRESIÓN GRAN FORMATO (PLOTTERS)',  'Roland SG300',                          'Rollos de plotter (vinilos, telas, etc.), Cartridges de tinta, Cartridge cleaner, Kit de limpieza'),
+  ('IMPRESIÓN GRAN FORMATO (PLOTTERS)',  'Roland RF640',                          'Rollos de plotter, Botellas de tinta, Botella cleaner, Kit de limpieza'),
+  ('IMPRESIÓN GRAN FORMATO (PLOTTERS)',  'HP LATEX 335',                          'Rollos de plotter, Cartridges de tinta, Kit de mantención'),
+  ('IMPRESIÓN GRAN FORMATO (PLOTTERS)',  'Sustratos Rígidos',                     'Planchas de foam, Sintra, Acrílicos generales'),
+  ('IMPRESIÓN GRAN FORMATO (PLOTTERS)',  'Laminadora en Caliente (Gran Formato)', 'Rollos de laminado para plotter'),
+  ('IMPRESIÓN GRAN FORMATO (PLOTTERS)',  'Laminadora en Frío',                    'Rollos de laminado mate'),
+  ('IMPRESIÓN GRAN FORMATO (PLOTTERS)',  'Mantención de Máquinas y Repuestos',    'Gastos técnicos, cambio de cabezales, repuestos mecánicos'),
+  ('IMPRESIÓN DIGITAL Y PAPELERÍA',      'Canon imagePRESS C700',                 'Papeles (couché, bond, opalina, adhesivo, etc.), Toner CMYK'),
+  ('IMPRESIÓN DIGITAL Y PAPELERÍA',      'Ricoh Aficio 5054',                     'Papeles, Toner (solo negro)'),
+  ('IMPRESIÓN DIGITAL Y PAPELERÍA',      'Encuadernación y Soportes',             'Cartón piedra, Vinil adhesivo para encuadernar, Cintas de encuadernación (fastback), Corchetes'),
+  ('IMPRESIÓN DIGITAL Y PAPELERÍA',      'Plastificadora',                        'Micas de encapsulado'),
+  ('IMPRESIÓN DIGITAL Y PAPELERÍA',      'Laminadora en Caliente (Polimate)',     'Rollos de polimate (para impresión digital)'),
+  ('IMPRESIÓN DIGITAL Y PAPELERÍA',      'Mantención de Máquinas y Repuestos',    'Visitas técnicas, cambio de fusores, repuestos internos'),
+  ('IMPRESIÓN DIRECTA Y GRABADO LÁSER',  'Roland VersaUV LEF12',                  'Cartridges de tinta UV, líquidos de limpieza'),
+  ('IMPRESIÓN DIRECTA Y GRABADO LÁSER',  'Objetos para personalizar',             'Lápices, galvanos, llaveros, cerámicas, pendrives, etc.'),
+  ('IMPRESIÓN DIRECTA Y GRABADO LÁSER',  'Sustratos rígidos especiales',          'Lamicoid, Acrílicos especiales para grabado/corte'),
+  ('IMPRESIÓN DIRECTA Y GRABADO LÁSER',  'Mantención de Máquinas y Repuestos',    'Cambios de tubos láser, espejos, repuestos mecánicos o de cabezales UV'),
+  ('MARQUETERÍA',                        'Insumos de Enmarcado',                  'Molduras, Vidrios, Traseras, Passepartout'),
+  ('MARQUETERÍA',                        'Materiales Auxiliares',                 'Puntas auxiliares, Cintas adhesivas, Cola fría, Cinta engomada'),
+  ('MARQUETERÍA',                        'Mantención de Máquinas y Repuestos',    'Afilado de cuchillos, repuestos para ensambladoras o cortadoras'),
+  ('SUBLIMACIÓN Y ESTAMPADOS',           'Insumos de Impresión',                  'Hojas de sublimación, Tintas de sublimación (Sawgrass, Epson), Compra de DTF Textil'),
+  ('SUBLIMACIÓN Y ESTAMPADOS',           'Sustratos en Blanco (Blanks)',          'Poleras, Textiles en general, Objetos sublimables'),
+  ('SUBLIMACIÓN Y ESTAMPADOS',           'Mantención de Máquinas y Repuestos',    'Arreglo de resistencias de planchas, repuestos de impresoras pequeñas'),
+  ('FOTOGRAFÍA QUÍMICA',                 'Papel Fotográfico',                     'Rollos de papel fotosensible de distintos anchos/superficies'),
+  ('FOTOGRAFÍA QUÍMICA',                 'Procesos Químicos',                     'Revelador, blanqueador, fijador, estabilizador y regeneradores'),
+  ('FOTOGRAFÍA QUÍMICA',                 'Mantención Minilab y Repuestos',        'Filtros, lámparas, piezas mecánicas de la procesadora y visitas técnicas'),
+  ('TIENDA / PRODUCTO DIRECTO',          'Venta Directa',                         'Productos de reventa que no sufren intervención en el taller'),
+  ('HERRAMIENTAS Y TALLER',              'Herramientas de Uso General',           'Despuntadora, Tijeras, Cutters, Reglas, herramientas de mano que usan todas las áreas'),
+  ('INVERSIONES Y PROYECTOS ESPECIALES', 'Infraestructura y Remodelaciones',      'Compra de muebles, cerámicas, pintura, arreglos estructurales del local'),
+  ('INVERSIONES Y PROYECTOS ESPECIALES', 'Tecnología y Sistemas',                 'Implementación de sistemas ERP, compra de computadores, licencias de software definitivas')
+) as v (categoria, nombre, descripcion)
+join categorias c on c.nombre = v.categoria;
+
+insert into plantillas_gastos_recurrentes (nombre, id_subcategoria, monto_default)
+select v.nombre, s.id, 0
+from (values
+  ('Arriendo', 'Infraestructura'),
+  ('Sueldos',  'Remuneraciones'),
+  ('Pago IVA', 'Impuestos y Finanzas')
+) as v (nombre, subcategoria)
+join subcategorias s on s.nombre = v.subcategoria
+join categorias c on c.id = s.id_categoria and c.nombre = 'GASTOS ADMINISTRATIVOS Y FIJOS';
 
 commit;
