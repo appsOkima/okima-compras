@@ -77,4 +77,4 @@ Slices (rama apilada sobre la anterior, destino final `main`; la Fase 1–3 va a
 - Líneas autoradas S1: ~1.300 (sobre el heurístico: la base compartida es una unidad coherente que usan todos los mantenedores).
 
 ## Siguiente paso
-Revisión del usuario de Facturas en el navegador (nueva factura con proveedor e insumo creados al vuelo, solicitud asociada → 'Comprada', stock sumado en Insumos Okima, editar/quitar líneas y ver que el stock se ajusta, borrar factura, cuadre y "Calcular desde líneas", vista Líneas y CSV). Con eso la Fase 4 queda completa, pendiente de la aprobación del usuario para pasar a la Fase 5.
+Usuario ejecuta `supabase/migraciones/2026-09-28-descuento-pct.sql` (si no lo hizo) y prueba en el navegador: T7b (descuentos % y totales calculados), T7c (vínculo con confirmación desde la solicitud) y T5b (cambio manual de estado). Pendiente decisión del usuario: ¿guardar sin responder la pregunta de vínculo debe avisar/bloquear? (hoy guarda sin vínculo). Con su aprobación, la Fase 4 queda completa y se pasa a la Fase 5.
