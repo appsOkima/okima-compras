@@ -21,7 +21,7 @@ Tras la Fase 3 cada sección muestra una página provisoria. El schema ya está 
 - Montos en CLP.
 
 ## Decisiones de diseño (orquestador)
-- Subsecciones como rutas anidadas: `/insumos`, `/insumos/categorias`, `/insumos/subcategorias`; `/proveedores`, `/proveedores/catalogo`, `/proveedores/por-vincular`.
+- Subsecciones como rutas anidadas: `/proveedores`, `/proveedores/catalogo`, `/proveedores/por-vincular`; `/centros-costo` (Categorías), `/centros-costo/subcategorias` (desde T4c; antes vivían bajo `/insumos`).
 - CSV con separador `;` y BOM UTF-8 (Excel en configuración regional es-CL).
 - "Incompletos" = campos que la creación al vuelo deja vacíos y que no son opcionales por naturaleza. Se excluyen dimensiones (no aplican a todos los insumos, ej. tóner) y campos opcionales (descripción, emails, etc.):
   - `insumos`: `codigo`, `venta_directa`, o `precio_venta` si `venta_directa = true`.
