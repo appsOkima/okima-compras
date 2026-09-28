@@ -21,3 +21,5 @@ El esquema completo está en `supabase/schema.sql`. Se ejecuta a mano en el SQL 
 Si la base se creó con un `schema.sql` anterior, ejecuta en orden los archivos pendientes de `supabase/migraciones/` (cada uno una sola vez).
 
 Para borrar datos de prueba: `supabase/limpiar-datos.sql` vacía todas las tablas salvo `categorias` y `subcategorias` (irreversible).
+
+Para cargar datos de prueba en todas las tablas: `supabase/datos-prueba.sql` (proveedores, insumos, solicitudes, facturas, gastos…; pasa por los triggers reales). Se detiene si ya están cargados: correr antes `limpiar-datos.sql`.

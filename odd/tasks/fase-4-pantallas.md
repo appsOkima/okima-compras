@@ -80,4 +80,4 @@ Slices (rama apilada sobre la anterior, destino final `main`; la Fase 1–3 va a
 - **Script de limpieza** — pedido del usuario (2026-09-28): `supabase/limpiar-datos.sql` vacía todas las tablas salvo `categorias` y `subcategorias` (TRUNCATE sin CASCADE, en transacción; re-siembra de plantillas opcional comentada). Ruta: inline (1 archivo). PGlite: con datos en todas las tablas → 8 tablas en 0, 10 categorías y 34 subcategorías intactas, inserts posteriores OK. El usuario hará las pruebas contra su Supabase él mismo.
 
 ## Siguiente paso
-El usuario prueba contra su Supabase y limpia con `supabase/limpiar-datos.sql`. Con su aprobación, Fase 4 completa → Fase 5.
+El usuario prueba contra su Supabase: carga datos con `supabase/datos-prueba.sql` (PGlite: 12 proveedores, 57 insumos, 95 insumos de proveedor, 50 solicitudes, 26 facturas/121 líneas, 41 gastos; totales y stock verificados) y limpia con `supabase/limpiar-datos.sql`. Con su aprobación, Fase 4 completa → Fase 5.
