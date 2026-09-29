@@ -15,7 +15,8 @@ const ALTO_LISTA = 240
 // `onCrear(texto)` (opcional, creación al vuelo): si el texto no es igual a
 // ninguna opción, agrega al final "Crear '<texto>'"; con opciones parecidas las
 // muestra primero y avisa en esa opción. Quien la recibe decide cómo crear
-// (nunca se crea en silencio desde aquí).
+// (nunca se crea en silencio desde aquí). Al salir del campo con un texto sin
+// coincidencia exacta, se propone crear ese registro en lugar de borrar el texto.
 function Combobox({
   opciones,
   valor,
@@ -96,6 +97,15 @@ function Combobox({
     onCrear(propuesta)
   }
 
+  // Al salir del campo con un texto que no coincide con ninguna opción, se pasa a
+  // "crear" ese registro (abre el mini-formulario de confirmación) en vez de borrar lo escrito.
+  const alPerderFoco = () => {
+    // Si el foco sigue en el input, la ventana perdió el foco (cambio de pestaña): no hacer nada.
+    if (document.activeElement === input.current) return
+    if (crear) proponerCreacion()
+    else cerrar()
+  }
+
   const activar = (i) => {
     if (i < visibles.length) elegir(visibles[i])
     else if (crear) proponerCreacion()
@@ -147,7 +157,7 @@ function Combobox({
         onChange={alEscribir}
         onClick={abrir}
         onKeyDown={alPresionar}
-        onBlur={cerrar}
+        onBlur={alPerderFoco}
         className={`${claseInput} pr-8`}
       />
       <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
