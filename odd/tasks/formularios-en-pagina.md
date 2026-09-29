@@ -35,6 +35,6 @@ RDD: off (global) → entrega `disabled/unmanaged`. Rama `feat/formularios-en-pa
 - Revisión del usuario en el navegador (2026-09-29): "funciona bien".
 
 ## Siguiente paso
-PR único abierto; merge a decisión del usuario. Opcional (no autorizado aún): llevar la misma confirmación de salida a Facturas.
+PR único abierto: https://github.com/appsOkima/okima-compras/pull/3 — merge a decisión del usuario. Opcional (no autorizado aún): llevar la misma confirmación de salida a Facturas.
 
 - Revisión de T1 por el usuario (2026-09-29): pidió confirmación al salir a medio llenar (→ T3) y aplicar al resto (→ T2).
