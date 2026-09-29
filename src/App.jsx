@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { createBrowserRouter, createRoutesFromElements, Navigate, Route, RouterProvider } from 'react-router-dom'
 import Layout from './components/Layout'
 import PaginaPendiente from './components/PaginaPendiente'
 import SeccionConPestanas from './components/SeccionConPestanas'
@@ -31,57 +31,60 @@ const Todas = lazy(() => import('./pages/solicitudes/Todas'))
 const conPantalla = new Set(['/solicitudes', '/facturas', '/gastos', '/insumos', '/proveedores', '/centros-costo'])
 
 // Sin login: todas las secciones quedan disponibles directamente.
+// Enrutador de datos (createBrowserRouter) y no <BrowserRouter>: lo exige
+// useBlocker, que confirma antes de salir de un formulario con cambios sin
+// guardar (ver hooks/useConfirmarSalida). Se crea una sola vez, fuera del componente.
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route element={<Layout />}>
+      <Route index element={<Navigate to={secciones[0].path} replace />} />
+      {secciones
+        .filter((seccion) => !conPantalla.has(seccion.path))
+        .map((seccion) => (
+          <Route key={seccion.path} path={seccion.path} element={<PaginaPendiente seccion={seccion} />} />
+        ))}
+      <Route path="/solicitudes" element={<SeccionSolicitudes />}>
+        <Route index element={<Pendientes />} />
+        {/* key: cada pestaña parte con su propio estado de búsqueda y filtro. */}
+        <Route path="compradas" element={<Todas key="compradas" estadoFijo="Comprada" />} />
+        <Route path="canceladas" element={<Todas key="canceladas" estadoFijo="Cancelada" />} />
+        <Route path="todas" element={<Todas key="todas" />} />
+      </Route>
+      {/* El formulario maestro-detalle es una página de la sección (no un modal). */}
+      <Route path="/facturas" element={<SeccionFacturas />}>
+        <Route index element={<Facturas />} />
+        <Route path="lineas" element={<Lineas />} />
+        <Route path="nueva" element={<FormularioFactura />} />
+        <Route path=":id" element={<FormularioFactura />} />
+      </Route>
+      <Route path="/gastos" element={<SeccionGastos />}>
+        <Route index element={<Gastos />} />
+        <Route path="plantillas" element={<Plantillas />} />
+      </Route>
+      {/* Una sola pantalla: encabezado de sección sin barra de pestañas. */}
+      <Route path="/insumos" element={<SeccionConPestanas path="/insumos" />}>
+        <Route index element={<Insumos />} />
+      </Route>
+      {/* El formulario de proveedor también es una página de la sección (no un
+          modal); catalogo y por-vincular ganan a :id por ser rutas estáticas. */}
+      <Route path="/proveedores" element={<SeccionProveedores />}>
+        <Route index element={<Proveedores />} />
+        <Route path="catalogo" element={<Catalogo />} />
+        <Route path="por-vincular" element={<PorVincular />} />
+        <Route path="nuevo" element={<FormularioProveedor />} />
+        <Route path=":id" element={<FormularioProveedor />} />
+      </Route>
+      <Route path="/centros-costo" element={<SeccionCentrosCosto />}>
+        <Route index element={<Categorias />} />
+        <Route path="subcategorias" element={<Subcategorias />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Route>
+  ),
+)
+
 function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<Navigate to={secciones[0].path} replace />} />
-          {secciones
-            .filter((seccion) => !conPantalla.has(seccion.path))
-            .map((seccion) => (
-              <Route key={seccion.path} path={seccion.path} element={<PaginaPendiente seccion={seccion} />} />
-            ))}
-          <Route path="/solicitudes" element={<SeccionSolicitudes />}>
-            <Route index element={<Pendientes />} />
-            {/* key: cada pestaña parte con su propio estado de búsqueda y filtro. */}
-            <Route path="compradas" element={<Todas key="compradas" estadoFijo="Comprada" />} />
-            <Route path="canceladas" element={<Todas key="canceladas" estadoFijo="Cancelada" />} />
-            <Route path="todas" element={<Todas key="todas" />} />
-          </Route>
-          {/* El formulario maestro-detalle es una página de la sección (no un modal). */}
-          <Route path="/facturas" element={<SeccionFacturas />}>
-            <Route index element={<Facturas />} />
-            <Route path="lineas" element={<Lineas />} />
-            <Route path="nueva" element={<FormularioFactura />} />
-            <Route path=":id" element={<FormularioFactura />} />
-          </Route>
-          <Route path="/gastos" element={<SeccionGastos />}>
-            <Route index element={<Gastos />} />
-            <Route path="plantillas" element={<Plantillas />} />
-          </Route>
-          {/* Una sola pantalla: encabezado de sección sin barra de pestañas. */}
-          <Route path="/insumos" element={<SeccionConPestanas path="/insumos" />}>
-            <Route index element={<Insumos />} />
-          </Route>
-          {/* El formulario de proveedor también es una página de la sección (no un
-              modal); catalogo y por-vincular ganan a :id por ser rutas estáticas. */}
-          <Route path="/proveedores" element={<SeccionProveedores />}>
-            <Route index element={<Proveedores />} />
-            <Route path="catalogo" element={<Catalogo />} />
-            <Route path="por-vincular" element={<PorVincular />} />
-            <Route path="nuevo" element={<FormularioProveedor />} />
-            <Route path=":id" element={<FormularioProveedor />} />
-          </Route>
-          <Route path="/centros-costo" element={<SeccionCentrosCosto />}>
-            <Route index element={<Categorias />} />
-            <Route path="subcategorias" element={<Subcategorias />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  )
+  return <RouterProvider router={router} />
 }
 
 export default App

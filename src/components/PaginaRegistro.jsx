@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react'
+import { useConfirmarSalida } from '../hooks/useConfirmarSalida'
 import { useTabla } from '../hooks/useTabla'
 import { buscarDuplicados as buscarDuplicadosEn } from '../lib/duplicados'
 import { mensajeError } from '../lib/errores'
@@ -21,6 +22,8 @@ const mayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1)
 // - `descripcion` (opcional): texto bajo el título.
 // Carga la tabla completa con useTabla: sirve para encontrar el registro y como
 // candidatos del aviso de duplicados, igual que en el listado.
+// Con cambios sin guardar, salir de la página (Volver, Cancelar, menú, pestañas,
+// atrás del navegador, recargar) pide confirmación (useConfirmarSalida).
 function PaginaRegistro({
   titulo,
   descripcion,
@@ -41,6 +44,9 @@ function PaginaRegistro({
   const navigate = useNavigate()
   const { filas, cargando, error, crear, actualizar } = useTabla(tabla, { select, orden })
   const contenedor = useRef(null)
+  // Primer cambio del usuario en el formulario → hay algo sin guardar.
+  const [sucio, setSucio] = useState(false)
+  const permitirSalida = useConfirmarSalida(sucio)
 
   const esNuevo = !id
   const registro = esNuevo ? null : (filas.find((f) => f.id === id) ?? null)
@@ -61,6 +67,8 @@ function PaginaRegistro({
     const datos = antesDeGuardar ? antesDeGuardar(valores, registro) : valores
     const guardado = registro ? await actualizar(registro.id, datos) : await crear(datos)
     const nombre = nombreRegistro(guardado ?? datos)
+    // Ya se guardó: la vuelta al listado no pide confirmación.
+    permitirSalida()
     navigate(rutaListado, {
       state: {
         mensaje: `${mayuscula(titulo)}${nombre ? ` «${nombre}»` : ''} ${registro ? 'actualizado' : 'creado'}.`,
@@ -68,6 +76,7 @@ function PaginaRegistro({
     })
   }
 
+  // Si hay cambios sin guardar, el bloqueo de useConfirmarSalida pregunta antes.
   const volver = () => navigate(rutaListado)
 
   if (!listo) {
@@ -120,6 +129,7 @@ function PaginaRegistro({
           buscarDuplicados={duplicadosPorNombre || duplicadosAdicionales ? buscarDuplicados : undefined}
           etiquetaDuplicado={etiquetaDuplicado}
           enColumnas
+          onCambio={() => setSucio(true)}
         />
       </div>
     </section>

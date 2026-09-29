@@ -48,6 +48,8 @@ function esVisible(campo, valores) {
 // `enColumnas` (opcional, ej. en página propia) reparte los campos en 2 columnas
 // desde sm; las áreas de texto y los campos con `completo: true` ocupan todo el
 // ancho, igual que avisos y botones.
+// `onCambio()` (opcional, ej. en página propia) se llama en cada cambio que hace
+// el usuario, para saber que hay algo sin guardar (ver useConfirmarSalida).
 function FormularioRegistro({
   campos,
   valoresIniciales = {},
@@ -58,6 +60,7 @@ function FormularioRegistro({
   textoDuplicados,
   textoGuardar = 'Guardar',
   enColumnas = false,
+  onCambio,
 }) {
   const idBase = useId()
   const [valores, setValores] = useState(() =>
@@ -73,6 +76,7 @@ function FormularioRegistro({
     setErrores((actuales) => ({ ...actuales, [clave]: undefined }))
     // Cualquier cambio invalida el aviso de duplicados: se vuelve a chequear al guardar.
     setDuplicados([])
+    onCambio?.()
   }
 
   const enviar = async (e) => {
