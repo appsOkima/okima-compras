@@ -27,11 +27,12 @@ const FormularioProveedor = lazy(() => import('./pages/proveedores/FormularioPro
 const PorVincular = lazy(() => import('./pages/proveedores/PorVincular'))
 const Proveedores = lazy(() => import('./pages/proveedores/Proveedores'))
 const Pendientes = lazy(() => import('./pages/solicitudes/Pendientes'))
+const Resumen = lazy(() => import('./pages/resumen/Resumen'))
 const Todas = lazy(() => import('./pages/solicitudes/Todas'))
 
 // Secciones que ya tienen pantalla propia (con subrutas); el resto sigue con
 // PaginaPendiente hasta que se construya en la Fase 4.
-const conPantalla = new Set(['/solicitudes', '/facturas', '/gastos', '/insumos', '/proveedores', '/centros-costo'])
+const conPantalla = new Set(['/solicitudes', '/facturas', '/gastos', '/resumen', '/insumos', '/proveedores', '/centros-costo'])
 
 // Sin login: todas las secciones quedan disponibles directamente.
 // Enrutador de datos (createBrowserRouter) y no <BrowserRouter>: lo exige
@@ -71,6 +72,9 @@ const router = createBrowserRouter(
         <Route path=":id" element={<FormularioGasto />} />
       </Route>
       {/* Una sola pantalla: encabezado de sección sin barra de pestañas. */}
+      <Route path="/resumen" element={<SeccionConPestanas path="/resumen" />}>
+        <Route index element={<Resumen />} />
+      </Route>
       <Route path="/insumos" element={<SeccionConPestanas path="/insumos" />}>
         <Route index element={<Insumos />} />
         <Route path="nuevo" element={<FormularioInsumo />} />

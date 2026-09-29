@@ -1,6 +1,7 @@
-import { ClipboardList, FolderTree, Package, Receipt, Truck, Wallet } from 'lucide-react'
+import { ChartColumn, ClipboardList, FolderTree, Package, Receipt, Truck, Wallet } from 'lucide-react'
 
-// Las 6 secciones de Funcionalidades Core (CLAUDE.md), en el orden del menú.
+// Las 6 secciones de Funcionalidades Core (CLAUDE.md) más el Resumen de Gastos,
+// en el orden del menú.
 // Las usan tanto el menú lateral como el enrutador.
 export const secciones = [
   {
@@ -20,6 +21,13 @@ export const secciones = [
     titulo: 'Otros Gastos',
     descripcion: 'Gastos sin stock (arriendo, sueldos, IVA) y sus plantillas recurrentes.',
     icono: Wallet,
+  },
+  // Solo lectura: junta facturas y otros gastos (ver lib/resumen.js).
+  {
+    path: '/resumen',
+    titulo: 'Resumen de Gastos',
+    descripcion: 'Gasto mensual de facturas y otros gastos, por centro de costo.',
+    icono: ChartColumn,
   },
   {
     path: '/proveedores',
