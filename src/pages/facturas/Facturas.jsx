@@ -8,7 +8,8 @@ import { claseBotonPrimario, claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
-import { mesDe, mesesPresentes } from '../../lib/gastos'
+import { etiquetaMes, mesDe, mesesPresentes } from '../../lib/gastos'
+import { hoyISO } from '../../lib/solicitudes'
 import { coincide, normalizarRut } from '../../lib/texto'
 import DetalleFactura from './DetalleFactura'
 
@@ -73,6 +74,14 @@ function Facturas() {
             )),
       ),
     [filas, mes, busqueda],
+  )
+
+  // IVA del mes filtrado o, sin filtro, del mes en curso. Suma todas las facturas
+  // de ese mes (no depende de la búsqueda): es el IVA de compras del mes.
+  const mesIva = mes || mesDe(hoyISO())
+  const ivaDelMes = useMemo(
+    () => filas.reduce((s, f) => (mesDe(f.fecha) === mesIva ? s + Number(f.iva ?? 0) : s), 0),
+    [filas, mesIva],
   )
 
   const filaDetalle = idDetalle ? filas.find((f) => f.id === idDetalle) : null
@@ -192,9 +201,16 @@ function Facturas() {
           )}
         />
         {!cargando && !error && (
-          <div className="mt-2 text-right text-sm text-slate-600">
-            Total: <span className="font-semibold text-slate-800">{formatoCLP(visibles.reduce((s, f) => s + Number(f.total ?? 0), 0))}</span>{' '}
-            ({visibles.length} {visibles.length === 1 ? 'factura' : 'facturas'})
+          <div className="mt-2 flex flex-col items-end gap-1 text-sm text-slate-600">
+            <div>
+              IVA de {etiquetaMes(mesIva)}
+              {!mes && ' (mes en curso)'}:{' '}
+              <span className="font-semibold text-slate-800">{formatoCLP(ivaDelMes)}</span>
+            </div>
+            <div>
+              Total: <span className="font-semibold text-slate-800">{formatoCLP(visibles.reduce((s, f) => s + Number(f.total ?? 0), 0))}</span>{' '}
+              ({visibles.length} {visibles.length === 1 ? 'factura' : 'facturas'})
+            </div>
           </div>
         )}
       </div>
