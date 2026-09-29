@@ -45,6 +45,9 @@ function esVisible(campo, valores) {
 // a un campo de texto sin restringir lo que se escribe.
 // `textoDuplicados(duplicados)` (opcional) reemplaza el encabezado del aviso de
 // duplicados (ej. "Ya registraste Arriendo en septiembre 2026").
+// `enColumnas` (opcional, ej. en página propia) reparte los campos en 2 columnas
+// desde sm; las áreas de texto y los campos con `completo: true` ocupan todo el
+// ancho, igual que avisos y botones.
 function FormularioRegistro({
   campos,
   valoresIniciales = {},
@@ -54,6 +57,7 @@ function FormularioRegistro({
   etiquetaDuplicado = (r) => r.nombre,
   textoDuplicados,
   textoGuardar = 'Guardar',
+  enColumnas = false,
 }) {
   const idBase = useId()
   const [valores, setValores] = useState(() =>
@@ -119,14 +123,18 @@ function FormularioRegistro({
     }
   }
 
+  // En 2 columnas, lo que no es un campo de a pares ocupa toda la fila.
+  const anchoTotal = enColumnas ? ' sm:col-span-2' : ''
+
   return (
-    <form onSubmit={enviar} noValidate className="space-y-4">
+    <form onSubmit={enviar} noValidate className={enColumnas ? 'grid gap-4 sm:grid-cols-2' : 'space-y-4'}>
       {campos
         .filter((campo) => esVisible(campo, valores))
         .map((campo) => (
           <Campo
             key={campo.clave}
             id={`${idBase}-${campo.clave}`}
+            className={enColumnas && (campo.tipo === 'area' || campo.completo) ? 'sm:col-span-2' : undefined}
             campo={campo}
             valor={valores[campo.clave]}
             valores={valores}
@@ -136,7 +144,7 @@ function FormularioRegistro({
         ))}
 
       {duplicados.length > 0 && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800" role="alert">
+        <div className={`rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800${anchoTotal}`} role="alert">
           <p className="flex items-center gap-2 font-medium">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {textoDuplicados
@@ -154,13 +162,16 @@ function FormularioRegistro({
       )}
 
       {errorGuardar && (
-        <p className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+        <p
+          className={`flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700${anchoTotal}`}
+          role="alert"
+        >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           {errorGuardar}
         </p>
       )}
 
-      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+      <div className={`flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end${anchoTotal}`}>
         <button type="button" onClick={onCancelar} className={claseBotonSecundario}>
           Cancelar
         </button>
@@ -177,7 +188,7 @@ function FormularioRegistro({
   )
 }
 
-function Campo({ id, campo, valor, valores, error, onChange }) {
+function Campo({ id, className, campo, valor, valores, error, onChange }) {
   const { etiqueta, tipo, requerido, ayuda } = campo
   const idAyuda = ayuda ? `${id}-ayuda` : undefined
   const claseError = error ? ' border-red-400 focus:border-red-500 focus:ring-red-500/30' : ''
@@ -185,7 +196,7 @@ function Campo({ id, campo, valor, valores, error, onChange }) {
   // Booleano no anulable: casilla con la etiqueta al lado.
   if (tipo === 'booleano' && !campo.anulable) {
     return (
-      <div>
+      <div className={className}>
         <label htmlFor={id} className="flex items-center gap-2 text-sm font-medium text-slate-700">
           <input
             id={id}
@@ -269,7 +280,7 @@ function Campo({ id, campo, valor, valores, error, onChange }) {
   }
 
   return (
-    <div>
+    <div className={className}>
       <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-700">
         {etiqueta}
         {requerido && <span className="text-red-600"> *</span>}

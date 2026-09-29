@@ -20,6 +20,7 @@ const Gastos = lazy(() => import('./pages/gastos/Gastos'))
 const Plantillas = lazy(() => import('./pages/gastos/Plantillas'))
 const Insumos = lazy(() => import('./pages/insumos/Insumos'))
 const Catalogo = lazy(() => import('./pages/proveedores/Catalogo'))
+const FormularioProveedor = lazy(() => import('./pages/proveedores/FormularioProveedor'))
 const PorVincular = lazy(() => import('./pages/proveedores/PorVincular'))
 const Proveedores = lazy(() => import('./pages/proveedores/Proveedores'))
 const Pendientes = lazy(() => import('./pages/solicitudes/Pendientes'))
@@ -63,10 +64,14 @@ function App() {
           <Route path="/insumos" element={<SeccionConPestanas path="/insumos" />}>
             <Route index element={<Insumos />} />
           </Route>
+          {/* El formulario de proveedor también es una página de la sección (no un
+              modal); catalogo y por-vincular ganan a :id por ser rutas estáticas. */}
           <Route path="/proveedores" element={<SeccionProveedores />}>
             <Route index element={<Proveedores />} />
             <Route path="catalogo" element={<Catalogo />} />
             <Route path="por-vincular" element={<PorVincular />} />
+            <Route path="nuevo" element={<FormularioProveedor />} />
+            <Route path=":id" element={<FormularioProveedor />} />
           </Route>
           <Route path="/centros-costo" element={<SeccionCentrosCosto />}>
             <Route index element={<Categorias />} />

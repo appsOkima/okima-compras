@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
-import { AlertCircle, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { useTabla } from '../hooks/useTabla'
+import { buscarDuplicados as buscarDuplicadosEn } from '../lib/duplicados'
 import { CODIGO_EN_USO, mensajeError } from '../lib/errores'
-import { buscarSimilares, coincide, normalizar } from '../lib/texto'
+import { coincide } from '../lib/texto'
 import DetalleRegistro from './DetalleRegistro'
 import FormularioRegistro from './FormularioRegistro'
 import Modal from './Modal'
@@ -18,7 +20,8 @@ const valorBusqueda = (fila, campo) => (typeof campo === 'function' ? campo(fila
 const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
 
 // Estructura común de todos los Mantenedores: encabezado, filtros, tabla con CSV
-// y formulario modal. Cada pantalla solo declara columnas y campos.
+// y formulario modal (o en página propia, ver `rutaFormulario`). Cada pantalla
+// solo declara columnas y campos.
 // `detalle` (opcional, ver DetalleRegistro) agrega la acción "Ver detalles" para
 // consultar campos que no caben en la tabla.
 // Opcionales para tablas sin `nombre` o con más filtros (ej. Otros Gastos):
@@ -28,6 +31,11 @@ const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
 //   barra (recibe todas las filas cargadas); se aplica antes de búsqueda e Incompletos.
 // - `antesDeTabla({ filas, crear })`: contenido entre el encabezado y la tabla.
 // - `resumen(filasVisibles)`: línea bajo la tabla (ej. total de lo filtrado).
+// - `rutaFormulario` (ej. '/proveedores'): crear y editar abren el formulario en su
+//   propia página (`${rutaFormulario}/nuevo` y `${rutaFormulario}/:id`, ver
+//   PaginaRegistro) en vez del modal; `campos`, `valoresIniciales`, `antesDeGuardar`
+//   y lo de duplicados se declaran entonces en esa página. El listado muestra el
+//   aviso de éxito que deja la página al guardar (location.state.mensaje).
 function Mantenedor({
   titulo,
   descripcion,
@@ -51,7 +59,10 @@ function Mantenedor({
   filtroExtra,
   antesDeTabla,
   resumen,
+  rutaFormulario,
 }) {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { filas, cargando, error, crear, actualizar, eliminar } = useTabla(tabla, { select, orden })
   const [busqueda, setBusqueda] = useState('')
   const [soloIncompletos, setSoloIncompletos] = useState(false)
@@ -62,6 +73,13 @@ function Mantenedor({
   // si el registro desaparece, la ficha se cierra sola.
   const [idDetalle, setIdDetalle] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
+  // Aviso de éxito que deja la página del formulario al guardar (solo con rutaFormulario).
+  const [aviso, setAviso] = useState(() => (rutaFormulario && location.state?.mensaje) || '')
+
+  // Se limpia el state del historial para que el aviso no reaparezca al recargar.
+  useEffect(() => {
+    if (rutaFormulario && location.state?.mensaje) navigate(location.pathname, { replace: true, state: null })
+  }, [rutaFormulario, location, navigate])
 
   const filaDetalle = idDetalle ? filas.find((f) => f.id === idDetalle) : null
 
@@ -91,24 +109,14 @@ function Mantenedor({
   const registro = edicion?.registro ?? null
   const camposFormulario = typeof campos === 'function' ? campos(registro) : campos
 
-  // Parecidos por nombre entre las filas cargadas (incluidas las inactivas), sin el
-  // propio registro. Al editar solo se avisa si cambió el nombre o su ámbito.
-  // `duplicadosAdicionales(valores, candidatos, registro)` suma otros criterios
-  // (ej. mismo RUT) y decide por su cuenta si aplican al editar.
-  const buscarDuplicados = (valores) => {
-    const candidatos = filas.filter(
-      (f) => f.id !== registro?.id && (!filtroDuplicados || filtroDuplicados(f, valores)),
-    )
-    const nombreSinCambios =
-      registro &&
-      normalizar(valores.nombre) === normalizar(registro.nombre) &&
-      (!filtroDuplicados || filtroDuplicados(registro, valores))
-    const porNombre = !duplicadosPorNombre || nombreSinCambios ? [] : buscarSimilares(valores.nombre, candidatos)
-    if (!duplicadosAdicionales) return porNombre
-    const yaListados = new Set(porNombre.map((r) => r.id))
-    const extra = (duplicadosAdicionales(valores, candidatos, registro) ?? []).filter((r) => !yaListados.has(r.id))
-    return [...porNombre, ...extra]
-  }
+  // Parecidos entre las filas cargadas, sin el propio registro (ver lib/duplicados).
+  const buscarDuplicados = (valores) =>
+    buscarDuplicadosEn({ valores, filas, registro, filtroDuplicados, duplicadosAdicionales, duplicadosPorNombre })
+
+  // Con rutaFormulario se navega a la página del formulario; si no, se abre el modal.
+  const abrirNuevo = () => (rutaFormulario ? navigate(`${rutaFormulario}/nuevo`) : setEdicion({ registro: null }))
+  const abrirEdicion = (fila) =>
+    rutaFormulario ? navigate(`${rutaFormulario}/${fila.id}`) : setEdicion({ registro: fila })
 
   const guardar = async (valores) => {
     const datos = antesDeGuardar ? antesDeGuardar(valores, registro) : valores
@@ -169,11 +177,24 @@ function Mantenedor({
           <h2 className="text-xl font-semibold text-slate-800">{titulo}</h2>
           {descripcion && <p className="mt-1 text-sm text-slate-600">{descripcion}</p>}
         </div>
-        <button type="button" onClick={() => setEdicion({ registro: null })} className={`${claseBotonPrimario} print:hidden`}>
+        <button type="button" onClick={abrirNuevo} className={`${claseBotonPrimario} print:hidden`}>
           <Plus className="h-4 w-4" />
           Nuevo
         </button>
       </div>
+
+      {aviso && (
+        <div
+          className="mt-4 flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+          role="status"
+        >
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="flex-1">{aviso}</p>
+          <button type="button" onClick={() => setAviso('')} aria-label="Cerrar aviso" className="text-emerald-600 hover:text-emerald-800">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {errorAccion && (
         <div
@@ -218,7 +239,7 @@ function Mantenedor({
               )}
               <button
                 type="button"
-                onClick={() => setEdicion({ registro: fila })}
+                onClick={() => abrirEdicion(fila)}
                 className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
                 aria-label={`Editar ${nombreRegistro(fila) ?? ''}`}
                 title="Editar"
@@ -247,14 +268,14 @@ function Mantenedor({
             fila={filaDetalle}
             onEditar={() => {
               setIdDetalle(null)
-              setEdicion({ registro: filaDetalle })
+              abrirEdicion(filaDetalle)
             }}
             onCerrar={() => setIdDetalle(null)}
           />
         </Modal>
       )}
 
-      {edicion && (
+      {edicion && !rutaFormulario && (
         <Modal
           titulo={registro ? `Editar: ${nombreRegistro(registro) ?? ''}` : `Nuevo registro — ${titulo}`}
           onCerrar={() => setEdicion(null)}
