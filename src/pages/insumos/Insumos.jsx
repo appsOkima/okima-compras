@@ -1,5 +1,4 @@
 import Mantenedor from '../../components/Mantenedor'
-import SelectorSubcategoria from '../../components/SelectorSubcategoria'
 import { formatoCLP, formatoDimensiones, formatoFechaLocal, formatoNumero } from '../../lib/formato'
 import { estaVacio } from '../../lib/texto'
 
@@ -56,52 +55,6 @@ const detalle = [
   },
 ]
 
-// `qty` no es un campo: el stock lo mueve el trigger de facturas y el formulario
-// solo envía las claves declaradas aquí, así que nunca se sobrescribe.
-const campos = [
-  { clave: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true },
-  {
-    clave: 'id_subcategoria',
-    etiqueta: 'Subcategoría',
-    tipo: 'personalizado',
-    requerido: true,
-    render: ({ id, valor, onChange, requerido }) => (
-      <SelectorSubcategoria id={id} valor={valor} onChange={onChange} requerido={requerido} />
-    ),
-  },
-  { clave: 'codigo', etiqueta: 'Código', tipo: 'texto' },
-  { clave: 'ancho', etiqueta: 'Ancho (mm)', tipo: 'numero' },
-  { clave: 'alto', etiqueta: 'Alto (mm)', tipo: 'numero' },
-  { clave: 'profundidad', etiqueta: 'Profundidad (mm)', tipo: 'numero' },
-  {
-    clave: 'venta_directa',
-    etiqueta: 'Venta directa',
-    tipo: 'booleano',
-    anulable: true,
-    ayuda: 'Si el insumo también se vende tal como está (ej. scotch, resmas de papel).',
-  },
-  {
-    clave: 'precio_venta',
-    etiqueta: 'Precio de venta (CLP)',
-    tipo: 'numero',
-    paso: 1,
-    visible: (valores) => valores.venta_directa === 'true',
-  },
-  { clave: 'descripcion', etiqueta: 'Descripción', tipo: 'area' },
-]
-
-const valoresIniciales = {
-  nombre: '',
-  id_subcategoria: '',
-  codigo: '',
-  ancho: '',
-  alto: '',
-  profundidad: '',
-  venta_directa: null,
-  precio_venta: '',
-  descripcion: '',
-}
-
 // Campos que la creación al vuelo deja vacíos y no son opcionales por naturaleza
 // (las dimensiones no aplican a todos los insumos, ej. tóner).
 const esIncompleto = (fila) =>
@@ -112,8 +65,8 @@ const esIncompleto = (fila) =>
 
 const camposBusqueda = ['nombre', 'codigo', nombreSubcategoria, nombreCategoria]
 
-const etiquetaDuplicado = (r) => (nombreSubcategoria(r) ? `${r.nombre} (${nombreSubcategoria(r)})` : r.nombre)
-
+// Crear y editar abren el formulario en su propia página (/insumos/nuevo,
+// /insumos/:id, ver FormularioInsumo), no en un modal.
 function Insumos() {
   return (
     <Mantenedor
@@ -122,13 +75,11 @@ function Insumos() {
       tabla="insumos"
       select={SELECT}
       columnas={columnas}
-      campos={campos}
-      valoresIniciales={valoresIniciales}
       esIncompleto={esIncompleto}
       camposBusqueda={camposBusqueda}
       nombreArchivo="insumos-okima"
-      etiquetaDuplicado={etiquetaDuplicado}
       detalle={detalle}
+      rutaFormulario="/insumos"
     />
   )
 }

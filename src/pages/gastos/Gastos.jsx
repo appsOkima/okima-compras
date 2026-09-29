@@ -1,14 +1,10 @@
 import { useMemo, useState } from 'react'
 import Mantenedor from '../../components/Mantenedor'
-import SelectorSubcategoria from '../../components/SelectorSubcategoria'
 import { claseInput } from '../../components/estilos'
-import { useTabla } from '../../hooks/useTabla'
 import { formatoCLP, formatoFecha, formatoFechaLocal } from '../../lib/formato'
 import { etiquetaMes, mesDe, mesesPresentes, sumaMontos } from '../../lib/gastos'
-import { hoyISO } from '../../lib/solicitudes'
 import { estaVacio } from '../../lib/texto'
 import IngresoRapido from './IngresoRapido'
-import SelectorProveedor from './SelectorProveedor'
 
 // La categoría (centro de costo) se obtiene a través de la subcategoría.
 const SELECT =
@@ -79,66 +75,11 @@ const resumen = (filas) => (
 
 // Gastos que no son compra de insumos con stock (arriendo, sueldos, IVA,
 // servicios). Los recurrentes se ingresan desde sus plantillas (IngresoRapido).
+// Crear y editar (también desde "Ver detalles") abren el formulario en su propia
+// página (/gastos/nuevo, /gastos/:id, ver FormularioGasto), no en un modal.
 function Gastos() {
-  const {
-    filas: proveedores,
-    cargando: cargandoProveedores,
-    error: errorProveedores,
-  } = useTabla('proveedores', { select: 'id, nombre, rut' })
   // '' = todos los meses; si no, 'YYYY-MM'.
   const [mes, setMes] = useState('')
-
-  const opcionesProveedores = useMemo(
-    () => proveedores.map((p) => ({ valor: p.id, etiqueta: p.nombre, detalle: p.rut })),
-    [proveedores],
-  )
-
-  // id_plantilla_recurrente no es un campo: lo pone solo el ingreso rápido y, al
-  // editar, el formulario no lo envía, así que se conserva.
-  const campos = useMemo(
-    () => [
-      { clave: 'concepto', etiqueta: 'Concepto', tipo: 'texto', requerido: true },
-      {
-        clave: 'monto',
-        etiqueta: 'Monto (CLP)',
-        tipo: 'numero',
-        paso: 1,
-        requerido: true,
-        validar: (valor) => (valor <= 0 ? 'El monto debe ser mayor que 0.' : undefined),
-      },
-      {
-        clave: 'fecha',
-        etiqueta: 'Fecha',
-        tipo: 'fecha',
-        requerido: true,
-        ayuda: 'Por defecto hoy; se puede registrar un gasto de una fecha pasada.',
-      },
-      {
-        clave: 'id_subcategoria',
-        etiqueta: 'Subcategoría (centro de costo)',
-        tipo: 'personalizado',
-        render: ({ id, valor, onChange }) => <SelectorSubcategoria id={id} valor={valor} onChange={onChange} />,
-      },
-      {
-        clave: 'id_proveedor',
-        etiqueta: 'Proveedor',
-        tipo: 'personalizado',
-        render: ({ id, valor, onChange }) => (
-          <SelectorProveedor
-            id={id}
-            valor={valor}
-            onChange={onChange}
-            opciones={opcionesProveedores}
-            cargando={cargandoProveedores}
-            error={errorProveedores}
-          />
-        ),
-      },
-      { clave: 'numero_documento', etiqueta: 'N° documento', tipo: 'texto' },
-      { clave: 'notas', etiqueta: 'Notas', tipo: 'area' },
-    ],
-    [opcionesProveedores, cargandoProveedores, errorProveedores],
-  )
 
   // Filtro por mes: se aplica antes de la búsqueda y de "Incompletos".
   const filtroMes = useMemo(
@@ -167,16 +108,6 @@ function Gastos() {
     [mes],
   )
 
-  const valoresIniciales = {
-    concepto: '',
-    monto: '',
-    fecha: hoyISO(),
-    id_subcategoria: '',
-    id_proveedor: '',
-    numero_documento: '',
-    notas: '',
-  }
-
   return (
     <Mantenedor
       titulo="Gastos"
@@ -185,17 +116,15 @@ function Gastos() {
       select={SELECT}
       orden={ORDEN}
       columnas={columnas}
-      campos={campos}
-      valoresIniciales={valoresIniciales}
       esIncompleto={esIncompleto}
       camposBusqueda={camposBusqueda}
       nombreArchivo="otros-gastos"
       detalle={detalle}
       nombreRegistro={nombreGasto}
-      duplicadosPorNombre={false}
       filtroExtra={filtroMes}
       resumen={resumen}
-      antesDeTabla={({ filas, crear }) => <IngresoRapido gastos={filas} crear={crear} campos={campos} />}
+      antesDeTabla={() => <IngresoRapido />}
+      rutaFormulario="/gastos"
     />
   )
 }

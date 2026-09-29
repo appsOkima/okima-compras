@@ -16,38 +16,14 @@ const columnas = [
   { clave: 'notas', titulo: 'Notas', soloCsv: true },
 ]
 
-const campos = [
-  { clave: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true },
-  { clave: 'rut', etiqueta: 'RUT', tipo: 'texto', requerido: true, ayuda: 'Ej. 76.123.456-7' },
-  { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ayuda: 'Ej. ID + nombre abreviado' },
-  { clave: 'direccion_1', etiqueta: 'Dirección', tipo: 'texto' },
-  { clave: 'direccion_2', etiqueta: 'Dirección 2', tipo: 'texto' },
-  { clave: 'email_1', etiqueta: 'Email', tipo: 'texto' },
-  { clave: 'email_2', etiqueta: 'Email 2', tipo: 'texto' },
-  { clave: 'fono_1', etiqueta: 'Teléfono', tipo: 'texto' },
-  { clave: 'fono_2', etiqueta: 'Teléfono 2', tipo: 'texto' },
-  { clave: 'datos_transferencia', etiqueta: 'Datos de transferencia', tipo: 'area' },
-  { clave: 'notas', etiqueta: 'Notas', tipo: 'area' },
-]
-
-const valoresIniciales = Object.fromEntries(campos.map((c) => [c.clave, '']))
-
 // Solo `codigo` queda vacío por la creación al vuelo (el RUT es obligatorio).
 const esIncompleto = (fila) => estaVacio(fila.codigo)
 
 // Se busca por el RUT tal como está escrito y también normalizado (sin puntos ni guion).
 const camposBusqueda = ['nombre', 'codigo', 'rut', (fila) => normalizarRut(fila.rut)]
 
-// Además del nombre parecido, avisa si otro proveedor tiene el mismo RUT escrito
-// distinto (puntos, guion, k minúscula). Al editar, solo si el RUT cambió.
-const mismoRut = (valores, candidatos, registro) => {
-  const rut = normalizarRut(valores.rut)
-  if (!rut || (registro && normalizarRut(registro.rut) === rut)) return []
-  return candidatos.filter((c) => normalizarRut(c.rut) === rut)
-}
-
-const etiquetaDuplicado = (r) => `${r.nombre} (RUT ${r.rut})`
-
+// Crear y editar abren el formulario en su propia página (/proveedores/nuevo,
+// /proveedores/:id, ver FormularioProveedor), no en un modal.
 function Proveedores() {
   return (
     <Mantenedor
@@ -55,13 +31,10 @@ function Proveedores() {
       descripcion="Datos de contacto y de pago de cada proveedor."
       tabla="proveedores"
       columnas={columnas}
-      campos={campos}
-      valoresIniciales={valoresIniciales}
       esIncompleto={esIncompleto}
       camposBusqueda={camposBusqueda}
       nombreArchivo="proveedores"
-      duplicadosAdicionales={mismoRut}
-      etiquetaDuplicado={etiquetaDuplicado}
+      rutaFormulario="/proveedores"
     />
   )
 }
