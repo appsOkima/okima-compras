@@ -1,21 +1,25 @@
 import { useId, useMemo, useState } from 'react'
 import { AlertCircle, AlertTriangle, Loader2, Plus } from 'lucide-react'
 import Combobox from '../../components/Combobox'
+import InputRut from '../../components/InputRut'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import { mensajeError } from '../../lib/errores'
+import { MENSAJE_RUT_INVALIDO, validarRut } from '../../lib/rut'
 import { buscarSimilares, normalizarRut } from '../../lib/texto'
 
 // Proveedor de la factura con creación al vuelo (skill creacion-al-vuelo): primero
 // el nombre (para ver si ya existía, con "Usar este" sobre los parecidos) y luego
 // el RUT, obligatorio para facturar; avisa si otro proveedor ya tiene ese RUT
-// escrito de otra forma. Se crea solo con { nombre, rut }: el resto queda vacío y
-// aparece en "Incompletos" de Proveedores.
+// escrito de otra forma. El RUT se formatea al escribir y su dígito verificador
+// se valida al salir del campo y al crear (inválido no deja crear). Se crea solo
+// con { nombre, rut }: el resto queda vacío y aparece en "Incompletos" de Proveedores.
 // No es un <form>: va dentro del formulario de la factura.
 function SelectorProveedorFactura({ id, valor, onChange, proveedores, onCrearProveedor, cargando = false, error }) {
   const idBase = useId()
   // null = sin mini-formulario abierto.
   const [nuevo, setNuevo] = useState(null)
   const [errorCrear, setErrorCrear] = useState('')
+  const [errorRut, setErrorRut] = useState('')
   const [guardando, setGuardando] = useState(false)
 
   const opciones = useMemo(
@@ -32,12 +36,22 @@ function SelectorProveedorFactura({ id, valor, onChange, proveedores, onCrearPro
   const abrir = (texto) => {
     setNuevo({ nombre: texto, rut: '' })
     setErrorCrear('')
+    setErrorRut('')
   }
 
   const cerrar = () => {
     setNuevo(null)
     setErrorCrear('')
+    setErrorRut('')
   }
+
+  const cambiarRut = (rut) => {
+    setNuevo((actual) => ({ ...actual, rut }))
+    setErrorRut('')
+  }
+
+  // Al salir del RUT: vacío no se revisa aquí (lo pide "Crear").
+  const salirRut = () => setErrorRut(nuevo?.rut && !validarRut(nuevo.rut) ? MENSAJE_RUT_INVALIDO : '')
 
   const usarExistente = (proveedor) => {
     cerrar()
@@ -50,6 +64,10 @@ function SelectorProveedorFactura({ id, valor, onChange, proveedores, onCrearPro
     const rut = nuevo.rut.trim()
     if (!nombre || !rut) {
       setErrorCrear('Completa el nombre y el RUT.')
+      return
+    }
+    if (!validarRut(rut)) {
+      setErrorRut(MENSAJE_RUT_INVALIDO)
       return
     }
     setGuardando(true)
@@ -123,15 +141,25 @@ function SelectorProveedorFactura({ id, valor, onChange, proveedores, onCrearPro
               <label htmlFor={`${idBase}-rut`} className="mb-1 block text-xs font-medium text-slate-700">
                 RUT <span className="text-red-600">*</span>
               </label>
-              <input
+              <InputRut
                 id={`${idBase}-rut`}
-                type="text"
-                value={nuevo.rut}
-                onChange={(e) => setNuevo((actual) => ({ ...actual, rut: e.target.value }))}
+                valor={nuevo.rut}
+                onChange={cambiarRut}
+                onBlur={salirRut}
                 placeholder="Ej. 76.123.456-7"
                 autoFocus
-                className={claseInput}
+                aria-invalid={errorRut ? true : undefined}
+                aria-describedby={errorRut ? `${idBase}-rut-error` : undefined}
+                className={
+                  claseInput + (errorRut ? ' border-red-400 focus:border-red-500 focus:ring-red-500/30' : '')
+                }
               />
+              {errorRut && (
+                <p id={`${idBase}-rut-error`} className="mt-1 flex items-start gap-1 text-xs text-red-700">
+                  <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+                  {errorRut}
+                </p>
+              )}
             </div>
           </div>
 
@@ -157,7 +185,12 @@ function SelectorProveedorFactura({ id, valor, onChange, proveedores, onCrearPro
             <button type="button" onClick={cerrar} className={claseBotonSecundario}>
               Volver
             </button>
-            <button type="button" onClick={crear} disabled={guardando} className={claseBotonPrimario}>
+            <button
+              type="button"
+              onClick={crear}
+              disabled={guardando || Boolean(errorRut)}
+              className={claseBotonPrimario}
+            >
               {guardando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {conAvisos ? 'Crear de todos modos' : 'Crear proveedor'}
             </button>

@@ -1,6 +1,8 @@
 import { useId, useState } from 'react'
 import { AlertCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { mensajeError } from '../lib/errores'
+import { formatearRut, MENSAJE_RUT_INVALIDO, validarRut } from '../lib/rut'
+import InputRut from './InputRut'
 import OpcionesSelect from './OpcionesSelect'
 import { claseBotonAdvertencia, claseBotonPrimario, claseBotonSecundario, claseInput } from './estilos'
 
@@ -11,6 +13,8 @@ function aEditable(campo, valor) {
     return Boolean(valor)
   }
   if (campo.tipo === 'personalizado') return valor ?? ''
+  // Un RUT guardado sin formato (ej. datos viejos) se muestra formateado.
+  if (campo.tipo === 'rut') return formatearRut(valor)
   return valor === null || valor === undefined ? '' : String(valor)
 }
 
@@ -24,6 +28,8 @@ function aGuardable(campo, valor) {
       const texto = String(valor ?? '').trim().replace(',', '.')
       return texto === '' ? null : Number(texto)
     }
+    case 'rut':
+      return formatearRut(valor) || null
     case 'texto':
     case 'area': {
       const texto = String(valor ?? '').trim()
@@ -58,6 +64,10 @@ function claseColumna(campo) {
 // Venta directa y su precio queden juntos).
 // `onCambio()` (opcional, ej. en página propia) se llama en cada cambio que hace
 // el usuario, para saber que hay algo sin guardar (ver useConfirmarSalida).
+// Campo `tipo: 'rut'`: se formatea al escribir (InputRut) y se guarda formateado.
+// Su dígito verificador se valida al salir del campo (muestra o quita el error;
+// vacío no se revisa aquí, eso es de `requerido`) y otra vez al guardar, donde un
+// RUT inválido bloquea igual que un campo obligatorio vacío.
 function FormularioRegistro({
   campos,
   valoresIniciales = {},
@@ -87,6 +97,13 @@ function FormularioRegistro({
     onCambio?.()
   }
 
+  // Validación al salir del campo: por ahora solo el dígito verificador del RUT.
+  const salir = (campo) => {
+    if (campo.tipo !== 'rut' || !valores[campo.clave]) return
+    const mensaje = validarRut(valores[campo.clave]) ? undefined : MENSAJE_RUT_INVALIDO
+    setErrores((actuales) => ({ ...actuales, [campo.clave]: mensaje }))
+  }
+
   const enviar = async (e) => {
     e.preventDefault()
     if (guardando) return
@@ -104,6 +121,8 @@ function FormularioRegistro({
         nuevosErrores[campo.clave] = 'Debe ser un número.'
       } else if (campo.requerido && valor === null) {
         nuevosErrores[campo.clave] = 'Este campo es obligatorio.'
+      } else if (campo.tipo === 'rut' && valor !== null && !validarRut(valor)) {
+        nuevosErrores[campo.clave] = MENSAJE_RUT_INVALIDO
       }
       salida[campo.clave] = valor
     }
@@ -152,6 +171,7 @@ function FormularioRegistro({
             valores={valores}
             error={errores[campo.clave]}
             onChange={(valor) => cambiar(campo.clave, valor)}
+            onBlur={() => salir(campo)}
           />
         ))}
 
@@ -200,7 +220,7 @@ function FormularioRegistro({
   )
 }
 
-function Campo({ id, className, campo, valor, valores, error, onChange }) {
+function Campo({ id, className, campo, valor, valores, error, onChange, onBlur }) {
   const { etiqueta, tipo, requerido, ayuda } = campo
   const idAyuda = ayuda ? `${id}-ayuda` : undefined
   const claseError = error ? ' border-red-400 focus:border-red-500 focus:ring-red-500/30' : ''
@@ -256,6 +276,8 @@ function Campo({ id, className, campo, valor, valores, error, onChange }) {
         <option value="false">No</option>
       </select>
     )
+  } else if (tipo === 'rut') {
+    control = <InputRut {...comunes} valor={valor} onChange={onChange} onBlur={onBlur} />
   } else if (tipo === 'numero') {
     control = (
       <input

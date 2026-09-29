@@ -5,7 +5,7 @@ import { normalizarRut } from '../../lib/texto'
 // Email | Email 2, Teléfono | Teléfono 2; las áreas de texto ocupan todo el ancho.
 const campos = [
   { clave: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true },
-  { clave: 'rut', etiqueta: 'RUT', tipo: 'texto', requerido: true, ayuda: 'Ej. 76.123.456-7' },
+  { clave: 'rut', etiqueta: 'RUT', tipo: 'rut', requerido: true, ayuda: 'Ej. 76.123.456-7' },
   { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ayuda: 'Ej. ID + nombre abreviado', completo: true },
   { clave: 'direccion_1', etiqueta: 'Dirección', tipo: 'texto' },
   { clave: 'direccion_2', etiqueta: 'Dirección 2', tipo: 'texto' },
