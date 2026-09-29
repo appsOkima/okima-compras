@@ -30,9 +30,11 @@ RDD: off (global) → entrega `disabled/unmanaged`. Rama `feat/formularios-en-pa
 
 - T3 (delegado, revisado por el orquestador). Commit `8b10d16`. `createBrowserRouter` + `RouterProvider` (árbol de rutas idéntico salvo indentación); `useConfirmarSalida(sucio)` con `useBlocker` + `beforeunload`, `permitirSalida()` por ref antes del navigate post-guardado; `FormularioRegistro.onCambio`. oxlint exit 0, build limpio, matchRoutes 16/16. FormularioFactura sin cambios (mantiene su confirm solo en Cancelar).
 - T2 (delegado, revisado por el orquestador). Commit `a265922`. Páginas `FormularioInsumoProveedor`, `FormularioInsumo`, `FormularioGasto`; ingreso rápido → `/gastos/nuevo?plantilla=<id>` (plantilla inválida → error con vuelta al listado); `PaginaRegistro` suma `tituloNuevo`, `buscarDuplicados` propio, `textoDuplicados`, `cargandoExtra`/`errorExtra`; flag de campo `nuevaFila`. oxlint exit 0 (re-corrido por el orquestador), build limpio, matchRoutes 24/24. ~640 líneas: sobre la heurística de 400 porque mueve la configuración de formularios de los listados a sus páginas. Modales restantes: solo "Ver detalles", Centros de Costo/Plantillas (fallback del Mantenedor) y Solicitudes, como se pidió.
-- Entrega: rama acumula ~1100 líneas en src (sobre el presupuesto de ~400); estrategia `ask-on-risk` → pendiente que el usuario elija cadena de PRs si quiere dividirla. RDD off → `disabled/unmanaged`. Sin push.
+- Entrega: rama acumula ~1100 líneas en src (sobre el presupuesto de ~400); estrategia `ask-on-risk` → el usuario eligió `single-pr` (2026-09-29): un solo PR con todos los commits de la rama. RDD off → `disabled/unmanaged`. Sin push.
+
+- Revisión del usuario en el navegador (2026-09-29): "funciona bien".
 
 ## Siguiente paso
-Revisión del usuario en el navegador de las 4 pantallas y la confirmación de salida. Opcional (no autorizado aún): llevar la misma confirmación de salida a Facturas.
+PR único abierto; merge a decisión del usuario. Opcional (no autorizado aún): llevar la misma confirmación de salida a Facturas.
 
 - Revisión de T1 por el usuario (2026-09-29): pidió confirmación al salir a medio llenar (→ T3) y aplicar al resto (→ T2).
