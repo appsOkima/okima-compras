@@ -1,6 +1,10 @@
 // Reglas de Facturas: subtotales y totales calculados, diff de líneas al editar,
 // aviso de stock y vínculo del insumo del proveedor desde la solicitud (sin React
 // ni Supabase, para poder verificarlas con node).
+// Los inputs numéricos muestran formato chileno (1.234,5, ver lib/numero): lo
+// escrito se lee con aNumero y lo que viene de la base con numeroDesdeBase (ahí
+// el punto es decimal), para que '1234.5' de la base nunca se lea como 12.345.
+import { aNumeroDesdeTexto, numeroAEditable, numeroDesdeBase } from './numero.js'
 import { compararPendientes } from './solicitudes.js'
 
 export const TASA_IVA = 0.19
@@ -10,15 +14,10 @@ export const TASA_IVA = 0.19
 // trigger de stock y nunca se envían.
 export const CAMPOS_LINEA = ['id_insumo_proveedor', 'id_solicitud_compra', 'cantidad', 'precio_neto', 'descuento_pct', 'subtotal']
 
-// Valor de un input → número, o null si está vacío o no es un número. Acepta
-// coma decimal ("1,5").
+// Valor de un input (formato chileno: "1.234,5") o un Number → número, o null si
+// está vacío o no es un número. El punto es de miles; los decimales van con coma.
 export function aNumero(valor) {
-  if (valor === null || valor === undefined) return null
-  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null
-  const texto = String(valor).trim().replace(',', '.')
-  if (texto === '') return null
-  const n = Number(texto)
-  return Number.isFinite(n) ? n : null
+  return aNumeroDesdeTexto(valor)
 }
 
 // Quita el ruido de coma flotante (3 × 1,1 = 3,3000000000000003) antes de redondear.
@@ -36,7 +35,8 @@ export function subtotalLinea(cantidad, precioNeto, descuentoPct = 0) {
   return Math.round(limpiar(conDescuento(c * p, descuentoPct)))
 }
 
-// Subtotal de una línea (del formulario o de la base), calculado desde sus campos.
+// Subtotal de una línea del formulario (o ya convertida a números), calculado
+// desde sus campos.
 export const subtotalDe = (linea) => subtotalLinea(linea?.cantidad, linea?.precio_neto, linea?.descuento_pct)
 
 // Σ subtotales de las líneas; las que no tienen cantidad o precio cuentan 0.
@@ -57,22 +57,24 @@ export function calcularTotales(lineas, descuentoPct = 0) {
 }
 
 // Qué suma al stock una línea vinculada: cantidad × cantidad_formato (vacío = 1),
-// igual que el trigger. null si la cantidad no es un número.
+// igual que el trigger. null si la cantidad no es un número. `cantidad` es la del
+// input; `cantidadFormato`, la del catálogo (de la base).
 export function stockQueSuma(cantidad, cantidadFormato) {
   const c = aNumero(cantidad)
   if (c === null) return null
-  return limpiar(c * (aNumero(cantidadFormato) ?? 1))
+  return limpiar(c * (numeroDesdeBase(cantidadFormato) ?? 1))
 }
 
 const esVacio = (v) => v === null || v === undefined || v === ''
 
-// Igualdad tolerante a tipos: 2 y '2' son iguales; '' y null también.
-function mismoValor(a, b) {
-  if (esVacio(a) || esVacio(b)) return esVacio(a) && esVacio(b)
-  const na = aNumero(a)
-  const nb = aNumero(b)
+// Igualdad tolerante a tipos entre un valor guardado (`deBase`, ej. 2 o '1234.5')
+// y uno del formulario (`actual`, ej. '2' o '1.234,5'); '' y null también son iguales.
+function mismoValor(deBase, actual) {
+  if (esVacio(deBase) || esVacio(actual)) return esVacio(deBase) && esVacio(actual)
+  const na = numeroDesdeBase(deBase)
+  const nb = aNumero(actual)
   if (na !== null && nb !== null) return na === nb
-  return String(a) === String(b)
+  return String(deBase) === String(actual)
 }
 
 // '' se guarda como null (ej. una solicitud quitada de la línea).
@@ -114,9 +116,9 @@ export function diffLineas(originales, actuales) {
 // Okima de la solicitud (ver vinculoPropuesto): null (sin decidir) o
 // { acepta, idInsumoProveedor, idInsumoOkima }. No se guarda en la línea.
 
-const textoNumero = (n) => (n === null || n === undefined ? '' : String(n))
-// Un descuento 0 se muestra vacío (el input tiene placeholder 0).
-const textoDescuento = (n) => (aNumero(n) ? String(n) : '')
+// Descuento % guardado → texto del input (1.234,5). Un descuento 0 se muestra
+// vacío (el input tiene placeholder 0). Sirve para la línea y la cabecera.
+export const descuentoEditable = (n) => (numeroDesdeBase(n) ? numeroAEditable(n) : '')
 
 export function lineaVacia(clave) {
   return {
@@ -137,9 +139,9 @@ export function lineaDesdeBase(fila) {
     id: fila.id,
     id_insumo_proveedor: fila.id_insumo_proveedor ?? '',
     id_solicitud_compra: fila.id_solicitud_compra ?? '',
-    cantidad: textoNumero(fila.cantidad),
-    precio_neto: textoNumero(fila.precio_neto),
-    descuento_pct: textoDescuento(fila.descuento_pct),
+    cantidad: numeroAEditable(fila.cantidad),
+    precio_neto: numeroAEditable(fila.precio_neto),
+    descuento_pct: descuentoEditable(fila.descuento_pct),
     vinculo: null,
   }
 }
@@ -221,10 +223,10 @@ export function efectoStock({ idInsumoProveedor, cantidad, cantidadFormato, idIn
     original && original.id_insumo_proveedor === idInsumoProveedor && mismoValor(original.cantidad, cantidad)
   if (sinCambios) {
     return original.id_insumo_stock
-      ? { tipo: 'aplicado', qty: aNumero(original.qty_stock), idInsumo: original.id_insumo_stock, revierte: null }
+      ? { tipo: 'aplicado', qty: numeroDesdeBase(original.qty_stock), idInsumo: original.id_insumo_stock, revierte: null }
       : { tipo: 'no-aplicado', qty: null, idInsumo: null, revierte: null }
   }
-  const revierte = original?.id_insumo_stock ? aNumero(original.qty_stock) : null
+  const revierte = original?.id_insumo_stock ? numeroDesdeBase(original.qty_stock) : null
   if (!idInsumoOkima) return { tipo: 'sin-vinculo', qty: null, idInsumo: null, revierte }
   return { tipo: 'suma', qty: stockQueSuma(cantidad, cantidadFormato), idInsumo: idInsumoOkima, revierte }
 }

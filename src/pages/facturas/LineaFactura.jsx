@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { AlertTriangle, Link2, PackageCheck, PackageX, Trash2, X } from 'lucide-react'
 import Combobox from '../../components/Combobox'
+import InputNumero from '../../components/InputNumero'
 import { claseInput } from '../../components/estilos'
 import { efectoStock, subtotalDe } from '../../lib/facturas'
 import { formatoCLP, formatoNumero } from '../../lib/formato'
@@ -163,17 +164,15 @@ function LineaFactura({
 
   const subtotal = subtotalDe(linea)
 
+  // Punto de miles y coma decimal al escribir (InputNumero). Mínimo 0 y descuento
+  // ≤ 100 los revisa erroresLinea al guardar (el input de texto no tiene min/max).
   const numerico = (campo, etiqueta, { requerido = true, ...extra } = {}) => (
     <Campo id={`${idBase}-${campo}`} etiqueta={etiqueta} requerido={requerido} error={errores[campo]}>
-      <input
+      <InputNumero
         id={`${idBase}-${campo}`}
-        type="number"
-        inputMode="decimal"
-        step="any"
-        min="0"
         {...extra}
-        value={linea[campo]}
-        onChange={(e) => onCambiar(campo, e.target.value)}
+        valor={linea[campo]}
+        onChange={(valor) => onCambiar(campo, valor)}
         className={`${claseInput}${errores[campo] ? claseError : ''}`}
       />
     </Campo>
@@ -241,7 +240,7 @@ function LineaFactura({
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {numerico('cantidad', 'Cantidad')}
         {numerico('precio_neto', 'Precio neto')}
-        {numerico('descuento_pct', 'Descuento %', { requerido: false, max: '100', placeholder: '0' })}
+        {numerico('descuento_pct', 'Descuento %', { requerido: false, placeholder: '0' })}
         <div>
           <span className="mb-1 block text-sm font-medium text-slate-700">Subtotal</span>
           <p

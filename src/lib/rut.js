@@ -1,6 +1,7 @@
 // RUT chileno: formato al escribir (puntos y guion) y validación del dígito
 // verificador con módulo 11 (sin React, para poder verificarlo con node).
 // Para comparar RUTs escritos distinto (duplicados) se sigue usando normalizarRut.
+import { editarConFormato, posicionTras } from './cursor.js'
 import { normalizarRut } from './texto.js'
 
 export const MENSAJE_RUT_INVALIDO = 'RUT inválido: revisa el dígito verificador.'
@@ -70,38 +71,25 @@ export function significativosAntes(texto, posicion) {
   return Math.min(previos.replace(/^0+/, '').length, limpiarRut(texto).length)
 }
 
+const esSignificativoRut = (caracter) => /[0-9K]/.test(caracter)
+
 // Posición en el texto formateado justo después de `cantidad` caracteres
 // significativos (0 → al inicio).
 export function posicionTrasSignificativos(formateado, cantidad) {
-  if (cantidad <= 0) return 0
-  let vistos = 0
-  for (let i = 0; i < formateado.length; i++) {
-    if (/[0-9K]/.test(formateado[i])) vistos++
-    if (vistos === cantidad) return i + 1
-  }
-  return formateado.length
+  return posicionTras(formateado, cantidad, esSignificativoRut)
 }
 
-// Aplica un cambio del input: `anterior` es el valor formateado que mostraba,
-// `crudo` lo que quedó tras la tecla y `cursor` dónde quedó el cursor en `crudo`.
-// Devuelve el nuevo valor formateado y dónde dejar el cursor (tras los mismos
-// caracteres significativos que tenía antes). Si se borró solo un punto o el
+const FORMATO_RUT = {
+  limpiar: limpiarRut,
+  formatear: formatearRut,
+  significativosAntes,
+  esSignificativo: esSignificativoRut,
+}
+
+// Aplica un cambio del input (ver editarConFormato en cursor.js): devuelve el
+// nuevo valor formateado y dónde dejar el cursor. Si se borró solo un punto o el
 // guion, se borra el dígito de al lado (el anterior con Retroceso, el siguiente
-// con Suprimir, `haciaAdelante`): si no, el formato lo repondría y no se podría
-// borrar.
+// con Suprimir, `haciaAdelante`).
 export function editarRut(anterior, crudo, cursor, haciaAdelante = false) {
-  let limpio = limpiarRut(crudo)
-  let antes = significativosAntes(crudo, cursor)
-  const borroSeparador =
-    crudo.length === anterior.length - 1 && limpio !== '' && limpio === limpiarRut(anterior)
-  if (borroSeparador && !haciaAdelante && antes > 0) {
-    limpio = limpio.slice(0, antes - 1) + limpio.slice(antes)
-    antes--
-  } else if (borroSeparador && haciaAdelante && antes < limpio.length) {
-    limpio = limpio.slice(0, antes) + limpio.slice(antes + 1)
-  }
-  const valor = formatearRut(limpio)
-  // Borrar un dígito puede dejar ceros iniciales, que se van: el cursor no pasa del final.
-  const cantidad = Math.min(antes, limpiarRut(valor).length)
-  return { valor, cursor: posicionTrasSignificativos(valor, cantidad) }
+  return editarConFormato(anterior, crudo, cursor, haciaAdelante, FORMATO_RUT)
 }

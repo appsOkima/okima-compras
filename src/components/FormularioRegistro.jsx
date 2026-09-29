@@ -1,10 +1,15 @@
 import { useId, useState } from 'react'
 import { AlertCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { mensajeError } from '../lib/errores'
+import { aNumeroDesdeTexto, numeroAEditable } from '../lib/numero'
 import { formatearRut, MENSAJE_RUT_INVALIDO, validarRut } from '../lib/rut'
+import InputNumero from './InputNumero'
 import InputRut from './InputRut'
 import OpcionesSelect from './OpcionesSelect'
 import { claseBotonAdvertencia, claseBotonPrimario, claseBotonSecundario, claseInput } from './estilos'
+
+// Campo numérico entero (`paso: 1`, ej. montos CLP): no acepta coma decimal.
+const aceptaDecimales = (campo) => campo.paso !== 1
 
 // Valor de la base → valor editable del input. Los <input> no aceptan null.
 function aEditable(campo, valor) {
@@ -15,18 +20,21 @@ function aEditable(campo, valor) {
   if (campo.tipo === 'personalizado') return valor ?? ''
   // Un RUT guardado sin formato (ej. datos viejos) se muestra formateado.
   if (campo.tipo === 'rut') return formatearRut(valor)
+  // Número de la base (1234.5) → texto con formato chileno (1.234,5).
+  if (campo.tipo === 'numero') return numeroAEditable(valor, { decimales: aceptaDecimales(campo) })
   return valor === null || valor === undefined ? '' : String(valor)
 }
 
-// Valor editable → valor para la base: '' queda null y los números como Number.
+// Valor editable → valor para la base: '' queda null y los números como Number
+// (un texto que no se pueda leer queda NaN, para avisar "Debe ser un número.").
 function aGuardable(campo, valor) {
   switch (campo.tipo) {
     case 'booleano':
       if (!campo.anulable) return Boolean(valor)
       return valor === 'true' ? true : valor === 'false' ? false : null
     case 'numero': {
-      const texto = String(valor ?? '').trim().replace(',', '.')
-      return texto === '' ? null : Number(texto)
+      const numero = aNumeroDesdeTexto(valor)
+      return numero === null && String(valor ?? '').trim() !== '' ? NaN : numero
     }
     case 'rut':
       return formatearRut(valor) || null
@@ -68,6 +76,8 @@ function claseColumna(campo) {
 // Su dígito verificador se valida al salir del campo (muestra o quita el error;
 // vacío no se revisa aquí, eso es de `requerido`) y otra vez al guardar, donde un
 // RUT inválido bloquea igual que un campo obligatorio vacío.
+// Campo `tipo: 'numero'`: se formatea al escribir con punto de miles y coma
+// decimal (InputNumero) y se guarda como Number; con `paso: 1` es entero (sin coma).
 function FormularioRegistro({
   campos,
   valoresIniciales = {},
@@ -279,16 +289,7 @@ function Campo({ id, className, campo, valor, valores, error, onChange, onBlur }
   } else if (tipo === 'rut') {
     control = <InputRut {...comunes} valor={valor} onChange={onChange} onBlur={onBlur} />
   } else if (tipo === 'numero') {
-    control = (
-      <input
-        {...comunes}
-        type="number"
-        inputMode="decimal"
-        step={campo.paso ?? 'any'}
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    )
+    control = <InputNumero {...comunes} valor={valor} onChange={onChange} decimales={aceptaDecimales(campo)} />
   } else {
     // Con sugerencias, el navegador ofrece solo esas (no su historial de formularios).
     const idSugerencias = campo.sugerencias?.length ? `${id}-sugerencias` : undefined

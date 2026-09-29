@@ -2,14 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, Loader2, Plus, Save } from 'lucide-react'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
+import InputNumero from '../../components/InputNumero'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
 import {
+  aNumero,
   aplicarCambioLinea,
   calcularTotales,
   datosCabecera,
   datosLinea,
   decidirVinculo,
+  descuentoEditable,
   diffLineas,
   erroresCabecera,
   erroresLinea,
@@ -42,9 +45,6 @@ const SELECT_FACTURA =
 
 const claseTarjeta = 'rounded-lg border border-slate-200 bg-white p-4 shadow-sm'
 const claseError = ' border-red-400 focus:border-red-500 focus:ring-red-500/30'
-
-// Un descuento 0 se muestra vacío (el input tiene placeholder 0).
-const textoDescuento = (v) => (Number(v) ? String(v) : '')
 
 // Neto, IVA y total no son parte del estado: se calculan desde las líneas.
 function cabeceraVacia() {
@@ -143,7 +143,7 @@ function FormularioFactura({ id }) {
           id_proveedor: data.id_proveedor,
           numero_factura: data.numero_factura,
           fecha: data.fecha,
-          descuento_pct: textoDescuento(data.descuento_pct),
+          descuento_pct: descuentoEditable(data.descuento_pct),
         })
         setOriginales(guardadas)
         setLineas(guardadas.length > 0 ? guardadas.map(lineaDesdeBase) : [lineaVacia(`nueva-${++siguienteClave.current}`)])
@@ -511,16 +511,12 @@ function FormularioFactura({ id }) {
               error={errores.cabecera.descuento_pct}
               ayuda="Opcional: descuento global sobre la suma de las líneas."
             >
-              <input
+              {/* 0 a 100: lo revisa erroresCabecera al guardar. */}
+              <InputNumero
                 id="factura-descuento"
-                type="number"
-                inputMode="decimal"
-                step="any"
-                min="0"
-                max="100"
                 placeholder="0"
-                value={cabecera.descuento_pct}
-                onChange={(e) => cambiarCabecera('descuento_pct', e.target.value)}
+                valor={cabecera.descuento_pct}
+                onChange={(valor) => cambiarCabecera('descuento_pct', valor)}
                 className={`${claseInput}${errores.cabecera.descuento_pct ? claseError : ''}`}
               />
             </Campo>
@@ -575,7 +571,7 @@ function FormularioFactura({ id }) {
             </div>
             {totales.montoDescuento > 0 && (
               <div className="flex justify-between gap-4 text-slate-600">
-                <dt>Descuento {formatoNumero(cabecera.descuento_pct)} %</dt>
+                <dt>Descuento {formatoNumero(aNumero(cabecera.descuento_pct))} %</dt>
                 <dd className="whitespace-nowrap">−{formatoCLP(totales.montoDescuento)}</dd>
               </div>
             )}
