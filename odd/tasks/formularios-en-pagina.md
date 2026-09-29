@@ -20,11 +20,12 @@ Off — fuente: sin configuración ni pedido del usuario (igual que fases previa
 RDD: off (global) → entrega `disabled/unmanaged`. Rama `feat/formularios-en-pagina` desde `main`. Pronóstico: ~250 líneas (T1) + ~150 (T2). Estrategia: `ask-on-risk`; bajo ~400 por ahora.
 
 ## Tareas
-- [ ] **T1 — Proveedores en página dedicada.** Ruta: delegado (writer trigger: Mantenedor, FormularioRegistro, página nueva, lib de duplicados, App). Rutas `/proveedores/nuevo` y `/proveedores/:id`; "Nuevo"/"Editar" navegan ahí; la página carga el registro, muestra el formulario en tarjeta con campos en 2 columnas, "Volver al listado", y al guardar vuelve al listado con aviso de éxito. Aceptación: lint + build + aserciones node de la lógica de duplicados extraída.
+- [x] **T1 — Proveedores en página dedicada.** Ruta: delegado (writer trigger: Mantenedor, FormularioRegistro, página nueva, lib de duplicados, App). Rutas `/proveedores/nuevo` y `/proveedores/:id`; "Nuevo"/"Editar" navegan ahí; la página carga el registro, muestra el formulario en tarjeta con campos en 2 columnas, "Volver al listado", y al guardar vuelve al listado con aviso de éxito. Aceptación: lint + build + aserciones node de la lógica de duplicados extraída.
 - [ ] **T2 — Aplicar a Catálogo, Insumos Okima y Otros Gastos.** Pendiente de la aprobación del usuario tras revisar T1.
 
 ## Progreso / evidencia
-(vacío)
+- T1 (delegado a un writer por el writer trigger, revisado por el orquestador). Commit `2837d01`. Nuevo `PaginaRegistro` genérico + `lib/duplicados.js`; `Mantenedor` con prop `rutaFormulario` (sin ella, modal como antes); `FormularioRegistro` con `enColumnas` y flag `completo` (mismo nombre que en DetalleRegistro). `npx oxlint` exit 0; `npm run build` limpio (chunk FormularioProveedor 3.6 kB); 11 aserciones node de duplicados OK; `matchRoutes` confirma que `catalogo`/`por-vincular` le ganan a `:id`. RDD off → `disabled/unmanaged`. Sin prueba en navegador: pendiente la revisión del usuario.
+- Decisiones abiertas para el usuario: sin confirmación al salir con cambios sin guardar (el modal tampoco la tenía); ninguna pestaña queda resaltada en /nuevo y /:id (igual que Facturas); tarjeta con `max-w-4xl`.
 
 ## Siguiente paso
-T1; luego el usuario revisa Proveedores en el navegador.
+El usuario revisa Proveedores en el navegador; con su aprobación, T2.
