@@ -38,6 +38,12 @@ function esVisible(campo, valores) {
   return campo.visible ? campo.visible(valores) : true
 }
 
+// Ubicación de un campo en la grilla de 2 columnas (ver `enColumnas`).
+function claseColumna(campo) {
+  if (campo.tipo === 'area' || campo.completo) return 'sm:col-span-2'
+  return campo.nuevaFila ? 'sm:col-start-1' : undefined
+}
+
 // Formulario de creación/edición guiado por la lista de `campos`.
 // Solo envía las claves declaradas en `campos` (no las relaciones embebidas).
 // Opcionales por campo: `validar(valor, salida)` devuelve un mensaje de error o
@@ -47,7 +53,9 @@ function esVisible(campo, valores) {
 // duplicados (ej. "Ya registraste Arriendo en septiembre 2026").
 // `enColumnas` (opcional, ej. en página propia) reparte los campos en 2 columnas
 // desde sm; las áreas de texto y los campos con `completo: true` ocupan todo el
-// ancho, igual que avisos y botones.
+// ancho, igual que avisos y botones, y un campo con `nuevaFila: true` parte en la
+// columna izquierda aunque la fila anterior haya quedado a medias (ej. para que
+// Venta directa y su precio queden juntos).
 // `onCambio()` (opcional, ej. en página propia) se llama en cada cambio que hace
 // el usuario, para saber que hay algo sin guardar (ver useConfirmarSalida).
 function FormularioRegistro({
@@ -138,7 +146,7 @@ function FormularioRegistro({
           <Campo
             key={campo.clave}
             id={`${idBase}-${campo.clave}`}
-            className={enColumnas && (campo.tipo === 'area' || campo.completo) ? 'sm:col-span-2' : undefined}
+            className={enColumnas ? claseColumna(campo) : undefined}
             campo={campo}
             valor={valores[campo.clave]}
             valores={valores}

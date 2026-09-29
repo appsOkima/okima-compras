@@ -20,6 +20,15 @@ const mayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1)
 // - `titulo`: nombre del registro en minúscula para títulos y avisos (ej. 'proveedor').
 // - `rutaListado`: a dónde se vuelve al guardar o cancelar (ej. '/proveedores').
 // - `descripcion` (opcional): texto bajo el título.
+// - `tituloNuevo` (opcional): título al crear, en vez de "Nuevo <titulo>" (ej.
+//   "Registrar gasto: Arriendo" desde una plantilla).
+// - `buscarDuplicados(valores, { filas, registro })` (opcional): reemplaza el
+//   aviso por nombre (y `duplicadosAdicionales`) por un criterio propio; con
+//   `textoDuplicados(lista)` para el encabezado del aviso (ver FormularioRegistro).
+// - `cargandoExtra` / `errorExtra` (opcionales): datos propios de la página que
+//   deben estar antes de armar el formulario (ej. la plantilla de un gasto): se
+//   espera igual que al registro, y `errorExtra` (texto) se muestra en su lugar
+//   con el enlace de vuelta al listado.
 // Carga la tabla completa con useTabla: sirve para encontrar el registro y como
 // candidatos del aviso de duplicados, igual que en el listado.
 // Con cambios sin guardar, salir de la página (Volver, Cancelar, menú, pestañas,
@@ -27,6 +36,7 @@ const mayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1)
 function PaginaRegistro({
   titulo,
   descripcion,
+  tituloNuevo,
   tabla,
   select,
   orden,
@@ -39,6 +49,10 @@ function PaginaRegistro({
   etiquetaDuplicado,
   nombreRegistro = NOMBRE_POR_DEFECTO,
   duplicadosPorNombre = true,
+  buscarDuplicados: buscarDuplicadosPropio,
+  textoDuplicados,
+  cargandoExtra = false,
+  errorExtra,
 }) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -52,7 +66,7 @@ function PaginaRegistro({
   const registro = esNuevo ? null : (filas.find((f) => f.id === id) ?? null)
   const camposFormulario = typeof campos === 'function' ? campos(registro) : campos
   // Se espera la carga también al crear: sin las filas el aviso de duplicados no vería nada.
-  const listo = !cargando && !error && (esNuevo || registro !== null)
+  const listo = !cargando && !cargandoExtra && !error && !errorExtra && (esNuevo || registro !== null)
 
   // Como hacía el modal: al crear, el foco parte en el primer campo.
   useEffect(() => {
@@ -60,8 +74,12 @@ function PaginaRegistro({
     contenedor.current?.querySelector('input:not([type=hidden]), select, textarea')?.focus()
   }, [listo, esNuevo])
 
-  const buscarDuplicados = (valores) =>
-    buscarDuplicadosEn({ valores, filas, registro, filtroDuplicados, duplicadosAdicionales, duplicadosPorNombre })
+  const buscarDuplicados = buscarDuplicadosPropio
+    ? (valores) => buscarDuplicadosPropio(valores, { filas, registro })
+    : duplicadosPorNombre || duplicadosAdicionales
+      ? (valores) =>
+          buscarDuplicadosEn({ valores, filas, registro, filtroDuplicados, duplicadosAdicionales, duplicadosPorNombre })
+      : undefined
 
   const guardar = async (valores) => {
     const datos = antesDeGuardar ? antesDeGuardar(valores, registro) : valores
@@ -82,7 +100,7 @@ function PaginaRegistro({
   if (!listo) {
     return (
       <section className="mt-6">
-        {cargando ? (
+        {cargando || cargandoExtra ? (
           <p className="flex items-center gap-2 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
           </p>
@@ -92,7 +110,7 @@ function PaginaRegistro({
             <p className="flex-1">
               {error
                 ? `No se pudieron cargar los datos: ${mensajeError(error)}`
-                : `No se encontró el ${titulo} (puede que se haya eliminado).`}{' '}
+                : (errorExtra ?? `No se encontró el ${titulo} (puede que se haya eliminado).`)}{' '}
               <Link to={rutaListado} className="font-medium underline">
                 Volver al listado
               </Link>
@@ -114,7 +132,7 @@ function PaginaRegistro({
         Volver al listado
       </button>
       <h2 className="mt-2 text-xl font-semibold text-slate-800">
-        {registro ? `Editar: ${nombreRegistro(registro) ?? ''}` : `Nuevo ${titulo}`}
+        {registro ? `Editar: ${nombreRegistro(registro) ?? ''}` : (tituloNuevo ?? `Nuevo ${titulo}`)}
       </h2>
       {descripcion && <p className="mt-1 text-sm text-slate-600">{descripcion}</p>}
 
@@ -126,8 +144,9 @@ function PaginaRegistro({
           valoresIniciales={registro ?? valoresIniciales}
           onGuardar={guardar}
           onCancelar={volver}
-          buscarDuplicados={duplicadosPorNombre || duplicadosAdicionales ? buscarDuplicados : undefined}
+          buscarDuplicados={buscarDuplicados}
           etiquetaDuplicado={etiquetaDuplicado}
+          textoDuplicados={textoDuplicados}
           enColumnas
           onCambio={() => setSucio(true)}
         />

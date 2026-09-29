@@ -15,11 +15,14 @@ const Categorias = lazy(() => import('./pages/centros-costo/Categorias'))
 const Subcategorias = lazy(() => import('./pages/centros-costo/Subcategorias'))
 const Facturas = lazy(() => import('./pages/facturas/Facturas'))
 const FormularioFactura = lazy(() => import('./pages/facturas/FormularioFactura'))
+const FormularioGasto = lazy(() => import('./pages/gastos/FormularioGasto'))
 const Lineas = lazy(() => import('./pages/facturas/Lineas'))
 const Gastos = lazy(() => import('./pages/gastos/Gastos'))
 const Plantillas = lazy(() => import('./pages/gastos/Plantillas'))
+const FormularioInsumo = lazy(() => import('./pages/insumos/FormularioInsumo'))
 const Insumos = lazy(() => import('./pages/insumos/Insumos'))
 const Catalogo = lazy(() => import('./pages/proveedores/Catalogo'))
+const FormularioInsumoProveedor = lazy(() => import('./pages/proveedores/FormularioInsumoProveedor'))
 const FormularioProveedor = lazy(() => import('./pages/proveedores/FormularioProveedor'))
 const PorVincular = lazy(() => import('./pages/proveedores/PorVincular'))
 const Proveedores = lazy(() => import('./pages/proveedores/Proveedores'))
@@ -57,19 +60,28 @@ const router = createBrowserRouter(
         <Route path="nueva" element={<FormularioFactura />} />
         <Route path=":id" element={<FormularioFactura />} />
       </Route>
+      {/* Los formularios de gasto, insumo, proveedor y catálogo también son
+          páginas de su sección (no modales); las rutas estáticas (plantillas,
+          catalogo, por-vincular, nuevo) ganan a :id. */}
       <Route path="/gastos" element={<SeccionGastos />}>
         <Route index element={<Gastos />} />
         <Route path="plantillas" element={<Plantillas />} />
+        {/* ?plantilla=<id>: ingreso rápido de gasto recurrente, pre-llenado. */}
+        <Route path="nuevo" element={<FormularioGasto />} />
+        <Route path=":id" element={<FormularioGasto />} />
       </Route>
       {/* Una sola pantalla: encabezado de sección sin barra de pestañas. */}
       <Route path="/insumos" element={<SeccionConPestanas path="/insumos" />}>
         <Route index element={<Insumos />} />
+        <Route path="nuevo" element={<FormularioInsumo />} />
+        <Route path=":id" element={<FormularioInsumo />} />
       </Route>
-      {/* El formulario de proveedor también es una página de la sección (no un
-          modal); catalogo y por-vincular ganan a :id por ser rutas estáticas. */}
+      {/* catalogo/... queda bajo la pestaña Catálogo (sin `end`), que sigue resaltada. */}
       <Route path="/proveedores" element={<SeccionProveedores />}>
         <Route index element={<Proveedores />} />
         <Route path="catalogo" element={<Catalogo />} />
+        <Route path="catalogo/nuevo" element={<FormularioInsumoProveedor />} />
+        <Route path="catalogo/:id" element={<FormularioInsumoProveedor />} />
         <Route path="por-vincular" element={<PorVincular />} />
         <Route path="nuevo" element={<FormularioProveedor />} />
         <Route path=":id" element={<FormularioProveedor />} />
