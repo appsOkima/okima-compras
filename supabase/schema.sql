@@ -80,7 +80,7 @@ create table insumos (
   profundidad      numeric,  -- mm
   venta_directa    boolean,
   precio_venta     numeric,  -- aplica cuando venta_directa = true
-  qty              numeric not null default 0,  -- acepta decimales; lo mueve el trigger de stock
+  qty              numeric not null default 0,  -- acepta decimales; lo mueven los triggers de movimientos_stock
   descripcion      text,
   notas            text  -- indicaciones de interacción; vacío no se muestra
 );
@@ -93,8 +93,7 @@ create index insumos_id_subcategoria_idx on insumos (id_subcategoria);
 create table insumos_proveedores (
   id                   uuid primary key default gen_random_uuid(),
   created_at           timestamptz not null default now(),
-  -- Nunca se llena al crear al vuelo; solo lo vincula el administrador (revisión semanal).
-  id_insumo_okima      uuid references insumos (id) on delete set null,
+  -- El vínculo con insumos Okima vive en insumos_proveedores_okima (N:M, Sprint 2 / T4a).
   nombre               text not null,
   codigo               text,
   id_proveedor         uuid not null references proveedores (id),
@@ -102,7 +101,8 @@ create table insumos_proveedores (
   ancho                numeric,
   alto                 numeric,
   profundidad          numeric,
-  cantidad_formato     numeric,  -- unidades internas por formato de compra
+  -- Descriptivos del formato de compra; ya NO gobiernan el stock (lo hace factor_conversion).
+  cantidad_formato     numeric,
   formato_unidad       text,
   fecha_actualizacion  date,
   link_insumo          text,
@@ -110,8 +110,27 @@ create table insumos_proveedores (
   notas                text  -- indicaciones de interacción; vacío no se muestra
 );
 
-create index insumos_proveedores_id_insumo_okima_idx on insumos_proveedores (id_insumo_okima);
 create index insumos_proveedores_id_proveedor_idx on insumos_proveedores (id_proveedor);
+
+-- -----------------------------------------------------------------------------
+-- 3b. insumos_proveedores_okima (pivote N:M insumo del proveedor ↔ insumo Okima)
+-- -----------------------------------------------------------------------------
+-- factor_conversion: unidades Okima que se obtienen por cada unidad del proveedor
+-- (3 proveedores del mismo tazón: 3 filas al mismo insumo con factor 1; una resma
+-- que rinde 2000 hojas: factor 2000). Nunca se crea en silencio ni al vuelo:
+-- solo el administrador ("Por vincular") o el usuario con confirmación en Facturas.
+-- Detalle: migraciones/2026-10-02-07-insumos-proveedores-okima.sql.
+create table insumos_proveedores_okima (
+  id                   uuid primary key default gen_random_uuid(),
+  created_at           timestamptz not null default now(),
+  id_insumo_proveedor  uuid not null references insumos_proveedores (id) on delete cascade,
+  id_insumo_okima      uuid not null references insumos (id) on delete cascade,
+  factor_conversion    numeric not null check (factor_conversion > 0),
+  constraint insumos_proveedores_okima_par_key unique (id_insumo_proveedor, id_insumo_okima)
+);
+
+create index insumos_proveedores_okima_id_insumo_proveedor_idx on insumos_proveedores_okima (id_insumo_proveedor);
+create index insumos_proveedores_okima_id_insumo_okima_idx on insumos_proveedores_okima (id_insumo_okima);
 
 -- -----------------------------------------------------------------------------
 -- 4. solicitudes_compra
@@ -167,17 +186,63 @@ create table detalle_facturas (
   descuento_pct        numeric not null default 0
                        constraint detalle_facturas_descuento_pct_check check (descuento_pct between 0 and 100),
   -- Calculado por la interfaz: round(cantidad × precio_neto × (1 − descuento_pct / 100)).
-  subtotal             numeric not null,
-  -- Stock aplicado al guardar la línea (lo llena el trigger, no la interfaz):
-  -- permite revertir exactamente lo sumado si la línea se edita o se borra.
-  id_insumo_stock      uuid references insumos (id),
-  qty_stock            numeric
+  subtotal             numeric not null
 );
 
 create index detalle_facturas_id_factura_idx on detalle_facturas (id_factura);
 create index detalle_facturas_id_insumo_proveedor_idx on detalle_facturas (id_insumo_proveedor);
 create index detalle_facturas_id_solicitud_compra_idx on detalle_facturas (id_solicitud_compra);
-create index detalle_facturas_id_insumo_stock_idx on detalle_facturas (id_insumo_stock);
+
+-- -----------------------------------------------------------------------------
+-- 6b. movimientos_stock (stock aplicado por cada línea, uno por insumo Okima)
+-- -----------------------------------------------------------------------------
+-- Reemplaza detalle_facturas.id_insumo_stock / qty_stock: una línea puede afectar
+-- varios insumos (pivote N:M). Los triggers de abajo mantienen insumos.qty:
+-- INSERT suma, DELETE resta, UPDATE de qty/id_insumo revierte y reaplica. Borrar
+-- la línea o la factura (cascada) revierte el stock sin código adicional.
+-- id_insumo SIN cascade: borrar un insumo con movimientos falla a propósito
+-- (el historial de stock no se pierde en silencio).
+-- Extensión prevista (T5, boletas): id_detalle_factura pasará a nullable, se
+-- agregará id_detalle_boleta uuid references detalle_boletas (id) on delete cascade
+-- y CHECK (num_nonnulls(id_detalle_factura, id_detalle_boleta) = 1).
+create table movimientos_stock (
+  id                  uuid primary key default gen_random_uuid(),
+  created_at          timestamptz not null default now(),
+  id_detalle_factura  uuid not null references detalle_facturas (id) on delete cascade,
+  id_insumo           uuid not null references insumos (id),
+  qty                 numeric not null
+);
+
+create unique index movimientos_stock_detalle_factura_insumo_key on movimientos_stock (id_detalle_factura, id_insumo);
+create index movimientos_stock_id_insumo_idx on movimientos_stock (id_insumo);
+
+-- SECURITY DEFINER: más adelante el RLS por rol impedirá que algunos roles
+-- actualicen insumos; el stock lo mueve siempre el trigger.
+create function aplicar_movimiento_stock()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update insumos set qty = qty + new.qty where id = new.id_insumo;
+  elsif tg_op = 'DELETE' then
+    update insumos set qty = qty - old.qty where id = old.id_insumo;
+  else
+    if new.qty is distinct from old.qty or new.id_insumo is distinct from old.id_insumo then
+      update insumos set qty = qty - old.qty where id = old.id_insumo;
+      update insumos set qty = qty + new.qty where id = new.id_insumo;
+    end if;
+  end if;
+  return null;
+end;
+$$;
+
+create trigger movimientos_stock_aplicar
+after insert or delete or update of qty, id_insumo on movimientos_stock
+for each row
+execute function aplicar_movimiento_stock();
 
 -- Regla de negocio: una línea de factura asociada a una solicitud de compra
 -- marca esa solicitud como 'Comprada' (al insertar la línea o al asociarla después).
@@ -201,68 +266,43 @@ for each row
 when (new.id_solicitud_compra is not null)
 execute function marcar_solicitud_comprada();
 
--- Regla de negocio: si al guardar la línea su insumo_proveedor ya está vinculado
--- a un insumo Okima, insumos.qty += cantidad × cantidad_formato (1 si está vacío).
--- Sin vínculo no se guarda stock, y vincular después no lo aplica retroactivamente.
-create function calcular_stock_detalle()
+-- Regla de negocio: al guardar la línea, por cada fila de la pivote de su
+-- insumo_proveedor se genera un movimiento con qty = cantidad × factor_conversion
+-- (y el trigger de movimientos_stock suma a insumos.qty). Sin filas en la pivote
+-- no hay stock, y vincular después no lo aplica retroactivamente. Al cambiar
+-- cantidad o insumo_proveedor se borran los movimientos de la línea (revierte) y
+-- se regeneran; editar otros campos no toca el stock.
+-- SECURITY DEFINER: escribe movimientos_stock aunque el rol no tenga permiso directo.
+create function generar_movimientos_stock_factura()
 returns trigger
 language plpgsql
+security definer
 set search_path = public
 as $$
 begin
-  -- Editar otros campos de la línea conserva el stock ya aplicado.
-  if tg_op = 'UPDATE'
-     and new.cantidad = old.cantidad
-     and new.id_insumo_proveedor = old.id_insumo_proveedor then
-    new.id_insumo_stock := old.id_insumo_stock;
-    new.qty_stock := old.qty_stock;
-    return new;
+  if tg_op = 'UPDATE' then
+    delete from movimientos_stock where id_detalle_factura = new.id;
   end if;
 
-  select ip.id_insumo_okima, new.cantidad * coalesce(ip.cantidad_formato, 1)
-  into new.id_insumo_stock, new.qty_stock
-  from insumos_proveedores ip
-  where ip.id = new.id_insumo_proveedor;
-
-  if new.id_insumo_stock is null then
-    new.qty_stock := null;
-  end if;
-  return new;
-end;
-$$;
-
-create function aplicar_stock_detalle()
-returns trigger
-language plpgsql
-set search_path = public
-as $$
-begin
-  if tg_op = 'UPDATE'
-     and new.id_insumo_stock is not distinct from old.id_insumo_stock
-     and new.qty_stock is not distinct from old.qty_stock then
-    return null;
-  end if;
-
-  if tg_op in ('UPDATE', 'DELETE') and old.id_insumo_stock is not null then
-    update insumos set qty = qty - old.qty_stock where id = old.id_insumo_stock;
-  end if;
-
-  if tg_op in ('INSERT', 'UPDATE') and new.id_insumo_stock is not null then
-    update insumos set qty = qty + new.qty_stock where id = new.id_insumo_stock;
-  end if;
+  insert into movimientos_stock (id_detalle_factura, id_insumo, qty)
+  select new.id, po.id_insumo_okima, new.cantidad * po.factor_conversion
+  from insumos_proveedores_okima po
+  where po.id_insumo_proveedor = new.id_insumo_proveedor;
   return null;
 end;
 $$;
 
-create trigger detalle_facturas_calcular_stock
-before insert or update on detalle_facturas
+create trigger detalle_facturas_generar_stock_ins
+after insert on detalle_facturas
 for each row
-execute function calcular_stock_detalle();
+execute function generar_movimientos_stock_factura();
 
-create trigger detalle_facturas_aplicar_stock
-after insert or update or delete on detalle_facturas
+create trigger detalle_facturas_generar_stock_upd
+after update on detalle_facturas
 for each row
-execute function aplicar_stock_detalle();
+when (old.cantidad is distinct from new.cantidad
+      or old.id_insumo_proveedor is distinct from new.id_insumo_proveedor)
+execute function generar_movimientos_stock_factura();
 
 -- -----------------------------------------------------------------------------
 -- 9. plantillas_gastos_recurrentes
@@ -302,7 +342,8 @@ create index boletas_fecha_idx on boletas (fecha);
 -- Vista: vista_solicitudes_pendientes (Función 1: lista e impresión)
 -- -----------------------------------------------------------------------------
 -- Solo 'Pendiente', ordenada Alta → Media → Baja, con el insumo, la fecha tope y
--- los proveedores sugeridos: los de insumos_proveedores vinculados a ese insumo.
+-- los proveedores sugeridos: los de insumos_proveedores vinculados a ese insumo
+-- a través de la pivote insumos_proveedores_okima.
 -- security_invoker hace que la vista respete el RLS de las tablas base.
 create view vista_solicitudes_pendientes
 with (security_invoker = true) as
@@ -333,9 +374,10 @@ left join lateral (
     string_agg(distinct p.nombre || ' · ' || ip.nombre || ': ' || btrim(ip.notas), E'
 ')
       filter (where btrim(coalesce(ip.notas, '')) <> '') as notas_catalogo
-  from insumos_proveedores ip
+  from insumos_proveedores_okima po
+  join insumos_proveedores ip on ip.id = po.id_insumo_proveedor
   join proveedores p on p.id = ip.id_proveedor
-  where ip.id_insumo_okima = s.id_insumo_okima
+  where po.id_insumo_okima = s.id_insumo_okima
 ) sug on true
 where s.estado = 'Pendiente'
 order by s.nivel_urgencia desc, s.fecha_esperada asc nulls last, s.created_at asc;
@@ -440,9 +482,11 @@ begin
     'proveedores',
     'insumos',
     'insumos_proveedores',
+    'insumos_proveedores_okima',
     'solicitudes_compra',
     'facturas',
     'detalle_facturas',
+    'movimientos_stock',
     'plantillas_gastos_recurrentes',
     'boletas'
   ]
