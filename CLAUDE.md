@@ -11,7 +11,7 @@ Resumen operativo — el detalle y el razonamiento de cada punto está en `histo
 - Creación al vuelo para `insumo_okima`, `proveedor` e `insumo_proveedor` (ver sección dedicada) — varios campos quedan nullable.
 - `insumos.qty` (numeric, acepta decimales) se actualiza solo al guardar una línea de factura cuyo `insumo_proveedor` ya esté vinculado; vincular después no aplica stock retroactivo.
 - Reglas de negocio de facturas (stock y solicitud 'Comprada') implementadas como triggers en la base; en la etapa inicial el estado de la solicitud también se gestiona a mano desde su panel.
-- `categorias` = centros de costo, con `subcategorias`; `insumos`, `otros_gastos` y `plantillas_gastos_recurrentes` referencian solo `id_subcategoria` (la categoría se obtiene a través de ella).
+- `categorias` = centros de costo, con `subcategorias`; `insumos`, `boletas` (antes `otros_gastos`) y `plantillas_gastos_recurrentes` referencian solo `id_subcategoria` (la categoría se obtiene a través de ella).
 - Vínculo `insumo_proveedor` → `insumo_okima`: nunca al crear el `insumo_proveedor` al vuelo ni en silencio. Lo hace el administrador en su revisión semanal ("Por vincular") o, en Facturas, al asociar una línea a una solicitud, solo con confirmación explícita del usuario.
 - Gasto recurrente vía `plantillas_gastos_recurrentes` (monto editable), no un valor fijo.
 - `venta_directa` en `insumos` habilita `precio_venta`.
@@ -119,12 +119,12 @@ Para Supabase, todas las tablas deben usar `id` (UUID o gen_random_uuid() como P
 - `subtotal` (numeric) - no se ingresa: lo calcula la interfaz, cantidad × precio_neto × (1 − `descuento_pct`/100), redondeado al peso
 - `id_insumo_stock` (uuid, FK a insumos, nullable) y `qty_stock` (numeric, nullable) - stock aplicado al guardar la línea; los llena el trigger, no la interfaz. Permiten revertir exactamente lo sumado si la línea se edita o se borra (incluido el borrado en cascada de la factura)
 
-### 7. otros_gastos
-Gastos que no corresponden a la compra de un insumo con stock (ej. arriendo, sueldos, pago de IVA, servicios).
+### 7. boletas (antes `otros_gastos`, renombrada en el Sprint 2)
+Boletas: gastos que no corresponden a la compra de un insumo con stock (ej. arriendo, sueldos, pago de IVA, servicios).
 - `id` (uuid, PK)
 - `concepto` (text)
 - `id_subcategoria` (uuid, FK a subcategorias, opcional)
-- `id_plantilla_recurrente` (uuid, FK a plantillas_gastos_recurrentes, opcional) - si el gasto se originó desde un atajo de gasto recurrente, queda la referencia a cuál
+- `id_plantilla_recurrente` (uuid, FK a plantillas_gastos_recurrentes, opcional) - si la boleta se originó desde un atajo de gasto recurrente, queda la referencia a cuál
 - `id_proveedor` (uuid, FK a proveedores, opcional)
 - `monto` (numeric) - en CLP
 - `fecha` (date)
@@ -150,7 +150,7 @@ Tipos de gasto recurrente (Arriendo, Sueldos, Pago IVA) y su monto habitual, edi
 *Datos semilla (todas bajo GASTOS ADMINISTRATIVOS Y FIJOS, `monto_default` 0): Arriendo → Infraestructura, Sueldos → Remuneraciones, Pago IVA → Impuestos y Finanzas.*
 
 ### 10. subcategorias
-Desglose de cada categoría (centro de costo). Es lo que referencian `insumos`, `otros_gastos` y `plantillas_gastos_recurrentes`: solo la subcategoría, para no guardar pares categoría/subcategoría inconsistentes.
+Desglose de cada categoría (centro de costo). Es lo que referencian `insumos`, `boletas` y `plantillas_gastos_recurrentes`: solo la subcategoría, para no guardar pares categoría/subcategoría inconsistentes.
 - `id` (uuid, PK)
 - `id_categoria` (uuid, FK a categorias) — obligatorio
 - `nombre` (text)
@@ -178,10 +178,10 @@ Hasta el Sprint 1 no había login y las 6 secciones estaban disponibles directam
    - **Regla de negocio (trigger en la base):** línea con `id_solicitud_compra` (al insertarla o al asociarla después) → esa solicitud pasa a 'Comprada'.
    - **Regla de negocio (trigger en la base):** si al guardar la línea su `insumo_proveedor` ya tiene `id_insumo_okima` vinculado → `insumos.qty += cantidad × cantidad_formato` (`cantidad_formato` vacío cuenta como 1). Si no está vinculado, no se registra stock, y vincularlo después no lo aplica retroactivamente. Lo aplicado queda en `detalle_facturas.id_insumo_stock` / `qty_stock`, así que editar o borrar la línea (o la factura completa) revierte exactamente lo sumado.
    - **Vínculo desde la solicitud, con confirmación:** si una línea tiene solicitud y su `insumo_proveedor` no está vinculado, la interfaz pregunta en la línea si vincularlo con el `insumo_okima` de la solicitud ("Vincular" / "No vincular", cambiable hasta guardar). Nunca en silencio ni al crear el insumo al vuelo. Lo aceptado se aplica al guardar, antes de las líneas (solo si sigue sin vincular), así la línea nueva ya suma stock; una línea ya guardada no suma stock retroactivo. Si ya está vinculado a otro insumo, solo se avisa: aquí no se re-vincula.
-3. **Otros Gastos**
-   - CRUD de `otros_gastos`.
+3. **Boletas** (antes Otros Gastos)
+   - CRUD de `boletas`.
    - CRUD de `plantillas_gastos_recurrentes`: pantalla simple donde el administrador mantiene Arriendo/Sueldos/IVA y edita el `monto_default` cuando cambie.
-   - Ingreso rápido de gasto recurrente: se elige una plantilla y se pre-llenan `concepto`, `id_subcategoria` y `monto` desde ella. Solo queda por confirmar la `fecha` (default: hoy, editable a una fecha pasada).
+   - Ingreso rápido de gasto recurrente: se elige una plantilla y se crea una boleta con `concepto`, `id_subcategoria` y `monto` pre-llenados desde ella. Solo queda por confirmar la `fecha` (default: hoy, editable a una fecha pasada).
 4. **Gestionar Proveedores y sus Insumos**
    - CRUD de `proveedores` e `insumos_proveedores`.
    - Vista de "insumos por vincular": `insumos_proveedores` con `id_insumo_okima` vacío, con selector directo para asignarlo — es el lugar principal de este vínculo, pensado para la revisión semanal del administrador (también se puede vincular desde Facturas, con confirmación, al asociar una línea a una solicitud; ver Función 2).
@@ -190,7 +190,7 @@ Hasta el Sprint 1 no había login y las 6 secciones estaban disponibles directam
    - CRUD de `insumos`.
    - Filtro de registros incompletos creados al vuelo.
 6. **Centros de Costo**
-   - CRUD de `categorias` (centros de costo) y `subcategorias`. Sección propia, no dentro de Insumos Okima: las subcategorías las usan `insumos`, `otros_gastos` y `plantillas_gastos_recurrentes`.
+   - CRUD de `categorias` (centros de costo) y `subcategorias`. Sección propia, no dentro de Insumos Okima: las subcategorías las usan `insumos`, `boletas` y `plantillas_gastos_recurrentes`.
 
 Transversal: botón reutilizable de exportación a CSV en todas las vistas de tabla.
 
@@ -207,7 +207,7 @@ Para garantizar el éxito de este MVP, trabaja estrictamente bajo estas fases. *
 - **Fase 3: Layout y Enrutamiento.**
   Crea la estructura de navegación básica (Sidebar/Navbar) con React Router, con las 5 secciones de Funcionalidades Core.
 - **Fase 4: Desarrollo de Pantallas.**
-  Comenzaremos pantalla por pantalla. Primero los Mantenedores (Proveedores, Insumos, Centros de Costo: Categorías y Subcategorías), luego Solicitudes, Otros Gastos y finalmente Facturación.
+  Comenzaremos pantalla por pantalla. Primero los Mantenedores (Proveedores, Insumos, Centros de Costo: Categorías y Subcategorías), luego Solicitudes, Otros Gastos (hoy Boletas) y finalmente Facturación.
 - **Fase 5: UI/UX y Exportación.**
   Refinamiento de estilos, lógica de impresión y botones de exportación CSV.
 

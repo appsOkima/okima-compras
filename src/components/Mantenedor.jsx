@@ -24,7 +24,7 @@ const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
 // solo declara columnas y campos.
 // `detalle` (opcional, ver DetalleRegistro) agrega la acción "Ver detalles" para
 // consultar campos que no caben en la tabla.
-// Opcionales para tablas sin `nombre` o con más filtros (ej. Otros Gastos):
+// Opcionales para tablas sin `nombre` o con más filtros (ej. Boletas):
 // - `nombreRegistro(fila)`: texto que identifica la fila en títulos y avisos.
 // - `duplicadosPorNombre = false`: sin aviso de parecidos por nombre.
 // - `filtroExtra = { render(filas), aplica(fila), activo }`: control propio en la

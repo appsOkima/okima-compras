@@ -17,16 +17,16 @@ export const secciones = [
     icono: Receipt,
   },
   {
-    path: '/gastos',
-    titulo: 'Otros Gastos',
-    descripcion: 'Gastos sin stock (arriendo, sueldos, IVA) y sus plantillas recurrentes.',
+    path: '/boletas',
+    titulo: 'Boletas',
+    descripcion: 'Boletas sin stock (arriendo, sueldos, IVA) y las plantillas de gastos recurrentes.',
     icono: Wallet,
   },
-  // Solo lectura: junta facturas y otros gastos (ver lib/resumen.js).
+  // Solo lectura: junta facturas y boletas (ver lib/resumen.js).
   {
     path: '/resumen',
     titulo: 'Resumen de Gastos',
-    descripcion: 'Gasto mensual de facturas y otros gastos, por centro de costo.',
+    descripcion: 'Gasto mensual de facturas y boletas, por centro de costo.',
     icono: ChartColumn,
   },
   {
@@ -41,11 +41,11 @@ export const secciones = [
     descripcion: 'Insumos internos de Okima: subcategoría, venta directa y stock.',
     icono: Package,
   },
-  // Sección propia (no dentro de Insumos): la usan también Otros Gastos y las plantillas.
+  // Sección propia (no dentro de Insumos): la usan también Boletas y las plantillas.
   {
     path: '/centros-costo',
     titulo: 'Centros de Costo',
-    descripcion: 'Categorías (centros de costo) y sus subcategorías, usadas por insumos, gastos y plantillas.',
+    descripcion: 'Categorías (centros de costo) y sus subcategorías, usadas por insumos, boletas y plantillas.',
     icono: FolderTree,
   },
 ]

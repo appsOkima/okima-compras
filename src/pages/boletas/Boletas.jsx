@@ -39,7 +39,7 @@ const columnas = [
   { clave: 'notas', titulo: 'Notas', soloCsv: true },
 ]
 
-// Ficha de "Ver detalles": todos los campos del gasto.
+// Ficha de "Ver detalles": todos los campos de la boleta.
 const detalle = [
   { etiqueta: 'Concepto', valor: (fila) => fila.concepto, completo: true },
   { etiqueta: 'Fecha', valor: (fila) => formatoFecha(fila.fecha) },
@@ -58,26 +58,26 @@ const detalle = [
   },
 ]
 
-// "Incompletos" = gasto sin centro de costo (sin subcategoría).
+// "Incompletos" = boleta sin centro de costo (sin subcategoría).
 const esIncompleto = (fila) => estaVacio(fila.id_subcategoria)
 
 const camposBusqueda = ['concepto', 'numero_documento', nombreProveedor, nombreSubcategoria, nombreCategoria]
 
-const nombreGasto = (fila) => fila.concepto
+const nombreBoleta = (fila) => fila.concepto
 
 // Total de lo que se está mostrando (después de todos los filtros).
 const resumen = (filas) => (
   <>
     Total: <span className="font-semibold text-slate-800">{formatoCLP(sumaMontos(filas))}</span> ({filas.length}{' '}
-    {filas.length === 1 ? 'gasto' : 'gastos'})
+    {filas.length === 1 ? 'boleta' : 'boletas'})
   </>
 )
 
-// Gastos que no son compra de insumos con stock (arriendo, sueldos, IVA,
+// Boletas: gastos que no son compra de insumos con stock (arriendo, sueldos, IVA,
 // servicios). Los recurrentes se ingresan desde sus plantillas (IngresoRapido).
 // Crear y editar (también desde "Ver detalles") abren el formulario en su propia
-// página (/gastos/nuevo, /gastos/:id, ver FormularioGasto), no en un modal.
-function Gastos() {
+// página (/boletas/nuevo, /boletas/:id, ver FormularioBoleta), no en un modal.
+function Boletas() {
   // '' = todos los meses; si no, 'YYYY-MM'.
   const [mes, setMes] = useState('')
 
@@ -88,7 +88,7 @@ function Gastos() {
       aplica: mes ? (fila) => mesDe(fila.fecha) === mes : undefined,
       render: (filas) => {
         const meses = mesesPresentes(filas)
-        // Si se borró el último gasto del mes elegido, la opción se mantiene.
+        // Si se borró el última boleta del mes elegido, la opción se mantiene.
         if (mes && !meses.includes(mes)) meses.unshift(mes)
         return (
           <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
@@ -110,23 +110,23 @@ function Gastos() {
 
   return (
     <Mantenedor
-      titulo="Gastos"
-      descripcion="Gastos sin stock (arriendo, sueldos, pago de IVA, servicios), del más reciente al más antiguo."
-      tabla="otros_gastos"
+      titulo="Boletas"
+      descripcion="Boletas sin stock (arriendo, sueldos, pago de IVA, servicios), del más reciente al más antiguo."
+      tabla="boletas"
       select={SELECT}
       orden={ORDEN}
       columnas={columnas}
       esIncompleto={esIncompleto}
       camposBusqueda={camposBusqueda}
-      nombreArchivo="otros-gastos"
+      nombreArchivo="boletas"
       detalle={detalle}
-      nombreRegistro={nombreGasto}
+      nombreRegistro={nombreBoleta}
       filtroExtra={filtroMes}
       resumen={resumen}
       antesDeTabla={() => <IngresoRapido />}
-      rutaFormulario="/gastos"
+      rutaFormulario="/boletas"
     />
   )
 }
 
-export default Gastos
+export default Boletas

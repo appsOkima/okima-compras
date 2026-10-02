@@ -52,7 +52,7 @@ function useDatosResumen() {
     let vigente = true
     Promise.all([
       cargarTodo('facturas', SELECT_FACTURAS),
-      cargarTodo('otros_gastos', SELECT_GASTOS),
+      cargarTodo('boletas', SELECT_GASTOS),
       cargarTodo('subcategorias', SELECT_SUBCATEGORIAS),
     ])
       .then(([facturas, gastos, subcategorias]) => {
@@ -91,7 +91,7 @@ const columnasMes = [
     csv: (f) => f.mes ?? '',
   },
   columnaMonto('facturas', 'Facturas'),
-  columnaMonto('otrosGastos', 'Otros gastos'),
+  columnaMonto('otrosGastos', 'Boletas'),
   columnaMonto('total', 'Total'),
 ]
 
@@ -103,7 +103,7 @@ const columnasCentro = [
     render: (f) => f.subcategoria || <span className="text-slate-400">—</span>,
   },
   columnaMonto('facturas', 'Facturas'),
-  columnaMonto('otrosGastos', 'Otros gastos'),
+  columnaMonto('otrosGastos', 'Boletas'),
   columnaMonto('total', 'Total'),
   {
     clave: 'pct',
@@ -114,18 +114,18 @@ const columnasCentro = [
   },
 ]
 
-// Línea bajo cada tabla, como el total de los listados de Facturas y Gastos.
+// Línea bajo cada tabla, como el total de los listados de Facturas y Boletas.
 function LineaTotal({ filas }) {
   const t = totales(filas)
   return (
     <div className="mt-2 text-right text-sm text-slate-600">
-      Facturas {formatoCLP(t.facturas)} · Otros gastos {formatoCLP(t.otrosGastos)} · Total:{' '}
+      Facturas {formatoCLP(t.facturas)} · Boletas {formatoCLP(t.otrosGastos)} · Total:{' '}
       <span className="font-semibold text-slate-800">{formatoCLP(t.total)}</span>
     </div>
   )
 }
 
-// Resumen de gastos de solo lectura: facturas y otros gastos juntos, por mes y
+// Resumen de gastos de solo lectura: facturas y boletas juntas, por mes y
 // por centro de costo, con filtros por categoría/subcategoría (ambas tablas) y
 // por mes (tabla por centro de costo).
 function Resumen() {
@@ -177,7 +177,7 @@ function Resumen() {
       <div>
         <h2 className="text-xl font-semibold text-slate-800">Resumen mensual</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Facturas y otros gastos juntos. Cada factura cuenta por su total con IVA, repartido entre sus líneas según su
+          Facturas y boletas juntas. Cada factura cuenta por su total con IVA, repartido entre sus líneas según su
           subtotal; cada línea va al centro de costo del insumo Okima vinculado a su insumo del proveedor. Las líneas
           sin insumo Okima vinculado quedan en "{ETIQUETA_SIN_CENTRO}" hasta que se vinculen en{' '}
           <Link to="/proveedores/por-vincular" className="font-medium text-indigo-700 hover:underline">
@@ -228,7 +228,7 @@ function Resumen() {
             nombreArchivo="resumen-gastos-por-mes"
             cargando={cargando}
             error={error}
-            vacio={filtrandoCentro ? 'No hay gastos para este centro de costo.' : 'Todavía no hay facturas ni gastos.'}
+            vacio={filtrandoCentro ? 'No hay gastos para este centro de costo.' : 'Todavía no hay facturas ni boletas.'}
           />
           {!cargando && !error && <LineaTotal filas={filasMes} />}
         </div>
@@ -255,7 +255,7 @@ function Resumen() {
               <Link to="/proveedores/por-vincular" className="font-medium underline">
                 Proveedores → Por vincular
               </Link>
-              ) y {formatoCLP(sinCentro.otrosGastos)} de otros gastos sin subcategoría.
+              ) y {formatoCLP(sinCentro.otrosGastos)} de boletas sin subcategoría.
             </p>
           </div>
         )}
@@ -267,7 +267,7 @@ function Resumen() {
             nombreArchivo={mes ? `resumen-gastos-por-centro-${mes}` : 'resumen-gastos-por-centro'}
             cargando={cargando}
             error={error}
-            vacio={filtrandoCentro || mes ? 'No hay gastos para estos filtros.' : 'Todavía no hay facturas ni gastos.'}
+            vacio={filtrandoCentro || mes ? 'No hay gastos para estos filtros.' : 'Todavía no hay facturas ni boletas.'}
             barra={<FiltroMes meses={mesesDeMovimientos(movs)} valor={mes} onChange={setMes} />}
           />
           {!cargando && !error && <LineaTotal filas={filasCentro} />}

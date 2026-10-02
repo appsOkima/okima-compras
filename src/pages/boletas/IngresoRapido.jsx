@@ -8,9 +8,9 @@ import { formatoCLP } from '../../lib/formato'
 const SELECT_PLANTILLAS = 'id, nombre, monto_default, activo'
 
 // Atajos de gasto recurrente: un enlace por plantilla activa que abre el
-// formulario del gasto en su página, pre-llenado desde la plantilla (concepto,
-// subcategoría y monto; solo queda confirmar la fecha): /gastos/nuevo?plantilla=<id>,
-// ver FormularioGasto. Al guardar se vuelve al listado con el aviso de éxito.
+// formulario de la boleta en su página, pre-llenado desde la plantilla (concepto,
+// subcategoría y monto; solo queda confirmar la fecha): /boletas/nuevo?plantilla=<id>,
+// ver FormularioBoleta. Al guardar se vuelve al listado con el aviso de éxito.
 function IngresoRapido() {
   const { filas: plantillas, cargando, error } = useTabla('plantillas_gastos_recurrentes', {
     select: SELECT_PLANTILLAS,
@@ -32,7 +32,7 @@ function IngresoRapido() {
       ) : activas.length === 0 ? (
         <p className="mt-2 text-sm text-slate-500">
           No hay plantillas activas.{' '}
-          <Link to="/gastos/plantillas" className="font-medium text-indigo-700 hover:underline">
+          <Link to="/boletas/plantillas" className="font-medium text-indigo-700 hover:underline">
             Crea una en Plantillas recurrentes
           </Link>
           .
@@ -42,7 +42,7 @@ function IngresoRapido() {
           {activas.map((p) => (
             <Link
               key={p.id}
-              to={`/gastos/nuevo?plantilla=${p.id}`}
+              to={`/boletas/nuevo?plantilla=${p.id}`}
               className="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100"
             >
               {p.nombre}

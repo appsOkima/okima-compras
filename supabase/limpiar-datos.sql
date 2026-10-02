@@ -5,7 +5,7 @@
 -- Editor de Supabase cuando se quiera dejar la base en blanco.
 --
 -- Borra: detalle_facturas, facturas, solicitudes_compra, insumos_proveedores,
--- insumos, otros_gastos, plantillas_gastos_recurrentes y proveedores.
+-- insumos, boletas, plantillas_gastos_recurrentes y proveedores.
 -- Conserva: categorias y subcategorias (centros de costo).
 --
 -- Sin CASCADE a propósito: si en el futuro otra tabla referencia a alguna de
@@ -20,7 +20,7 @@ truncate table
   solicitudes_compra,
   insumos_proveedores,
   insumos,
-  otros_gastos,
+  boletas,
   plantillas_gastos_recurrentes,
   proveedores;
 
@@ -47,5 +47,5 @@ union all select 'insumos_proveedores', count(*) from insumos_proveedores
 union all select 'solicitudes_compra', count(*) from solicitudes_compra
 union all select 'facturas', count(*) from facturas
 union all select 'detalle_facturas', count(*) from detalle_facturas
-union all select 'otros_gastos', count(*) from otros_gastos
+union all select 'boletas', count(*) from boletas
 union all select 'plantillas_gastos_recurrentes', count(*) from plantillas_gastos_recurrentes;

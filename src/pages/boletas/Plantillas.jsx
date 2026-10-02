@@ -36,14 +36,14 @@ const campos = [
     tipo: 'numero',
     paso: 1,
     requerido: true,
-    ayuda: 'Pre-llena el monto al registrar el gasto; edítalo cuando cambie.',
+    ayuda: 'Pre-llena el monto al registrar la boleta; edítalo cuando cambie.',
     validar: (valor) => (valor < 0 ? 'El monto no puede ser negativo.' : undefined),
   },
   {
     clave: 'activo',
     etiqueta: 'Activa',
     tipo: 'booleano',
-    ayuda: 'Una plantilla inactiva deja de aparecer en el ingreso rápido, pero conserva sus gastos.',
+    ayuda: 'Una plantilla inactiva deja de aparecer en el ingreso rápido, pero conserva sus boletas.',
   },
 ]
 
@@ -57,7 +57,7 @@ function Plantillas() {
   return (
     <Mantenedor
       titulo="Plantillas recurrentes"
-      descripcion="Gastos que se repiten y su monto habitual. Aparecen como atajos en la pestaña Gastos."
+      descripcion="Gastos que se repiten y su monto habitual. Aparecen como atajos en la pestaña Boletas."
       tabla="plantillas_gastos_recurrentes"
       select={SELECT}
       columnas={columnas}

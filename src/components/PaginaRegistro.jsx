@@ -18,15 +18,17 @@ const mayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1)
 // Recibe la misma configuración que el formulario del Mantenedor (`campos`,
 // `valoresIniciales`, `antesDeGuardar`, duplicados, `nombreRegistro`) más:
 // - `titulo`: nombre del registro en minúscula para títulos y avisos (ej. 'proveedor').
+// - `femenino` (opcional): concuerda los avisos para un nombre femenino (ej. 'boleta':
+//   "Nueva boleta", "creada", "No se encontró la boleta").
 // - `rutaListado`: a dónde se vuelve al guardar o cancelar (ej. '/proveedores').
 // - `descripcion` (opcional): texto bajo el título.
 // - `tituloNuevo` (opcional): título al crear, en vez de "Nuevo <titulo>" (ej.
-//   "Registrar gasto: Arriendo" desde una plantilla).
+//   "Registrar boleta: Arriendo" desde una plantilla).
 // - `buscarDuplicados(valores, { filas, registro })` (opcional): reemplaza el
 //   aviso por nombre (y `duplicadosAdicionales`) por un criterio propio; con
 //   `textoDuplicados(lista)` para el encabezado del aviso (ver FormularioRegistro).
 // - `cargandoExtra` / `errorExtra` (opcionales): datos propios de la página que
-//   deben estar antes de armar el formulario (ej. la plantilla de un gasto): se
+//   deben estar antes de armar el formulario (ej. la plantilla de una boleta): se
 //   espera igual que al registro, y `errorExtra` (texto) se muestra en su lugar
 //   con el enlace de vuelta al listado.
 // Carga la tabla completa con useTabla: sirve para encontrar el registro y como
@@ -35,6 +37,7 @@ const mayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1)
 // atrás del navegador, recargar) pide confirmación (useConfirmarSalida).
 function PaginaRegistro({
   titulo,
+  femenino = false,
   descripcion,
   tituloNuevo,
   tabla,
@@ -89,7 +92,7 @@ function PaginaRegistro({
     permitirSalida()
     navigate(rutaListado, {
       state: {
-        mensaje: `${mayuscula(titulo)}${nombre ? ` «${nombre}»` : ''} ${registro ? 'actualizado' : 'creado'}.`,
+        mensaje: `${mayuscula(titulo)}${nombre ? ` «${nombre}»` : ''} ${registro ? (femenino ? 'actualizada' : 'actualizado') : femenino ? 'creada' : 'creado'}.`,
       },
     })
   }
@@ -110,7 +113,7 @@ function PaginaRegistro({
             <p className="flex-1">
               {error
                 ? `No se pudieron cargar los datos: ${mensajeError(error)}`
-                : (errorExtra ?? `No se encontró el ${titulo} (puede que se haya eliminado).`)}{' '}
+                : (errorExtra ?? `No se encontró ${femenino ? 'la' : 'el'} ${titulo} (puede que se haya eliminado).`)}{' '}
               <Link to={rutaListado} className="font-medium underline">
                 Volver al listado
               </Link>
@@ -132,7 +135,7 @@ function PaginaRegistro({
         Volver al listado
       </button>
       <h2 className="mt-2 text-xl font-semibold text-slate-800">
-        {registro ? `Editar: ${nombreRegistro(registro) ?? ''}` : (tituloNuevo ?? `Nuevo ${titulo}`)}
+        {registro ? `Editar: ${nombreRegistro(registro) ?? ''}` : (tituloNuevo ?? `${femenino ? 'Nueva' : 'Nuevo'} ${titulo}`)}
       </h2>
       {descripcion && <p className="mt-1 text-sm text-slate-600">{descripcion}</p>}
 

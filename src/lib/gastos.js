@@ -1,4 +1,4 @@
-// Reglas de presentación de Otros Gastos (sin React ni Supabase, para poder
+// Reglas de presentación de Boletas y otros listados con fecha y monto (sin React ni Supabase, para poder
 // verificarlas con node).
 
 // Nombres fijos y no Intl: el resultado no depende del navegador ni de node.
@@ -31,7 +31,7 @@ export function etiquetaMes(mes) {
   return nombre ? `${nombre} ${m[1]}` : String(mes ?? '')
 }
 
-// Meses distintos con gastos, del más reciente al más antiguo (para el filtro "Mes").
+// Meses distintos con registros, del más reciente al más antiguo (para el filtro "Mes").
 export function mesesPresentes(filas) {
   const meses = new Set()
   for (const fila of filas ?? []) {
@@ -42,7 +42,7 @@ export function mesesPresentes(filas) {
   return [...meses].sort().reverse()
 }
 
-// Gastos originados en esa plantilla dentro del mismo mes que `fecha`.
+// Boletas originadas en esa plantilla dentro del mismo mes que `fecha`.
 export function gastosDePlantillaEnMes(filas, idPlantilla, fecha) {
   const mes = mesDe(fecha)
   if (!idPlantilla || !mes) return []

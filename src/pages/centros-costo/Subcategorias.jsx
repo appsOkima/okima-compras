@@ -51,7 +51,7 @@ function Subcategorias() {
   return (
     <Mantenedor
       titulo="Subcategorías"
-      descripcion="Desglose de cada categoría. Es lo que se asigna a insumos, gastos y plantillas."
+      descripcion="Desglose de cada categoría. Es lo que se asigna a insumos, boletas y plantillas."
       tabla="subcategorias"
       select={SELECT}
       columnas={columnas}

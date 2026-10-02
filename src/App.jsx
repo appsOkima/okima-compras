@@ -5,7 +5,7 @@ import PaginaPendiente from './components/PaginaPendiente'
 import SeccionConPestanas from './components/SeccionConPestanas'
 import SeccionCentrosCosto from './pages/centros-costo/SeccionCentrosCosto'
 import SeccionFacturas from './pages/facturas/SeccionFacturas'
-import SeccionGastos from './pages/gastos/SeccionGastos'
+import SeccionBoletas from './pages/boletas/SeccionBoletas'
 import SeccionProveedores from './pages/proveedores/SeccionProveedores'
 import SeccionSolicitudes from './pages/solicitudes/SeccionSolicitudes'
 import { secciones } from './secciones'
@@ -15,10 +15,10 @@ const Categorias = lazy(() => import('./pages/centros-costo/Categorias'))
 const Subcategorias = lazy(() => import('./pages/centros-costo/Subcategorias'))
 const Facturas = lazy(() => import('./pages/facturas/Facturas'))
 const FormularioFactura = lazy(() => import('./pages/facturas/FormularioFactura'))
-const FormularioGasto = lazy(() => import('./pages/gastos/FormularioGasto'))
+const FormularioBoleta = lazy(() => import('./pages/boletas/FormularioBoleta'))
 const Lineas = lazy(() => import('./pages/facturas/Lineas'))
-const Gastos = lazy(() => import('./pages/gastos/Gastos'))
-const Plantillas = lazy(() => import('./pages/gastos/Plantillas'))
+const Boletas = lazy(() => import('./pages/boletas/Boletas'))
+const Plantillas = lazy(() => import('./pages/boletas/Plantillas'))
 const FormularioInsumo = lazy(() => import('./pages/insumos/FormularioInsumo'))
 const Insumos = lazy(() => import('./pages/insumos/Insumos'))
 const Catalogo = lazy(() => import('./pages/proveedores/Catalogo'))
@@ -32,7 +32,7 @@ const Todas = lazy(() => import('./pages/solicitudes/Todas'))
 
 // Secciones que ya tienen pantalla propia (con subrutas); el resto sigue con
 // PaginaPendiente hasta que se construya en la Fase 4.
-const conPantalla = new Set(['/solicitudes', '/facturas', '/gastos', '/resumen', '/insumos', '/proveedores', '/centros-costo'])
+const conPantalla = new Set(['/solicitudes', '/facturas', '/boletas', '/resumen', '/insumos', '/proveedores', '/centros-costo'])
 
 // Sin login: todas las secciones quedan disponibles directamente.
 // Enrutador de datos (createBrowserRouter) y no <BrowserRouter>: lo exige
@@ -61,15 +61,15 @@ const router = createBrowserRouter(
         <Route path="nueva" element={<FormularioFactura />} />
         <Route path=":id" element={<FormularioFactura />} />
       </Route>
-      {/* Los formularios de gasto, insumo, proveedor y catálogo también son
+      {/* Los formularios de boleta, insumo, proveedor y catálogo también son
           páginas de su sección (no modales); las rutas estáticas (plantillas,
           catalogo, por-vincular, nuevo) ganan a :id. */}
-      <Route path="/gastos" element={<SeccionGastos />}>
-        <Route index element={<Gastos />} />
+      <Route path="/boletas" element={<SeccionBoletas />}>
+        <Route index element={<Boletas />} />
         <Route path="plantillas" element={<Plantillas />} />
-        {/* ?plantilla=<id>: ingreso rápido de gasto recurrente, pre-llenado. */}
-        <Route path="nuevo" element={<FormularioGasto />} />
-        <Route path=":id" element={<FormularioGasto />} />
+        {/* ?plantilla=<id>: ingreso rápido de boleta recurrente, pre-llenado. */}
+        <Route path="nuevo" element={<FormularioBoleta />} />
+        <Route path=":id" element={<FormularioBoleta />} />
       </Route>
       {/* Una sola pantalla: encabezado de sección sin barra de pestañas. */}
       <Route path="/resumen" element={<SeccionConPestanas path="/resumen" />}>
@@ -94,6 +94,8 @@ const router = createBrowserRouter(
         <Route index element={<Categorias />} />
         <Route path="subcategorias" element={<Subcategorias />} />
       </Route>
+      {/* La sección se llamaba Otros Gastos (/gastos): enlaces y marcadores viejos. */}
+      <Route path="/gastos/*" element={<Navigate to="/boletas" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Route>
   ),

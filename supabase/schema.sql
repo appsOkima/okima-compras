@@ -32,9 +32,9 @@ create table categorias (
 );
 
 -- -----------------------------------------------------------------------------
--- 10. subcategorias (compartida por insumos, otros_gastos y plantillas)
+-- 10. subcategorias (compartida por insumos, boletas y plantillas)
 -- -----------------------------------------------------------------------------
--- Insumos, gastos y plantillas referencian solo la subcategoría; la categoría
+-- Insumos, boletas y plantillas referencian solo la subcategoría; la categoría
 -- (centro de costo) se obtiene a través de ella.
 create table subcategorias (
   id            uuid primary key default gen_random_uuid(),
@@ -273,14 +273,14 @@ create table plantillas_gastos_recurrentes (
 );
 
 -- -----------------------------------------------------------------------------
--- 7. otros_gastos
+-- 7. boletas (antes otros_gastos)
 -- -----------------------------------------------------------------------------
-create table otros_gastos (
+create table boletas (
   id                       uuid primary key default gen_random_uuid(),
   created_at               timestamptz not null default now(),
   concepto                 text not null,
   id_subcategoria          uuid references subcategorias (id),
-  -- Si viene de un atajo de gasto recurrente, indica de cuál plantilla.
+  -- Si viene de un atajo de gasto recurrente, indica de cuál plantilla (la boleta nace de un gasto recurrente).
   id_plantilla_recurrente  uuid references plantillas_gastos_recurrentes (id),
   id_proveedor             uuid references proveedores (id),
   monto                    numeric not null,
@@ -289,10 +289,10 @@ create table otros_gastos (
   notas                    text
 );
 
-create index otros_gastos_id_subcategoria_idx on otros_gastos (id_subcategoria);
-create index otros_gastos_id_plantilla_recurrente_idx on otros_gastos (id_plantilla_recurrente);
-create index otros_gastos_id_proveedor_idx on otros_gastos (id_proveedor);
-create index otros_gastos_fecha_idx on otros_gastos (fecha);
+create index boletas_id_subcategoria_idx on boletas (id_subcategoria);
+create index boletas_id_plantilla_recurrente_idx on boletas (id_plantilla_recurrente);
+create index boletas_id_proveedor_idx on boletas (id_proveedor);
+create index boletas_fecha_idx on boletas (fecha);
 
 -- -----------------------------------------------------------------------------
 -- Vista: vista_solicitudes_pendientes (Función 1: lista e impresión)
@@ -341,7 +341,7 @@ begin
     'facturas',
     'detalle_facturas',
     'plantillas_gastos_recurrentes',
-    'otros_gastos'
+    'boletas'
   ]
   loop
     execute format('alter table %I enable row level security', t);

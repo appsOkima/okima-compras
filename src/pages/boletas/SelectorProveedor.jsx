@@ -1,9 +1,9 @@
 import { X } from 'lucide-react'
 import Combobox from '../../components/Combobox'
 
-// Proveedor opcional de un gasto: búsqueda sobre los existentes, sin creación al
+// Proveedor opcional de una boleta: búsqueda sobre los existentes, sin creación al
 // vuelo (un proveedor nuevo pide RUT; se crea en Proveedores). El botón X deja
-// el gasto sin proveedor.
+// la boleta sin proveedor.
 function SelectorProveedor({ id, valor, onChange, opciones, cargando, error }) {
   const placeholder = cargando
     ? 'Cargando proveedores…'

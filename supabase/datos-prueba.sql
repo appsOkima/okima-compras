@@ -11,7 +11,7 @@
 --   precio/código), 50 solicitudes (Pendiente / Comprada / Cancelada, de las tres
 --   urgencias), 26 facturas con 2–6 líneas cada una más ~9 líneas asociadas a
 --   solicitudes (descuentos en %, totales ya calculados), 5 plantillas de gasto
---   recurrente y 41 otros gastos (6 meses de recurrentes + gastos sueltos).
+--   recurrente y 41 boletas (6 meses de recurrentes + boletas sueltas).
 -- Las líneas de factura pasan por los triggers reales: el stock (insumos.qty) y
 -- el estado 'Comprada' de las solicitudes salen de la propia base.
 --
@@ -328,10 +328,10 @@ end
 where monto_default = 0 and nombre in ('Arriendo', 'Sueldos', 'Pago IVA');
 
 -- -----------------------------------------------------------------------------
--- Otros gastos: 6 meses de gastos recurrentes desde las plantillas (el IVA y
+-- Boletas: 6 meses de gastos recurrentes desde las plantillas (el IVA y
 -- internet varían un poco cada mes) y gastos sueltos, con y sin proveedor.
 -- -----------------------------------------------------------------------------
-insert into otros_gastos (concepto, id_subcategoria, id_plantilla_recurrente, monto, fecha, numero_documento)
+insert into boletas (concepto, id_subcategoria, id_plantilla_recurrente, monto, fecha, numero_documento)
 select
   p.nombre,
   p.id_subcategoria,
@@ -347,7 +347,7 @@ join plantillas_gastos_recurrentes p
   on p.nombre in ('Arriendo', 'Sueldos', 'Pago IVA', 'Internet y telefonía', 'Contabilidad externa')
 where p.nombre <> 'Contabilidad externa' or m % 2 = 0;
 
-insert into otros_gastos (concepto, id_subcategoria, id_proveedor, monto, fecha, numero_documento, notas)
+insert into boletas (concepto, id_subcategoria, id_proveedor, monto, fecha, numero_documento, notas)
 select v.concepto, s.id, p.id, v.monto, current_date - v.dias, v.documento, v.notas
 from (values
   -- concepto, subcategoría, proveedor, monto, días atrás, documento, notas
@@ -380,5 +380,5 @@ union all select 'insumos_proveedores', count(*) from insumos_proveedores
 union all select 'solicitudes_compra', count(*) from solicitudes_compra
 union all select 'facturas', count(*) from facturas
 union all select 'detalle_facturas', count(*) from detalle_facturas
-union all select 'otros_gastos', count(*) from otros_gastos
+union all select 'boletas', count(*) from boletas
 union all select 'plantillas_gastos_recurrentes', count(*) from plantillas_gastos_recurrentes;

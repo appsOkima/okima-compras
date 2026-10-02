@@ -9,24 +9,24 @@ import { etiquetaMes, gastosDePlantillaEnMes, mesDe } from '../../lib/gastos'
 import { hoyISO } from '../../lib/solicitudes'
 import SelectorProveedor from './SelectorProveedor'
 
-// otros_gastos no tiene `nombre` (el orden por defecto de useTabla).
+// boletas no tiene `nombre` (el orden por defecto de useTabla).
 const ORDEN = { columna: 'fecha', ascendente: false }
 
 const SELECT_PLANTILLAS = 'id, nombre, id_subcategoria, monto_default'
 
-const nombreGasto = (fila) => fila.concepto
+const nombreBoleta = (fila) => fila.concepto
 
-const etiquetaGasto = (g) => `${g.concepto} — ${formatoFecha(g.fecha)} — ${formatoCLP(g.monto)}`
+const etiquetaBoleta = (g) => `${g.concepto} — ${formatoFecha(g.fecha)} — ${formatoCLP(g.monto)}`
 
-// /gastos/nuevo y /gastos/:id: el formulario del gasto en página propia (no
-// modal), con el listado de Gastos como vuelta.
-// Ingreso rápido de gasto recurrente: /gastos/nuevo?plantilla=<id> (desde los
+// /boletas/nuevo y /boletas/:id: el formulario de la boleta en página propia (no
+// modal), con el listado de Boletas como vuelta.
+// Ingreso rápido de gasto recurrente: /boletas/nuevo?plantilla=<id> (desde los
 // atajos del listado, ver IngresoRapido) pre-llena concepto, subcategoría y
 // monto desde la plantilla, guarda `id_plantilla_recurrente` y avisa si esa
-// plantilla ya tiene gasto en el mes de la fecha elegida. Si la plantilla no
-// existe se muestra el error con el enlace al listado (no un gasto en blanco,
+// plantilla ya tiene boleta en el mes de la fecha elegida. Si la plantilla no
+// existe se muestra el error con el enlace al listado (no una boleta en blanco,
 // que perdería el vínculo con la plantilla sin que se note). Al editar se ignora.
-function FormularioGasto() {
+function FormularioBoleta() {
   const { id } = useParams()
   const [parametros] = useSearchParams()
   const idPlantilla = id ? null : parametros.get('plantilla')
@@ -70,7 +70,7 @@ function FormularioGasto() {
         etiqueta: 'Fecha',
         tipo: 'fecha',
         requerido: true,
-        ayuda: 'Por defecto hoy; se puede registrar un gasto de una fecha pasada.',
+        ayuda: 'Por defecto hoy; se puede registrar una boleta de una fecha pasada.',
       },
       {
         clave: 'id_subcategoria',
@@ -121,12 +121,12 @@ function FormularioGasto() {
 
   const conPlantilla = plantilla
     ? {
-        tituloNuevo: `Registrar gasto: ${plantilla.nombre}`,
+        tituloNuevo: `Registrar boleta: ${plantilla.nombre}`,
         descripcion: 'Pre-llenado desde la plantilla recurrente: revisa el monto y confirma la fecha.',
         antesDeGuardar: (valores) => ({ ...valores, id_plantilla_recurrente: plantilla.id }),
-        // Primer clic: avisa si esta plantilla ya tiene gasto en el mes de la fecha elegida.
+        // Primer clic: avisa si esta plantilla ya tiene boleta en el mes de la fecha elegida.
         buscarDuplicados: (valores, { filas }) => gastosDePlantillaEnMes(filas, plantilla.id, valores.fecha),
-        etiquetaDuplicado: etiquetaGasto,
+        etiquetaDuplicado: etiquetaBoleta,
         textoDuplicados: (lista) => `Ya registraste ${plantilla.nombre} en ${etiquetaMes(mesDe(lista[0]?.fecha))}:`,
       }
     : {}
@@ -135,13 +135,14 @@ function FormularioGasto() {
     <PaginaRegistro
       // key: otra plantilla (otra búsqueda en la URL) parte con un formulario nuevo.
       key={idPlantilla ?? ''}
-      titulo="gasto"
-      tabla="otros_gastos"
+      titulo="boleta"
+      femenino
+      tabla="boletas"
       orden={ORDEN}
       campos={campos}
       valoresIniciales={valoresIniciales}
-      rutaListado="/gastos"
-      nombreRegistro={nombreGasto}
+      rutaListado="/boletas"
+      nombreRegistro={nombreBoleta}
       duplicadosPorNombre={false}
       cargandoExtra={Boolean(idPlantilla) && cargandoPlantillas}
       errorExtra={errorPlantilla}
@@ -150,4 +151,4 @@ function FormularioGasto() {
   )
 }
 
-export default FormularioGasto
+export default FormularioBoleta
