@@ -6,7 +6,7 @@
 
 Resumen operativo — el detalle y el razonamiento de cada punto está en `historial-decisiones.md`, aparte para no cargar cada sesión con la trazabilidad completa.
 
-- Sin login; RLS permisivo.
+- **Sprint 2 (vigente, ver `Sprint2.md`):** login con Supabase Auth (6 usuarios sembrados por script, sin registro abierto), roles `productor` / `contador` / `admin` con RLS por rol (reemplaza el RLS permisivo y el "sin login" de la Fase 1). "Otros Gastos" pasa a "Boletas" (+ `detalle_boletas`), nueva tabla `pagos` (el resumen de gastos solo suma pagos de documentos vigentes), relación N:M `insumos_proveedores_okima` con `factor_conversion`, `notas` universal y estado "anulado" en facturas y boletas. Donde este archivo contradiga a `Sprint2.md`, manda `Sprint2.md`; las secciones de abajo describen el modelo de la Fase 1 y se actualizan a medida que se implementa cada migración.
 - Todo en CLP, sin excepciones.
 - Creación al vuelo para `insumo_okima`, `proveedor` e `insumo_proveedor` (ver sección dedicada) — varios campos quedan nullable.
 - `insumos.qty` (numeric, acepta decimales) se actualiza solo al guardar una línea de factura cuyo `insumo_proveedor` ya esté vinculado; vincular después no aplica stock retroactivo.
@@ -28,7 +28,7 @@ Desarrollar un MVP (App Web) para gestionar solicitudes de compra de insumos y r
 - **Iconos y Componentes:** `lucide-react` para iconos. Componentes limpios y funcionales (tipo shadcn/ui o Tailwind puro).
 - **Backend y Base de Datos:** Supabase (PostgreSQL) usando `@supabase/supabase-js`.
 - **Navegación:** `react-router-dom`.
-- **Autenticación:** ninguna por ahora.
+- **Autenticación:** Supabase Auth con roles (Sprint 2); antes, ninguna.
 
 ---
 
@@ -165,7 +165,7 @@ Desglose de cada categoría (centro de costo). Es lo que referencian `insumos`, 
 
 ## Funcionalidades Core a Desarrollar
 
-Sin login: las 6 secciones quedan disponibles directamente y cada empleado se capacita en la que usa.
+Hasta el Sprint 1 no había login y las 6 secciones estaban disponibles directamente. Desde el Sprint 2 cada rol ve solo sus secciones (matriz en `Sprint2.md`, sección 2.1).
 
 1. **Solicitudes de Compra**
    - Crear y ver `solicitudes_compra`; selección de `insumo_okima` con creación al vuelo.
