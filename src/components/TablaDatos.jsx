@@ -2,9 +2,7 @@ import { Fragment, useState } from 'react'
 import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, ChevronUp, Download, Loader2 } from 'lucide-react'
 import { descargarCsv, generarCsv } from '../lib/csv'
 import { mensajeError } from '../lib/errores'
-import { tieneNotas } from '../lib/notas'
 import { esOrdenable, ordenarFilas, paginar } from '../lib/tabla'
-import Notas from './Notas'
 import { claseBotonSecundario } from './estilos'
 
 // Tabla única de la app, con exportación CSV de las filas que se están mostrando
@@ -13,8 +11,8 @@ import { claseBotonSecundario } from './estilos'
 // una con `soloTabla` no se exporta (ej. controles o valores ya desglosados).
 // Una con `noImprimir` se ve en pantalla pero no en papel; `claseFila(fila)`
 // agrega clases a cada fila (ej. un acento de color por urgencia).
-// Una fila con `notas` (ver Notas) muestra el aviso en una fila propia debajo; sin
-// notas no ocupa espacio.
+// `detalleImpresion(fila)` devuelve contenido que se agrega bajo la fila solo en
+// papel (o null si no hay nada que agregar); en pantalla no ocupa espacio.
 // El encabezado ordena por columna (ver `valorOrden` en lib/tabla.js; `orden(fila)`
 // opcional en la columna) y las filas se paginan de a 50; en papel salen todas.
 function TablaDatos({
@@ -27,6 +25,7 @@ function TablaDatos({
   acciones,
   barra,
   claseFila,
+  detalleImpresion,
 }) {
   const [orden, setOrden] = useState({ clave: null, direccion: null })
   // La página se guarda con la firma del conjunto mostrado: si cambia el orden o las
@@ -132,10 +131,10 @@ function TablaDatos({
                         <td className="whitespace-nowrap px-4 py-2 text-right align-top print:hidden">{acciones(fila)}</td>
                       )}
                     </tr>
-                    {tieneNotas(fila.notas) && (
-                      <tr className={`${fondo} ${oculta}`}>
-                        <td colSpan={totalColumnas} className="px-4 pb-2.5 pt-0 text-left">
-                          <Notas valor={fila.notas} compacto />
+                    {detalleImpresion?.(fila) && (
+                      <tr className="hidden print:table-row">
+                        <td colSpan={columnas.length} className="px-4 pb-2.5 pt-0 text-left">
+                          {detalleImpresion(fila)}
                         </td>
                       </tr>
                     )}

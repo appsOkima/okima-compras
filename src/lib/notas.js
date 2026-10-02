@@ -12,6 +12,23 @@ export function tieneNotas(valor) {
   return normalizarNotas(valor) !== null
 }
 
+// Notas de una fila de vista_solicitudes_pendientes para la hoja impresa, en orden:
+// la de la solicitud, las de los proveedores sugeridos, las de sus insumos de
+// catálogo y la del insumo Okima. Las vacías se omiten.
+const NOTAS_IMPRESION = [
+  ['notas', 'Nota de la solicitud'],
+  ['notas_proveedores', 'Notas de proveedores sugeridos'],
+  ['notas_catalogo', 'Notas del insumo del proveedor'],
+  ['notas_insumo', 'Nota del insumo'],
+]
+
+export function notasImpresion(fila) {
+  return NOTAS_IMPRESION.filter(([clave]) => tieneNotas(fila[clave])).map(([clave, titulo]) => ({
+    titulo,
+    texto: fila[clave].trim(),
+  }))
+}
+
 // Campo de formulario estándar para FormularioRegistro: un área de texto que se
 // guarda recortada y, vacía, como null (ver el caso 'area' de aGuardable).
 export const campoNotas = {

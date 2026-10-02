@@ -32,7 +32,7 @@ Directrices de arquitectura y producto para el sprint del proyecto "Okima Compra
 ### 1.2 Campo `notas` universal
 
 * `ADD COLUMN IF NOT EXISTS notas TEXT` en: `proveedores`, `insumos_proveedores`, `insumos`, `solicitudes_compra`, `facturas` y `boletas`. **Las líneas (`detalle_facturas`, `detalle_boletas`) no llevan `notas`.** (`pagos` ya la trae. Las tablas que ya la tienen no se tocan.)
-* **UI:** si `notas` está vacía no ocupa espacio. Si tiene contenido, se muestra de forma prominente (banner o chip destacado visible en el listado y en el detalle) para alertar de indicaciones de interacción.
+* **UI:** si `notas` está vacía no ocupa espacio. Si tiene contenido, se muestra de forma prominente (banner) en el formulario y la ficha de detalle del registro. **No aparece en las filas de las tablas.** En la hoja impresa de Solicitudes pendientes, bajo cada solicitud se imprimen, si existen: la nota de la solicitud, las de los proveedores sugeridos, las de sus insumos de catálogo vinculados al insumo y la del insumo Okima.
 
 ### 1.3 Pagos (egresos) y ventas a crédito
 

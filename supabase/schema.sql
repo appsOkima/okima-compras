@@ -317,11 +317,22 @@ select
   s.fecha_esperada,
   s.estado,
   coalesce(sug.proveedores_sugeridos, '') as proveedores_sugeridos,
-  s.notas
+  s.notas,
+  i.notas                           as notas_insumo,
+  sug.notas_proveedores,
+  sug.notas_catalogo
 from solicitudes_compra s
 join insumos i on i.id = s.id_insumo_okima
 left join lateral (
-  select string_agg(distinct p.nombre, ', ' order by p.nombre) as proveedores_sugeridos
+  select
+    string_agg(distinct p.nombre, ', ' order by p.nombre) as proveedores_sugeridos,
+    -- Para la hoja impresa: solo las notas con contenido, una por línea.
+    string_agg(distinct p.nombre || ': ' || btrim(p.notas), E'
+')
+      filter (where btrim(coalesce(p.notas, '')) <> '') as notas_proveedores,
+    string_agg(distinct p.nombre || ' · ' || ip.nombre || ': ' || btrim(ip.notas), E'
+')
+      filter (where btrim(coalesce(ip.notas, '')) <> '') as notas_catalogo
   from insumos_proveedores ip
   join proveedores p on p.id = ip.id_proveedor
   where ip.id_insumo_okima = s.id_insumo_okima

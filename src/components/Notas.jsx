@@ -4,7 +4,7 @@ import { tieneNotas } from '../lib/notas'
 // Aviso destacado con las `notas` de un registro. Sin contenido no renderiza
 // nada (no ocupa espacio). `compacto` es la versión para filas de tabla y líneas.
 // Colores ámbar, como los demás avisos, para que se note entre los datos normales.
-function Notas({ valor, compacto = false }) {
+function Notas({ valor, compacto = false, titulo = 'Nota' }) {
   if (!tieneNotas(valor)) return null
   return (
     <div
@@ -15,7 +15,7 @@ function Notas({ valor, compacto = false }) {
     >
       <StickyNote className={`shrink-0 ${compacto ? 'mt-px h-3.5 w-3.5' : 'mt-0.5 h-4 w-4'}`} aria-hidden="true" />
       <p className="min-w-0 flex-1 whitespace-pre-line break-words">
-        <span className="font-semibold">Nota: </span>
+        <span className="font-semibold">{titulo}: </span>
         {valor.trim()}
       </p>
     </div>

@@ -3,11 +3,13 @@ import { flushSync } from 'react-dom'
 import { AlertCircle, Pencil, Plus, Printer, Search, X } from 'lucide-react'
 import EtiquetaUrgencia from '../../components/EtiquetaUrgencia'
 import Modal from '../../components/Modal'
+import Notas from '../../components/Notas'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
+import { notasImpresion } from '../../lib/notas'
 import { compararPendientes, estadoFechaTope, hoyISO, metaUrgencia } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import { coincide } from '../../lib/texto'
@@ -30,6 +32,20 @@ function FechaTope({ fecha, hoy }) {
     )
   }
   return <span className="whitespace-nowrap">{formatoFecha(fecha)}</span>
+}
+
+// Notas que acompañan a la solicitud en la hoja impresa (ver notasImpresion); en
+// pantalla no se muestran en la tabla.
+function notasEnPapel(fila) {
+  const notas = notasImpresion(fila)
+  if (notas.length === 0) return null
+  return (
+    <div className="space-y-1">
+      {notas.map((n) => (
+        <Notas key={n.titulo} titulo={n.titulo} valor={n.texto} compacto />
+      ))}
+    </div>
+  )
 }
 
 // Lista de solicitudes pendientes (vista_solicitudes_pendientes), por urgencia, e
@@ -184,6 +200,7 @@ function Pendientes() {
           error={error}
           vacio={busqueda ? 'Ninguna solicitud coincide con la búsqueda.' : 'No hay solicitudes pendientes.'}
           claseFila={(fila) => metaUrgencia(fila.nivel_urgencia).claseFila}
+          detalleImpresion={notasEnPapel}
           barra={
             <div className="relative w-full sm:w-64">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
