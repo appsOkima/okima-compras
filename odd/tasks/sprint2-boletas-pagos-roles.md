@@ -23,7 +23,8 @@ Orden fijado por `Sprint2.md` §0. Ruta: **I** = inline, **D** = delegado (se re
 - [ ] **T3b RLS por rol (corte de acceso).** Reemplaza `acceso_publico` por políticas por rol según la matriz §2.1, con reversa que restaura `acceso_publico`. Se aplica SOLO después de sembrar usuarios y comprobar el login. Las pruebas se hacen en el mismo proyecto de Supabase (decisión del usuario): ver riesgo.
 - [x] **T4a N:M en base de datos.** `insumos_proveedores_okima` (UNIQUE, factor > 0) + migración de vínculos con `factor = COALESCE(cantidad_formato,1)`; `movimientos_stock` (con triggers de suma/resta sobre `insumos.qty`) en lugar de `id_insumo_stock`/`qty_stock`, copiando lo ya aplicado SIN reaplicarlo; retirar `insumos_proveedores.id_insumo_okima`; reescribir `vista_solicitudes_pendientes` conservando las columnas de notas.
 - [x] **T4b N:M en la interfaz.** Catálogo (vínculos con factor), "Por vincular", vínculo desde Facturas con factor, detalle de factura y líneas leyendo `movimientos_stock`, selectores que usaban `id_insumo_okima`.
-- [ ] **T5 `detalle_boletas` (sin `notas`).** Cabecera de boleta con total, líneas, migración de cada boleta a una línea única, stock por pivote, UI de líneas de boleta.
+- [ ] **T5a `detalle_boletas` en base de datos (sin `notas`).** Tabla de líneas (`descripcion`, `id_insumo_proveedor` opcional, `cantidad`, `precio`, `subtotal`); `boletas.monto` pasa a ser el total de las líneas (calculado por la interfaz); migración de cada boleta existente a una línea única; `movimientos_stock` se extiende (`id_detalle_boleta`, CHECK `num_nonnulls = 1`) y un trigger genera stock desde líneas de boleta con la pivote; `id_solicitud_compra` en las líneas se agrega en T8.
+- [ ] **T5b `detalle_boletas` en la interfaz.** Boleta maestro-detalle (cabecera + líneas), ingreso rápido desde plantilla crea boleta con una línea, stock sumado visible, Resumen sin cambios (sigue sumando `boletas.monto` hasta T7).
 - [ ] **T6 Estado Anulado.** `estado_documento` + auditoría en `facturas` y `boletas`; reversa de stock al anular; UI con confirmación; permisos Contador/Admin; mostrar "Anulada" para solicitudes `Cancelada`.
 - [ ] **T7 Pagos.** Tabla `pagos` + migración idempotente de pagos históricos (con verificación Σ pagos = Σ totales); vista `estado_pago`; `Resumen` pasa a sumar `pagos` de documentos vigentes con prorrateo por subcategoría; pestaña "Cuotas/Pagos"; permisos Contador CR / Admin CRUD.
 - [ ] **T8 Vinculación solicitud ↔ línea.** `detalle_boletas.id_solicitud_compra`, trigger de exclusividad factura/boleta, trigger 'Comprada' extendido; aviso al cancelar/anular.
@@ -49,4 +50,4 @@ Los de `Sprint2.md` §4.
 
 ## Siguiente paso
 
-Aplicar 07 + desplegar T4b (usuario) y luego T5 (`detalle_boletas`). T3b (RLS por rol) queda pendiente: el usuario ya comprobó el login real con los perfiles; falta decidir cuándo cortar el acceso.
+Aplicar 07 + desplegar T4b (usuario) (hecho: usuario probó T4). Ahora T5a. T3b (RLS por rol) queda pendiente: el usuario ya comprobó el login real con los perfiles; falta decidir cuándo cortar el acceso.
