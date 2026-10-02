@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, CheckCircle2, Info, Link2, Loader2, Search, X } from 'lucide-react'
 import Combobox from '../../components/Combobox'
+import InputNumero from '../../components/InputNumero'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoCompra } from '../../lib/formato'
+import { aNumeroDesdeTexto, numeroAEditable } from '../../lib/numero'
+import { supabase } from '../../lib/supabase'
 import { coincide } from '../../lib/texto'
+import { AYUDA_FACTOR, factorPorDefecto, validarFactor } from '../../lib/vinculos'
 
-const SELECT = '*, proveedor:proveedores(id, nombre)'
+// vinculos: solo para saber si el insumo ya tiene alguna fila en la pivote.
+const SELECT = '*, proveedor:proveedores(id, nombre), vinculos:insumos_proveedores_okima(id)'
 const SELECT_INSUMOS = 'id, nombre, subcategoria:subcategorias(nombre)'
 
 const nombreProveedor = (fila) => fila.proveedor?.nombre ?? ''
@@ -19,13 +24,17 @@ const DURACION_CONFIRMACION = 5000
 // Lugar principal donde se vincula un insumo de proveedor con su insumo Okima
 // (revisión semanal del administrador; también se puede, con confirmación, desde
 // una línea de factura asociada a una solicitud). Se carga el catálogo completo y se
-// filtra aquí: al vincular, `actualizar` deja la fila con id_insumo_okima y sale sola.
+// filtra aquí: los que no tienen ninguna fila en la pivote. Al vincular se inserta
+// la fila (insumo Okima + factor de conversión) y se recarga: el insumo sale solo.
+// Para vincularlo a más de un insumo Okima, se edita en el Catálogo.
 function PorVincular() {
-  const { filas, cargando, error, actualizar } = useTabla('insumos_proveedores', { select: SELECT })
+  const { filas, cargando, error, recargar } = useTabla('insumos_proveedores', { select: SELECT })
   const { filas: insumos, error: errorInsumos } = useTabla('insumos', { select: SELECT_INSUMOS })
   const [busqueda, setBusqueda] = useState('')
   // id del insumo de proveedor → id del insumo Okima elegido (aún sin guardar).
   const [seleccion, setSeleccion] = useState({})
+  // id del insumo de proveedor → factor escrito (si no, el por defecto de la fila).
+  const [factores, setFactores] = useState({})
   const [vinculando, setVinculando] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
   const [confirmacion, setConfirmacion] = useState('')
@@ -45,11 +54,15 @@ function PorVincular() {
     () =>
       filas.filter(
         (f) =>
-          !f.id_insumo_okima &&
+          f.vinculos.length === 0 &&
           (!busqueda || [f.nombre, f.codigo, nombreProveedor(f)].some((v) => coincide(v, busqueda))),
       ),
     [filas, busqueda],
   )
+
+  // Factor de la fila como texto de input: el escrito o, si no, cantidad por
+  // formato (si es > 0) o 1.
+  const factorDe = (fila) => factores[fila.id] ?? numeroAEditable(factorPorDefecto(fila.cantidad_formato))
 
   const vincular = async (fila) => {
     const idInsumo = seleccion[fila.id]
@@ -57,7 +70,15 @@ function PorVincular() {
     setVinculando(fila.id)
     setErrorAccion('')
     try {
-      await actualizar(fila.id, { id_insumo_okima: idInsumo })
+      const errorFactor = validarFactor(factorDe(fila))
+      if (errorFactor) throw new Error(errorFactor)
+      const { error: errorVincular } = await supabase.from('insumos_proveedores_okima').insert({
+        id_insumo_proveedor: fila.id,
+        id_insumo_okima: idInsumo,
+        factor_conversion: aNumeroDesdeTexto(factorDe(fila)),
+      })
+      if (errorVincular) throw errorVincular
+      await recargar({ silencioso: true })
       const insumo = insumos.find((i) => i.id === idInsumo)
       setConfirmacion(`"${fila.nombre}" quedó vinculado a "${insumo?.nombre ?? 'insumo Okima'}".`)
     } catch (e) {
@@ -87,10 +108,10 @@ function PorVincular() {
     },
     {
       clave: 'vincular',
-      titulo: 'Insumo Okima',
+      titulo: 'Insumo Okima y factor',
       soloTabla: true,
       render: (fila) => (
-        <div className="flex min-w-72 items-center gap-2 print:hidden">
+        <div className="flex min-w-96 items-center gap-2 print:hidden">
           <Combobox
             className="flex-1"
             opciones={opcionesInsumos}
@@ -100,6 +121,16 @@ function PorVincular() {
             etiqueta={`Insumo Okima para ${fila.nombre}`}
             disabled={vinculando === fila.id}
           />
+          <label className="flex items-center gap-1 text-sm text-slate-600">
+            ×
+            <InputNumero
+              className={`${claseInput} w-24`}
+              valor={factorDe(fila)}
+              onChange={(valor) => setFactores((actual) => ({ ...actual, [fila.id]: valor }))}
+              aria-label={`Factor de conversión de ${fila.nombre}`}
+              disabled={vinculando === fila.id}
+            />
+          </label>
           <button
             type="button"
             onClick={() => vincular(fila)}
@@ -119,13 +150,17 @@ function PorVincular() {
       <div>
         <h2 className="text-xl font-semibold text-slate-800">Insumos por vincular</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Insumos de proveedor sin insumo Okima asignado. Aquí se hace el vínculo, en la revisión semanal.
+          Insumos de proveedor sin ningún insumo Okima asignado. Aquí se hace el vínculo, en la revisión semanal. Para
+          vincular uno a más de un insumo Okima, edítalo en el Catálogo.
         </p>
       </div>
 
       <p className="mt-4 flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
         <Info className="mt-0.5 h-4 w-4 shrink-0" />
-        Al vincular, las compras ya registradas no suman stock; solo las facturas que se ingresen desde ahora.
+        <span>
+          Al vincular, las compras ya registradas no suman stock; solo las facturas que se ingresen desde ahora.{' '}
+          {AYUDA_FACTOR} Por defecto se propone la cantidad por formato del insumo (o 1); puedes cambiarla.
+        </span>
       </p>
 
       {errorInsumos && (

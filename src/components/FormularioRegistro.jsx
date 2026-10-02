@@ -17,7 +17,9 @@ function aEditable(campo, valor) {
     if (campo.anulable) return valor === true ? 'true' : valor === false ? 'false' : ''
     return Boolean(valor)
   }
-  if (campo.tipo === 'personalizado') return valor ?? ''
+  // `desdeBase` (opcional) convierte el valor de la base en el que edita el control
+  // (ej. filas de una tabla relacionada → filas editables).
+  if (campo.tipo === 'personalizado') return campo.desdeBase ? campo.desdeBase(valor) : (valor ?? '')
   // Un RUT guardado sin formato (ej. datos viejos) se muestra formateado.
   if (campo.tipo === 'rut') return formatearRut(valor)
   // Número de la base (1234.5) → texto con formato chileno (1.234,5).

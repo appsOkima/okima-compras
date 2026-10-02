@@ -26,22 +26,25 @@ import {
 import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
 import { hoyISO } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
+import { validarFactor } from '../../lib/vinculos'
 import Campo from './Campo'
 import LineaFactura from './LineaFactura'
 import SelectorProveedorFactura from './SelectorProveedorFactura'
 
 const SELECT_PROVEEDORES = 'id, nombre, rut'
+// vinculos: filas de la pivote insumos_proveedores_okima (N:M con insumos Okima).
 const SELECT_CATALOGO =
-  'id, nombre, codigo, id_proveedor, cantidad_formato, formato_unidad, id_insumo_okima, insumo_okima:insumos(id, nombre)'
+  'id, nombre, codigo, id_proveedor, cantidad_formato, formato_unidad, vinculos:insumos_proveedores_okima(id_insumo_okima, factor_conversion, insumo:insumos(id, nombre))'
 const SELECT_PENDIENTES =
   'id, created_at, id_insumo_okima, insumo_nombre, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada'
 const ORDEN_PENDIENTES = { columna: 'created_at', ascendente: true }
-// Las líneas traen lo aplicado por el trigger (para el aviso de stock) y su
-// solicitud, que ya no está en la vista de pendientes porque quedó 'Comprada'.
+// Las líneas traen el stock que aplicó el trigger (movimientos_stock, para el aviso
+// de stock) y su solicitud, que ya no está en la vista de pendientes porque quedó
+// 'Comprada'.
 const SELECT_FACTURA =
   'id, id_proveedor, numero_factura, fecha, descuento_pct, notas, ' +
-  'lineas:detalle_facturas(id, created_at, id_insumo_proveedor, id_solicitud_compra, cantidad, precio_neto, descuento_pct, subtotal, id_insumo_stock, qty_stock, ' +
-  'insumo_stock:insumos!id_insumo_stock(nombre), ' +
+  'lineas:detalle_facturas(id, created_at, id_insumo_proveedor, id_solicitud_compra, cantidad, precio_neto, descuento_pct, subtotal, ' +
+  'movimientos:movimientos_stock(qty, insumo:insumos(nombre)), ' +
   'solicitud:solicitudes_compra!id_solicitud_compra(id, created_at, id_insumo_okima, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada, estado, insumo:insumos(nombre)))'
 
 const claseTarjeta = 'rounded-lg border border-slate-200 bg-white p-4 shadow-sm'
@@ -56,13 +59,13 @@ function cabeceraVacia() {
 const parVinculo = (v) => `«${v.nombreInsumoProveedor}» con «${v.nombreInsumoOkima}»`
 
 // Opción del selector de solicitud: insumo × cantidad, y quién la pidió.
-function opcionSolicitud(s, idInsumoOkima) {
+function opcionSolicitud(s, idsInsumoOkima) {
   const detalle = [
     s.solicitante,
     `urgencia ${s.nivel_urgencia}`,
     s.fecha_esperada ? `tope ${formatoFecha(s.fecha_esperada)}` : null,
     s.estado && s.estado !== 'Pendiente' ? s.estado : null,
-    idInsumoOkima && s.id_insumo_okima === idInsumoOkima ? 'mismo insumo' : null,
+    idsInsumoOkima.includes(s.id_insumo_okima) ? 'mismo insumo' : null,
   ]
   return {
     valor: s.id,
@@ -178,23 +181,23 @@ function FormularioFactura({ id }) {
   }, [pendientes, originales])
   const solicitudesPorId = useMemo(() => new Map(solicitudes.map((s) => [s.id, s])), [solicitudes])
 
-  // Vínculos aceptados que se aplicarán al guardar, por insumo del proveedor.
+  // Vínculos aceptados que se aplicarán al guardar; por insumo del proveedor.
   const vinculos = vinculosAAplicar(lineas, catalogoPorId, solicitudesPorId)
-  const vinculoPendientePorInsumo = new Map(vinculos.map((v) => [v.idInsumoProveedor, v]))
+  const vinculosPendientesDe = (idInsumoProveedor) => vinculos.filter((v) => v.idInsumoProveedor === idInsumoProveedor)
 
   // Una solicitud se asocia a una sola línea: se ocultan las elegidas en otras.
   const opcionesSolicitudPara = (linea) => {
     const enOtras = new Set(
       lineas.filter((l) => l.clave !== linea.clave && l.id_solicitud_compra).map((l) => l.id_solicitud_compra),
     )
-    const idInsumoOkima =
-      catalogoPorId.get(linea.id_insumo_proveedor)?.id_insumo_okima ??
-      vinculoPendientePorInsumo.get(linea.id_insumo_proveedor)?.idInsumoOkima ??
-      null
+    const idsInsumoOkima = [
+      ...(catalogoPorId.get(linea.id_insumo_proveedor)?.vinculos ?? []).map((v) => v.id_insumo_okima),
+      ...vinculosPendientesDe(linea.id_insumo_proveedor).map((v) => v.idInsumoOkima),
+    ]
     return ordenarSolicitudesParaLinea(
       solicitudes.filter((s) => !enOtras.has(s.id)),
-      idInsumoOkima,
-    ).map((s) => opcionSolicitud(s, idInsumoOkima))
+      idsInsumoOkima,
+    ).map((s) => opcionSolicitud(s, idsInsumoOkima))
   }
 
   // Totales en vivo: son los mismos que se guardan (ver datosCabecera).
@@ -265,29 +268,30 @@ function FormularioFactura({ id }) {
     setSucio(true)
   }
 
-  // Vínculos aceptados, antes que la cabecera y las líneas: así las líneas nuevas
-  // ya suman stock (el trigger lee el vínculo al insertar). La guarda
-  // `id_insumo_okima is null` no pisa un vínculo hecho entre tanto por otra
-  // persona (queda en `omitidos`). Si uno falla no se sigue guardando.
+  // Vínculos aceptados (filas de la pivote), antes que la cabecera y las líneas:
+  // así las líneas nuevas ya mueven stock (el trigger lee la pivote al insertar).
+  // Si el par ya existe (23505: lo hizo otra persona entre tanto) no se pisa y
+  // queda en `omitidos`. Si uno falla no se sigue guardando.
   const aplicarVinculos = async () => {
     const aplicados = []
     const omitidos = []
     for (const v of vinculos) {
-      const { data, error } = await supabase
-        .from('insumos_proveedores')
-        .update({ id_insumo_okima: v.idInsumoOkima })
-        .eq('id', v.idInsumoProveedor)
-        .is('id_insumo_okima', null)
-        .select('id')
-      if (error) {
+      const { error } = await supabase.from('insumos_proveedores_okima').insert({
+        id_insumo_proveedor: v.idInsumoProveedor,
+        id_insumo_okima: v.idInsumoOkima,
+        factor_conversion: v.factor,
+      })
+      if (error?.code === '23505') {
+        omitidos.push(v)
+      } else if (error) {
         const previos = aplicados.length > 0 ? ` Sí quedó vinculado: ${aplicados.map(parVinculo).join(', ')}.` : ''
         throw new Error(
           `No se pudo vincular ${parVinculo(v)}: ${mensajeError(error).replace(/\.$/, '')}. ` +
             `${esNueva ? 'No se guardó la factura.' : 'No se guardaron los cambios de la factura.'}${previos}`,
         )
+      } else {
+        aplicados.push(v)
       }
-      if (data?.length > 0) aplicados.push(v)
-      else omitidos.push(v)
     }
     return { aplicados, omitidos }
   }
@@ -358,6 +362,11 @@ function FormularioFactura({ id }) {
       if (Object.keys(errLinea).length > 0) erroresLineas[l.clave] = errLinea
     })
     setErrores({ cabecera: erroresCab, lineas: erroresLineas })
+    const sinFactor = vinculos.find((v) => validarFactor(v.factor))
+    if (sinFactor) {
+      setErrorGuardar(`Revisa el factor de conversión de ${parVinculo(sinFactor)}: debe ser un número mayor que 0.`)
+      return
+    }
     if (lineas.length === 0) {
       setErrorGuardar('Agrega al menos una línea.')
       return
@@ -379,7 +388,7 @@ function FormularioFactura({ id }) {
         aplicados.length > 0 && `Se ${aplicados.length === 1 ? 'vinculó' : 'vincularon'} ${aplicados.map(parVinculo).join(', ')}.`,
         omitidos.length > 0 &&
           `${omitidos.map((v) => `«${v.nombreInsumoProveedor}»`).join(', ')} ya ` +
-            `${omitidos.length === 1 ? 'estaba vinculado' : 'estaban vinculados'} (lo hizo otra persona entre tanto): no se cambió.`,
+            `${omitidos.length === 1 ? 'estaba vinculado' : 'estaban vinculados'} con ese insumo (lo hizo otra persona entre tanto): no se cambió.`,
       ].filter(Boolean)
       navigate('/facturas', {
         state: {
@@ -456,8 +465,9 @@ function FormularioFactura({ id }) {
       </h2>
       <p className="mt-1 text-sm text-slate-600">
         Ingresa las líneas tal como figuran en la factura física y, si aplica, los descuentos en %. Subtotales, neto, IVA
-        y total se calculan solos. Las líneas con insumo vinculado a un insumo Okima suman stock al guardar; al asociar
-        una solicitud a un insumo sin vincular, se te pregunta si vincularlo con el insumo de la solicitud.
+        y total se calculan solos. Las líneas con insumo vinculado a insumos Okima suman stock al guardar (cantidad ×
+        factor de cada vínculo); al asociar una solicitud a un insumo sin ningún vínculo, se te pregunta si vincularlo
+        con el insumo de la solicitud.
       </p>
 
       {erroresCarga.length > 0 && (
@@ -538,7 +548,7 @@ function FormularioFactura({ id }) {
           </div>
           <div className="space-y-3">
             {lineas.map((linea, i) => {
-              const propuesta = vinculoPropuesto(linea, catalogoPorId, solicitudesPorId, lineas)
+              const propuesta = vinculoPropuesto(linea, catalogoPorId, solicitudesPorId)
               return (
                 <LineaFactura
                   key={linea.clave}
@@ -554,7 +564,7 @@ function FormularioFactura({ id }) {
                   cargandoSolicitudes={cargandoPendientes}
                   original={linea.id ? (originalesPorId.get(linea.id) ?? null) : null}
                   propuestaVinculo={propuesta}
-                  vinculoPendiente={vinculoPendientePorInsumo.get(linea.id_insumo_proveedor) ?? null}
+                  vinculosPendientes={vinculosPendientesDe(linea.id_insumo_proveedor)}
                   onDecidirVinculo={(acepta) => decidirVinculoLinea(linea.clave, propuesta, acepta)}
                   onCambiar={(campo, valor) => cambiarLinea(linea.clave, campo, valor)}
                   onQuitar={() => quitarLinea(linea.clave)}

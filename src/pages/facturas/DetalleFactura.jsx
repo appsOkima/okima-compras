@@ -3,13 +3,14 @@ import DetalleRegistro from '../../components/DetalleRegistro'
 import TablaDatos from '../../components/TablaDatos'
 import { formatoCLP, formatoCompra, formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
 import { supabase } from '../../lib/supabase'
+import { textoMovimientos } from '../../lib/vinculos'
 
-// !id_insumo_stock / !id_solicitud_compra: nombra la FK para que el embebido no sea ambiguo.
+// !id_solicitud_compra: nombra la FK para que el embebido no sea ambiguo.
+// movimientos: el stock que aplicó el trigger a cada insumo Okima (puede ser más de uno).
 const SELECT_LINEAS =
-  'id, created_at, cantidad, precio_neto, descuento_pct, subtotal, qty_stock, insumo_proveedor:insumos_proveedores(nombre, codigo, cantidad_formato, formato_unidad), insumo_stock:insumos!id_insumo_stock(nombre), solicitud:solicitudes_compra!id_solicitud_compra(solicitante, insumo:insumos(nombre))'
+  'id, created_at, cantidad, precio_neto, descuento_pct, subtotal, insumo_proveedor:insumos_proveedores(nombre, codigo, cantidad_formato, formato_unidad), movimientos:movimientos_stock(qty, insumo:insumos(nombre)), solicitud:solicitudes_compra!id_solicitud_compra(solicitante, insumo:insumos(nombre))'
 
 const nombreInsumoProveedor = (l) => l.insumo_proveedor?.nombre ?? ''
-const nombreInsumoStock = (l) => l.insumo_stock?.nombre ?? ''
 const porcentaje = (n) => `${formatoNumero(n ?? 0)} %`
 const textoSolicitud = (l) => (l.solicitud ? `${l.solicitud.insumo?.nombre ?? ''} (${l.solicitud.solicitante})` : '')
 
@@ -36,11 +37,15 @@ const columnasLineas = [
   {
     clave: 'stock',
     titulo: 'Stock sumado',
-    csv: (l) => (l.insumo_stock ? `${l.qty_stock} a ${nombreInsumoStock(l)}` : ''),
+    csv: (l) => textoMovimientos(l.movimientos),
     render: (l) =>
-      l.insumo_stock ? (
+      l.movimientos?.length > 0 ? (
         <span>
-          {formatoNumero(l.qty_stock)} <span className="text-xs text-slate-500">a {nombreInsumoStock(l)}</span>
+          {l.movimientos.map((m, i) => (
+            <span key={i} className="block">
+              +{formatoNumero(m.qty)} <span className="text-xs text-slate-500">{m.insumo?.nombre ?? ''}</span>
+            </span>
+          ))}
         </span>
       ) : (
         <span className="text-xs text-slate-400">Sin stock</span>

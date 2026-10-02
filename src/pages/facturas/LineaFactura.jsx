@@ -5,35 +5,34 @@ import InputNumero from '../../components/InputNumero'
 import { claseInput } from '../../components/estilos'
 import { efectoStock, subtotalDe } from '../../lib/facturas'
 import { formatoCLP, formatoNumero } from '../../lib/formato'
+import { AYUDA_FACTOR, validarFactor } from '../../lib/vinculos'
 import Campo from './Campo'
 import SelectorInsumoProveedor from './SelectorInsumoProveedor'
 
 const claseError = ' border-red-400 focus:border-red-500 focus:ring-red-500/30'
 
+// "+12 Taza, +0,5 Plato": lo que suma (o sumó) una línea al stock.
+const listaMovimientos = (movimientos) => movimientos.map((m) => `+${formatoNumero(m.qty)} ${m.nombre}`).join(', ')
+
 // Texto del aviso de stock (ver efectoStock): qué hará el trigger al guardar.
-// `pendiente` = vínculo aceptado que se aplicará al guardar ({ nombreInsumoOkima }),
-// si el insumo del proveedor aún no está vinculado.
-function avisoStock(efecto, item, original, pendiente) {
+// Cada vínculo del insumo del proveedor suma cantidad × factor a su insumo Okima.
+function avisoStock(efecto) {
   if (!efecto) return null
-  const nombreOriginal = original?.insumo_stock?.nombre ?? 'el insumo Okima'
   const revierte =
-    efecto.revierte !== null ? ` Se descuentan de ${nombreOriginal} los ${formatoNumero(efecto.revierte)} sumados antes.` : ''
+    efecto.revierte.length > 0 ? ` Se descuentan los ${listaMovimientos(efecto.revierte)} sumados antes.` : ''
   switch (efecto.tipo) {
     case 'aplicado':
-      return { suma: true, texto: `Ya sumó ${formatoNumero(efecto.qty)} al stock de ${nombreOriginal}.` }
+      return { suma: true, texto: `Ya sumó al stock: ${listaMovimientos(efecto.movimientos)}.` }
     case 'no-aplicado':
       return {
         suma: false,
-        texto: pendiente
-          ? 'Se guardó sin vínculo a insumo Okima: no sumó stock. El vínculo aplica a compras futuras; esta línea ya guardada no suma stock.'
-          : 'Se guardó sin vínculo a insumo Okima: no sumó stock (vincular después no lo aplica).',
+        texto:
+          'Se guardó sin vínculo a insumo Okima: no sumó stock. Un vínculo nuevo aplica a compras futuras; esta línea ya guardada no suma stock (vincular después no lo aplica).',
       }
     case 'suma': {
-      const cantidad = efecto.qty === null ? '' : `${formatoNumero(efecto.qty)} `
-      const formato = item?.cantidad_formato ? ` (${formatoNumero(item.cantidad_formato)} por formato)` : ''
-      const nombre = item?.insumo_okima?.nombre ?? pendiente?.nombreInsumoOkima ?? 'el insumo Okima'
-      const alGuardar = pendiente ? ' (se vinculará al guardar)' : ''
-      return { suma: true, texto: `Suma ${cantidad}al stock de ${nombre}${formato}${alGuardar}.${revierte}` }
+      const texto = listaMovimientos(efecto.movimientos)
+      const porVincular = efecto.movimientos.some((m) => m.pendiente) ? ' (los vínculos nuevos se aplican al guardar)' : ''
+      return { suma: true, texto: `Suma al stock: ${texto}${porVincular}.${revierte}` }
     }
     default:
       return { suma: false, texto: `Sin vínculo a insumo Okima: no suma stock.${revierte}` }
@@ -45,7 +44,7 @@ const claseEnlace = 'rounded px-1 font-medium underline hover:bg-white/60'
 // Pregunta (o decisión tomada) sobre vincular el insumo del proveedor con el
 // insumo Okima de la solicitud (ver vinculoPropuesto). La decisión se puede
 // cambiar hasta guardar.
-function PanelVinculo({ propuesta, onDecidir }) {
+function PanelVinculo({ propuesta, onDecidir, onCambiarFactor }) {
   if (!propuesta || propuesta.tipo === 'ninguno') return null
   const aviso = (texto) => (
     <p className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800" role="alert">
@@ -56,26 +55,37 @@ function PanelVinculo({ propuesta, onDecidir }) {
   if (propuesta.tipo === 'ya-vinculado') {
     return aviso(
       `Este insumo está vinculado a «${propuesta.nombreVinculado}», pero la solicitud es de «${propuesta.nombreInsumoOkima}». ` +
-        'No se cambia aquí; si el vínculo está mal, corrígelo en Proveedores.',
-    )
-  }
-  if (propuesta.tipo === 'conflicto') {
-    return aviso(
-      `Otra línea ya vincula «${propuesta.nombreInsumoProveedor}» con «${propuesta.nombreOtro}», pero esta solicitud es de ` +
-        `«${propuesta.nombreInsumoOkima}». Un insumo del proveedor se vincula a un solo insumo Okima.`,
+        'No se agrega un vínculo aquí; si falta, edítalo en el Catálogo de Proveedores.',
     )
   }
 
   const par = `«${propuesta.nombreInsumoProveedor}» con «${propuesta.nombreInsumoOkima}»`
+  const errorFactor = validarFactor(propuesta.factor)
+  // Factor de conversión: editable mientras se decide y hasta guardar.
+  const campoFactor = (
+    <label className="flex items-center gap-1.5 text-xs text-slate-600">
+      Factor ×
+      <InputNumero
+        className={`${claseInput} w-24 py-1${errorFactor ? claseError : ''}`}
+        valor={propuesta.factor}
+        onChange={onCambiarFactor}
+        aria-label="Factor de conversión del vínculo"
+      />
+    </label>
+  )
   if (propuesta.decision === 'aceptado') {
     return (
-      <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-indigo-700">
-        <Link2 className="h-3.5 w-3.5 shrink-0" />
-        Se vinculará {par} al guardar.
-        <button type="button" onClick={() => onDecidir(false)} className={claseEnlace}>
-          No vincular
-        </button>
-      </p>
+      <div className="mt-2 space-y-1">
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-indigo-700">
+          <Link2 className="h-3.5 w-3.5 shrink-0" />
+          Se vinculará {par} al guardar.
+          {campoFactor}
+          <button type="button" onClick={() => onDecidir(false)} className={claseEnlace}>
+            No vincular
+          </button>
+        </p>
+        {errorFactor && <p className="text-xs text-red-600">{errorFactor}</p>}
+      </div>
     )
   }
   if (propuesta.decision === 'rechazado') {
@@ -98,7 +108,8 @@ function PanelVinculo({ propuesta, onDecidir }) {
           compras sumarán stock a ese insumo.
         </span>
       </p>
-      <div className="mt-2 flex flex-wrap justify-end gap-2">
+      <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+        {campoFactor}
         <button
           type="button"
           onClick={() => onDecidir(false)}
@@ -114,6 +125,8 @@ function PanelVinculo({ propuesta, onDecidir }) {
           Vincular
         </button>
       </div>
+      <p className="mt-1 text-xs text-slate-500">{AYUDA_FACTOR}</p>
+      {errorFactor && <p className="mt-1 text-xs text-red-600">{errorFactor}</p>}
     </div>
   )
 }
@@ -122,9 +135,9 @@ function PanelVinculo({ propuesta, onDecidir }) {
 // opcional, cantidad, precio, descuento en % y el aviso de stock. El subtotal se
 // calcula y solo se muestra. `original` es la línea guardada (null
 // si es nueva) y `opcionesSolicitud` ya viene ordenada para esta línea.
-// `propuestaVinculo` (ver vinculoPropuesto) y `vinculoPendiente` (vínculo aceptado
-// en esta u otra línea para este insumo, que se aplicará al guardar) alimentan el
-// panel de vínculo y el aviso de stock.
+// `propuestaVinculo` (ver vinculoPropuesto) y `vinculosPendientes` (vínculos
+// aceptados en esta u otra línea para este insumo, que se aplicarán al guardar)
+// alimentan el panel de vínculo y el aviso de stock.
 function LineaFactura({
   linea,
   numero,
@@ -138,28 +151,24 @@ function LineaFactura({
   cargandoSolicitudes,
   original,
   propuestaVinculo,
-  vinculoPendiente,
+  vinculosPendientes,
   onDecidirVinculo,
   onCambiar,
   onQuitar,
   puedeQuitar,
 }) {
   const idBase = useId()
-  // Un vínculo aceptado cuenta para el aviso de stock solo si el insumo sigue sin vincular.
-  const pendiente = itemCatalogo?.id_insumo_okima ? null : vinculoPendiente
+  // Vínculos guardados del insumo más los aceptados que se aplicarán al guardar
+  // (estos solo existen si el insumo no tiene ninguno, ver vinculosAAplicar).
+  const vinculos = [
+    ...(itemCatalogo?.vinculos ?? []).map((v) => ({
+      nombre: v.insumo?.nombre ?? 'insumo Okima',
+      factor: v.factor_conversion,
+    })),
+    ...vinculosPendientes.map((v) => ({ nombre: v.nombreInsumoOkima, factor: v.factor, pendiente: true })),
+  ]
   const aviso = avisoStock(
-    efectoStock(
-      {
-        idInsumoProveedor: linea.id_insumo_proveedor,
-        cantidad: linea.cantidad,
-        cantidadFormato: itemCatalogo?.cantidad_formato,
-        idInsumoOkima: itemCatalogo?.id_insumo_okima ?? pendiente?.idInsumoOkima,
-      },
-      original,
-    ),
-    itemCatalogo,
-    original,
-    pendiente,
+    efectoStock({ idInsumoProveedor: linea.id_insumo_proveedor, cantidad: linea.cantidad, vinculos }, original),
   )
 
   const subtotal = subtotalDe(linea)
@@ -253,7 +262,11 @@ function LineaFactura({
         </div>
       </div>
 
-      <PanelVinculo propuesta={propuestaVinculo} onDecidir={onDecidirVinculo} />
+      <PanelVinculo
+        propuesta={propuestaVinculo}
+        onDecidir={onDecidirVinculo}
+        onCambiarFactor={(valor) => onCambiar('factorVinculo', valor)}
+      />
 
       {aviso && (
         <p className={`mt-2 flex items-start gap-1.5 text-xs ${aviso.suma ? 'text-emerald-700' : 'text-slate-500'}`}>

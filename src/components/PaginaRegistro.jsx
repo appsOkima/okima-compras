@@ -24,7 +24,10 @@ const mayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1)
 // - `descripcion` (opcional): texto bajo el título.
 // - `tituloNuevo` (opcional): título al crear, en vez de "Nuevo <titulo>" (ej.
 //   "Registrar boleta: Arriendo" desde una plantilla).
-// - `buscarDuplicados(valores, { filas, registro })` (opcional): reemplaza el
+// - `despuesDeGuardar(guardado, valores, registro)` (opcional, async): paso extra
+//   tras guardar el registro, ej. filas de una tabla relacionada. Si lanza, el
+//   registro ya quedó guardado y el error se muestra en el formulario.
+// - `buscarDuplicados(valores,{ filas, registro })` (opcional): reemplaza el
 //   aviso por nombre (y `duplicadosAdicionales`) por un criterio propio; con
 //   `textoDuplicados(lista)` para el encabezado del aviso (ver FormularioRegistro).
 // - `cargandoExtra` / `errorExtra` (opcionales): datos propios de la página que
@@ -47,6 +50,7 @@ function PaginaRegistro({
   valoresIniciales = {},
   rutaListado,
   antesDeGuardar,
+  despuesDeGuardar,
   filtroDuplicados,
   duplicadosAdicionales,
   etiquetaDuplicado,
@@ -87,6 +91,7 @@ function PaginaRegistro({
   const guardar = async (valores) => {
     const datos = antesDeGuardar ? antesDeGuardar(valores, registro) : valores
     const guardado = registro ? await actualizar(registro.id, datos) : await crear(datos)
+    if (despuesDeGuardar) await despuesDeGuardar(guardado, valores, registro)
     const nombre = nombreRegistro(guardado ?? datos)
     // Ya se guardó: la vuelta al listado no pide confirmación.
     permitirSalida()

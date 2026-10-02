@@ -5,14 +5,16 @@ import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../comp
 import { mensajeError } from '../../lib/errores'
 import { formatoCompra } from '../../lib/formato'
 import { buscarSimilares } from '../../lib/texto'
+import { textoVinculos } from '../../lib/vinculos'
 
-// Detalle de cada opción: código, formato de compra y si suma stock.
+// Detalle de cada opción: código, formato de compra y los insumos Okima a los que
+// suma stock (× factor), o que no está vinculado.
 function detalleItem(item) {
   const formato = formatoCompra(item.cantidad_formato, item.formato_unidad)
   return [
     item.codigo,
     formato !== '—' ? formato : null,
-    item.insumo_okima ? `Insumo Okima: ${item.insumo_okima.nombre}` : 'Sin vínculo a insumo Okima',
+    item.vinculos?.length > 0 ? `Insumo Okima: ${textoVinculos(item.vinculos)}` : 'Sin vínculo a insumo Okima',
   ]
     .filter(Boolean)
     .join(' · ')

@@ -7,12 +7,13 @@
 import { normalizarNotas } from './notas.js'
 import { aNumeroDesdeTexto, numeroAEditable, numeroDesdeBase } from './numero.js'
 import { compararPendientes } from './solicitudes.js'
+import { factorPorDefecto } from './vinculos.js'
 
 export const TASA_IVA = 0.19
 
 // Campos de una línea que escribe la interfaz. subtotal no se ingresa: se calcula
-// (ver subtotalLinea). id_insumo_stock y qty_stock no están: los llena el
-// trigger de stock y nunca se envían.
+// (ver subtotalLinea). El stock no es un campo de la línea: lo mueve el trigger
+// (movimientos_stock) y nunca se envía.
 export const CAMPOS_LINEA = ['id_insumo_proveedor', 'id_solicitud_compra', 'cantidad', 'precio_neto', 'descuento_pct', 'subtotal']
 
 // Valor de un input (formato chileno: "1.234,5") o un Number → número, o null si
@@ -57,13 +58,13 @@ export function calcularTotales(lineas, descuentoPct = 0) {
   return { sumaSubtotales: suma, neto_total: neto, iva, total: neto + iva, montoDescuento: suma - neto }
 }
 
-// Qué suma al stock una línea vinculada: cantidad × cantidad_formato (vacío = 1),
-// igual que el trigger. null si la cantidad no es un número. `cantidad` es la del
-// input; `cantidadFormato`, la del catálogo (de la base).
-export function stockQueSuma(cantidad, cantidadFormato) {
+// Qué suma al stock de un insumo Okima una línea vinculada: cantidad × factor de
+// conversión del vínculo, igual que el trigger. null si la cantidad no es un
+// número. `cantidad` es la del input; `factor`, el del vínculo (de la base).
+export function stockQueSuma(cantidad, factor) {
   const c = aNumero(cantidad)
   if (c === null) return null
-  return limpiar(c * (numeroDesdeBase(cantidadFormato) ?? 1))
+  return limpiar(c * (numeroDesdeBase(factor) ?? 1))
 }
 
 const esVacio = (v) => v === null || v === undefined || v === ''
@@ -115,7 +116,9 @@ export function diffLineas(originales, actuales) {
 // subtotal no es parte del estado: se calcula al mostrar y al guardar. `vinculo`
 // es la decisión del usuario sobre vincular el insumo del proveedor con el insumo
 // Okima de la solicitud (ver vinculoPropuesto): null (sin decidir) o
-// { acepta, idInsumoProveedor, idInsumoOkima }. No se guarda en la línea.
+// { acepta, idInsumoProveedor, idInsumoOkima }. `factorVinculo` es el factor de
+// conversión que el usuario escribió para ese vínculo (null = el por defecto).
+// Ninguno de los dos se guarda en la línea.
 
 // Descuento % guardado → texto del input (1.234,5). Un descuento 0 se muestra
 // vacío (el input tiene placeholder 0). Sirve para la línea y la cabecera.
@@ -130,6 +133,7 @@ export function lineaVacia(clave) {
     precio_neto: '',
     descuento_pct: '',
     vinculo: null,
+    factorVinculo: null,
   }
 }
 
@@ -144,14 +148,15 @@ export function lineaDesdeBase(fila) {
     precio_neto: numeroAEditable(fila.precio_neto),
     descuento_pct: descuentoEditable(fila.descuento_pct),
     vinculo: null,
+    factorVinculo: null,
   }
 }
 
-// Cambiar el insumo del proveedor o la solicitud anula la decisión de vincular:
-// la pregunta pasa a ser otra.
+// Cambiar el insumo del proveedor o la solicitud anula la decisión de vincular y
+// el factor escrito: la pregunta pasa a ser otra.
 export function aplicarCambioLinea(linea, campo, valor) {
   const reinicia = (campo === 'id_insumo_proveedor' || campo === 'id_solicitud_compra') && linea[campo] !== valor
-  return { ...linea, [campo]: valor, ...(reinicia ? { vinculo: null } : {}) }
+  return { ...linea, [campo]: valor, ...(reinicia ? { vinculo: null, factorVinculo: null } : {}) }
 }
 
 // Línea editable → valores para la base (solo CAMPOS_LINEA, conserva el id).
@@ -211,34 +216,49 @@ export function erroresCabecera(datos) {
   return errores
 }
 
-// Aviso de stock por línea: qué hará el trigger al guardar.
+// Stock ya aplicado a una línea guardada (movimientos_stock embebidos) →
+// [{ qty, nombre }].
+const movimientosAplicados = (original) =>
+  (original?.movimientos ?? []).map((m) => ({ qty: numeroDesdeBase(m.qty), nombre: m.insumo?.nombre ?? '' }))
+
+// Aviso de stock por línea: qué hará el trigger al guardar. Cada vínculo del
+// insumo del proveedor genera un movimiento (cantidad × factor) a su insumo Okima.
+// `vinculos` = [{ nombre, factor, pendiente? }]: los guardados más los aceptados en
+// este formulario que se aplicarán al guardar (`pendiente`).
 // `original` es la línea guardada (null si es nueva). Si no cambian ni el insumo
 // ni la cantidad, el trigger conserva lo ya aplicado (aunque el vínculo haya
 // cambiado después: vincular no aplica stock retroactivo).
-// → null (sin insumo elegido) o { tipo, qty, idInsumo, revierte }:
-//   'aplicado' (ya sumó qty), 'no-aplicado' (se guardó sin vínculo),
-//   'suma' (sumará qty) o 'sin-vinculo' (no sumará); `revierte` = lo que se
-//   descuenta de lo aplicado antes, si la línea cambia.
-export function efectoStock({ idInsumoProveedor, cantidad, cantidadFormato, idInsumoOkima }, original = null) {
+// → null (sin insumo elegido) o { tipo, movimientos: [{ nombre, qty, pendiente }],
+//   revierte: [{ nombre, qty }] }: 'aplicado' (ya sumó), 'no-aplicado' (se guardó
+//   sin vínculos), 'suma' (sumará) o 'sin-vinculo' (no sumará); `revierte` = lo que
+//   se descuenta de lo aplicado antes, si la línea cambia.
+export function efectoStock({ idInsumoProveedor, cantidad, vinculos = [] }, original = null) {
   if (!idInsumoProveedor) return null
+  const aplicados = movimientosAplicados(original)
   const sinCambios =
     original && original.id_insumo_proveedor === idInsumoProveedor && mismoValor(original.cantidad, cantidad)
   if (sinCambios) {
-    return original.id_insumo_stock
-      ? { tipo: 'aplicado', qty: numeroDesdeBase(original.qty_stock), idInsumo: original.id_insumo_stock, revierte: null }
-      : { tipo: 'no-aplicado', qty: null, idInsumo: null, revierte: null }
+    return aplicados.length > 0
+      ? { tipo: 'aplicado', movimientos: aplicados, revierte: [] }
+      : { tipo: 'no-aplicado', movimientos: [], revierte: [] }
   }
-  const revierte = original?.id_insumo_stock ? numeroDesdeBase(original.qty_stock) : null
-  if (!idInsumoOkima) return { tipo: 'sin-vinculo', qty: null, idInsumo: null, revierte }
-  return { tipo: 'suma', qty: stockQueSuma(cantidad, cantidadFormato), idInsumo: idInsumoOkima, revierte }
+  if (vinculos.length === 0) return { tipo: 'sin-vinculo', movimientos: [], revierte: aplicados }
+  const movimientos = vinculos.map((v) => ({
+    nombre: v.nombre,
+    qty: stockQueSuma(cantidad, v.factor),
+    pendiente: Boolean(v.pendiente),
+  }))
+  return { tipo: 'suma', movimientos, revierte: aplicados }
 }
 
 // ---------------------------------------------------------------------------
 // Vínculo insumo_proveedor → insumo Okima desde la solicitud. Una línea asociada a
 // una solicitud ya dice de qué insumo Okima se trata: si su insumo del proveedor
-// está sin vincular, se propone vincularlo, solo con confirmación explícita del
-// usuario (nunca en silencio; nunca al crear el insumo al vuelo). El vínculo se
-// aplica al guardar, antes de las líneas, para que las nuevas ya sumen stock.
+// no tiene ningún vínculo, se propone vincularlo (con su factor de conversión),
+// solo con confirmación explícita del usuario (nunca en silencio; nunca al crear el
+// insumo al vuelo). El vínculo se aplica al guardar, antes de las líneas, para que
+// las nuevas ya muevan stock. `item.vinculos` son las filas de la pivote
+// ({ id_insumo_okima, factor_conversion, insumo: { nombre } }).
 
 // Busca por id en un Map o en un arreglo de registros con `id`.
 function buscar(coleccion, id) {
@@ -263,16 +283,18 @@ function vinculoAceptado(linea) {
   return v?.acepta && v.idInsumoProveedor === linea.id_insumo_proveedor ? v : null
 }
 
+// Factor del vínculo de una línea, como texto de input: el escrito o el por defecto
+// (cantidad por formato del insumo del proveedor, o 1).
+const factorEditable = (linea, item) => linea.factorVinculo ?? numeroAEditable(factorPorDefecto(item.cantidad_formato))
+
 // Qué mostrar en la línea sobre el vínculo. `catalogo` y `solicitudes` pueden ser
-// Map o arreglo; `lineas` son todas las del formulario (para los conflictos).
+// Map o arreglo.
 // → { tipo: 'ninguno' }
 //   { tipo: 'proponer', idInsumoProveedor, idInsumoOkima, nombreInsumoProveedor,
-//     nombreInsumoOkima, decision: null | 'aceptado' | 'rechazado' }
-//   { tipo: 'ya-vinculado', nombreVinculado, nombreInsumoOkima }: vinculado a otro
-//     insumo distinto al de la solicitud (solo aviso; aquí no se re-vincula).
-//   { tipo: 'conflicto', nombreInsumoProveedor, nombreInsumoOkima, nombreOtro }:
-//     otra línea ya aceptó vincular este insumo con otro insumo Okima.
-export function vinculoPropuesto(linea, catalogo, solicitudes, lineas = []) {
+//     nombreInsumoOkima, factor, decision: null | 'aceptado' | 'rechazado' }
+//   { tipo: 'ya-vinculado', nombreVinculado, nombreInsumoOkima }: ya tiene vínculos
+//     pero ninguno al insumo de la solicitud (solo aviso; aquí no se re-vincula).
+export function vinculoPropuesto(linea, catalogo, solicitudes) {
   const ninguno = { tipo: 'ninguno' }
   if (!linea?.id_insumo_proveedor || !linea?.id_solicitud_compra) return ninguno
   const item = buscar(catalogo, linea.id_insumo_proveedor)
@@ -282,26 +304,13 @@ export function vinculoPropuesto(linea, catalogo, solicitudes, lineas = []) {
   if (!item || !idInsumoOkima) return ninguno
   const nombreInsumoOkima = nombreInsumoSolicitud(solicitud)
 
-  if (item.id_insumo_okima) {
-    if (item.id_insumo_okima === idInsumoOkima) return ninguno
-    return { tipo: 'ya-vinculado', nombreVinculado: item.insumo_okima?.nombre ?? '', nombreInsumoOkima }
-  }
-
-  // Un insumo del proveedor se vincula a un solo insumo Okima: vale la primera
-  // línea que lo aceptó; las demás que apunten a otro insumo solo ven el aviso.
-  if (decisionVigente(linea, idInsumoOkima) !== 'aceptado') {
-    const otra = (lineas ?? []).find((l) => {
-      if (l === linea || (l.clave !== undefined && l.clave === linea.clave)) return false
-      const v = vinculoAceptado(l)
-      return v && v.idInsumoProveedor === item.id && v.idInsumoOkima !== idInsumoOkima
-    })
-    if (otra) {
-      return {
-        tipo: 'conflicto',
-        nombreInsumoProveedor: item.nombre,
-        nombreInsumoOkima,
-        nombreOtro: nombreInsumoSolicitud(buscar(solicitudes, otra.id_solicitud_compra)),
-      }
+  const vinculos = item.vinculos ?? []
+  if (vinculos.length > 0) {
+    if (vinculos.some((v) => v.id_insumo_okima === idInsumoOkima)) return ninguno
+    return {
+      tipo: 'ya-vinculado',
+      nombreVinculado: vinculos.map((v) => v.insumo?.nombre ?? '').join(', '),
+      nombreInsumoOkima,
     }
   }
 
@@ -311,6 +320,7 @@ export function vinculoPropuesto(linea, catalogo, solicitudes, lineas = []) {
     idInsumoOkima,
     nombreInsumoProveedor: item.nombre,
     nombreInsumoOkima,
+    factor: factorEditable(linea, item),
     decision: decisionVigente(linea, idInsumoOkima),
   }
 }
@@ -323,36 +333,42 @@ export function decidirVinculo(linea, propuesta, acepta) {
   }
 }
 
-// Vínculos aceptados a aplicar al guardar, uno por insumo del proveedor (vale la
-// primera línea que lo aceptó) y solo si el insumo sigue sin vincular en el
-// catálogo cargado. → [{ idInsumoProveedor, idInsumoOkima, nombreInsumoProveedor,
-// nombreInsumoOkima }]
+// Vínculos aceptados a aplicar al guardar, uno por par insumo del proveedor ↔
+// insumo Okima (vale la primera línea que lo aceptó) y solo si el insumo del
+// proveedor sigue sin ningún vínculo en el catálogo cargado. `factor` es un número
+// (null si lo escrito no es un número: el formulario lo rechaza con validarFactor).
+// → [{ idInsumoProveedor, idInsumoOkima, factor, nombreInsumoProveedor, nombreInsumoOkima }]
 export function vinculosAAplicar(lineas, catalogo, solicitudes) {
-  const porInsumo = new Map()
+  const porPar = new Map()
   for (const linea of lineas ?? []) {
     const v = vinculoAceptado(linea)
-    if (!v || porInsumo.has(v.idInsumoProveedor)) continue
+    if (!v) continue
+    const clave = `${v.idInsumoProveedor}|${v.idInsumoOkima}`
+    if (porPar.has(clave)) continue
     const item = buscar(catalogo, v.idInsumoProveedor)
     const solicitud = buscar(solicitudes, linea.id_solicitud_compra)
-    if (!item || item.id_insumo_okima || solicitud?.id_insumo_okima !== v.idInsumoOkima) continue
-    porInsumo.set(v.idInsumoProveedor, {
+    if (!item || (item.vinculos ?? []).length > 0 || solicitud?.id_insumo_okima !== v.idInsumoOkima) continue
+    porPar.set(clave, {
       idInsumoProveedor: v.idInsumoProveedor,
       idInsumoOkima: v.idInsumoOkima,
+      factor: aNumero(factorEditable(linea, item)),
       nombreInsumoProveedor: item.nombre,
       nombreInsumoOkima: nombreInsumoSolicitud(solicitud),
     })
   }
-  return [...porInsumo.values()]
+  return [...porPar.values()]
 }
 
-// Solicitudes pendientes para el selector de una línea: primero las del insumo
-// Okima vinculado a ese insumo_proveedor; dentro de cada grupo, el orden de la
-// lista de pendientes (urgencia, fecha tope, antigüedad).
-export function ordenarSolicitudesParaLinea(solicitudes, idInsumoOkima) {
+// Solicitudes pendientes para el selector de una línea: primero las de los
+// insumos Okima vinculados a ese insumo_proveedor (`idsInsumoOkima`, puede haber
+// varios); dentro de cada grupo, el orden de la lista de pendientes (urgencia,
+// fecha tope, antigüedad).
+export function ordenarSolicitudesParaLinea(solicitudes, idsInsumoOkima = []) {
+  const ids = new Set(idsInsumoOkima)
   return [...(solicitudes ?? [])].sort((a, b) => {
-    if (idInsumoOkima) {
-      const pa = a.id_insumo_okima === idInsumoOkima ? 0 : 1
-      const pb = b.id_insumo_okima === idInsumoOkima ? 0 : 1
+    if (ids.size > 0) {
+      const pa = ids.has(a.id_insumo_okima) ? 0 : 1
+      const pb = ids.has(b.id_insumo_okima) ? 0 : 1
       if (pa !== pb) return pa - pb
     }
     return compararPendientes(a, b)

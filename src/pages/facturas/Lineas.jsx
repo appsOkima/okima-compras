@@ -7,14 +7,16 @@ import { useTabla } from '../../hooks/useTabla'
 import { formatoCLP, formatoCompra, formatoFecha, formatoNumero } from '../../lib/formato'
 import { mesDe, mesesPresentes } from '../../lib/gastos'
 import { coincide } from '../../lib/texto'
+import { textoMovimientos } from '../../lib/vinculos'
 
-// Solo lo que muestra la tabla o exporta el CSV. !id_insumo_stock y
-// !id_solicitud_compra nombran la FK para que el embebido no sea ambiguo.
+// Solo lo que muestra la tabla o exporta el CSV. !id_solicitud_compra nombra la FK
+// para que el embebido no sea ambiguo. movimientos: el stock que aplicó el trigger
+// a cada insumo Okima (puede ser más de uno por línea).
 const SELECT =
-  'id, id_factura, created_at, cantidad, precio_neto, descuento_pct, subtotal, qty_stock, id_solicitud_compra, ' +
+  'id, id_factura, created_at, cantidad, precio_neto, descuento_pct, subtotal, id_solicitud_compra, ' +
   'factura:facturas(numero_factura, fecha, proveedor:proveedores(nombre, rut)), ' +
   'insumo_proveedor:insumos_proveedores(nombre, codigo, cantidad_formato, formato_unidad), ' +
-  'insumo_stock:insumos!id_insumo_stock(nombre), ' +
+  'movimientos:movimientos_stock(qty, insumo:insumos(nombre)), ' +
   'solicitud:solicitudes_compra!id_solicitud_compra(solicitante, insumo:insumos(nombre))'
 
 const ORDEN_CONSULTA = { columna: 'created_at', ascendente: false }
@@ -23,7 +25,9 @@ const fechaFactura = (l) => l.factura?.fecha ?? null
 const numeroFactura = (l) => l.factura?.numero_factura ?? ''
 const nombreProveedor = (l) => l.factura?.proveedor?.nombre ?? ''
 const nombreInsumoProveedor = (l) => l.insumo_proveedor?.nombre ?? ''
-const nombreInsumoStock = (l) => l.insumo_stock?.nombre ?? ''
+// Varios insumos Okima por línea: se muestran y exportan separados por "; " (la
+// cantidad de cada uno, en el mismo orden, en la columna Stock sumado del CSV).
+const nombresInsumosOkima = (l) => (l.movimientos ?? []).map((m) => m.insumo?.nombre ?? '').join('; ')
 const monto = (clave) => (l) => <span className="whitespace-nowrap">{formatoCLP(l[clave])}</span>
 
 // Por fecha de la factura (más reciente primero) y, dentro de ella, por ingreso.
@@ -71,10 +75,10 @@ const columnas = [
     csv: (l) => l.insumo_proveedor?.cantidad_formato ?? null,
   },
   {
-    clave: 'insumo_stock',
+    clave: 'insumos_okima',
     titulo: 'Insumo Okima',
-    csv: nombreInsumoStock,
-    render: (l) => nombreInsumoStock(l) || <span className="text-xs text-slate-400">Sin stock</span>,
+    csv: nombresInsumosOkima,
+    render: (l) => nombresInsumosOkima(l) || <span className="text-xs text-slate-400">Sin stock</span>,
   },
   { clave: 'cantidad', titulo: 'Cantidad', alinear: 'derecha', render: (l) => formatoNumero(l.cantidad) },
   { clave: 'precio_neto', titulo: 'Precio neto', alinear: 'derecha', render: monto('precio_neto') },
@@ -85,7 +89,13 @@ const columnas = [
     render: (l) => <span className="whitespace-nowrap">{formatoNumero(l.descuento_pct ?? 0)} %</span>,
   },
   { clave: 'subtotal', titulo: 'Subtotal', alinear: 'derecha', render: monto('subtotal') },
-  { clave: 'qty_stock', titulo: 'Stock sumado', alinear: 'derecha', render: (l) => formatoNumero(l.qty_stock) },
+  {
+    clave: 'stock_sumado',
+    titulo: 'Stock sumado',
+    alinear: 'derecha',
+    csv: (l) => (l.movimientos ?? []).map((m) => m.qty).join('; '),
+    render: (l) => textoMovimientos(l.movimientos) || formatoNumero(null),
+  },
   {
     clave: 'solicitud',
     titulo: 'Solicitud',
@@ -113,7 +123,7 @@ function Lineas() {
           (l) =>
             (!mes || mesDe(fechaFactura(l)) === mes) &&
             (!busqueda ||
-              [numeroFactura(l), nombreProveedor(l), nombreInsumoProveedor(l), l.insumo_proveedor?.codigo, nombreInsumoStock(l)].some(
+              [numeroFactura(l), nombreProveedor(l), nombreInsumoProveedor(l), l.insumo_proveedor?.codigo, nombresInsumosOkima(l)].some(
                 (v) => coincide(v, busqueda),
               )),
         )

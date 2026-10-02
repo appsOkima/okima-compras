@@ -1,11 +1,13 @@
 import Mantenedor from '../../components/Mantenedor'
 import { formatoCLP, formatoCompra, formatoFecha } from '../../lib/formato'
 import { estaVacio } from '../../lib/texto'
+import { textoVinculos } from '../../lib/vinculos'
 
-const SELECT = '*, proveedor:proveedores(id, nombre), insumo_okima:insumos(id, nombre)'
+// vinculos: filas de la pivote insumos_proveedores_okima (N:M con insumos Okima).
+const SELECT =
+  '*, proveedor:proveedores(id, nombre), vinculos:insumos_proveedores_okima(id, id_insumo_okima, factor_conversion, insumo:insumos(id, nombre))'
 
 const nombreProveedor = (fila) => fila.proveedor?.nombre ?? ''
-const nombreInsumoOkima = (fila) => fila.insumo_okima?.nombre ?? ''
 
 const columnas = [
   { clave: 'proveedor', titulo: 'Proveedor', render: nombreProveedor, csv: nombreProveedor },
@@ -26,12 +28,12 @@ const columnas = [
   { clave: 'formato_unidad', titulo: 'Formato unidad', soloCsv: true },
   { clave: 'cantidad_formato', titulo: 'Cantidad por formato', soloCsv: true },
   {
-    clave: 'insumo_okima',
-    titulo: 'Insumo Okima',
-    csv: nombreInsumoOkima,
+    clave: 'vinculos',
+    titulo: 'Insumo Okima × factor',
+    csv: (fila) => textoVinculos(fila.vinculos),
     render: (fila) =>
-      fila.insumo_okima ? (
-        nombreInsumoOkima(fila)
+      fila.vinculos?.length > 0 ? (
+        textoVinculos(fila.vinculos)
       ) : (
         <span className="whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
           Sin vincular
@@ -56,7 +58,7 @@ const esIncompleto = (fila) =>
   estaVacio(fila.cantidad_formato) ||
   estaVacio(fila.formato_unidad)
 
-const camposBusqueda = ['nombre', 'codigo', nombreProveedor]
+const camposBusqueda = ['nombre', 'codigo', nombreProveedor, (fila) => textoVinculos(fila.vinculos)]
 
 // Crear y editar abren el formulario en su propia página (/proveedores/catalogo/nuevo,
 // /proveedores/catalogo/:id, ver FormularioInsumoProveedor), no en un modal.
@@ -64,7 +66,7 @@ function Catalogo() {
   return (
     <Mantenedor
       titulo="Catálogo"
-      descripcion="Insumos tal como los vende cada proveedor, con su precio y formato de compra."
+      descripcion="Insumos tal como los vende cada proveedor, con su precio, formato de compra y los insumos Okima a los que suman stock (× factor de conversión)."
       tabla="insumos_proveedores"
       select={SELECT}
       columnas={columnas}
