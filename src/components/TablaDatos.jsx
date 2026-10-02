@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, ChevronUp, Download, Loader2 } from 'lucide-react'
 import { descargarCsv, generarCsv } from '../lib/csv'
 import { mensajeError } from '../lib/errores'
+import { tieneNotas } from '../lib/notas'
 import { esOrdenable, ordenarFilas, paginar } from '../lib/tabla'
+import Notas from './Notas'
 import { claseBotonSecundario } from './estilos'
 
 // Tabla única de la app, con exportación CSV de las filas que se están mostrando
@@ -11,6 +13,8 @@ import { claseBotonSecundario } from './estilos'
 // una con `soloTabla` no se exporta (ej. controles o valores ya desglosados).
 // Una con `noImprimir` se ve en pantalla pero no en papel; `claseFila(fila)`
 // agrega clases a cada fila (ej. un acento de color por urgencia).
+// Una fila con `notas` (ver Notas) muestra el aviso en una fila propia debajo; sin
+// notas no ocupa espacio.
 // El encabezado ordena por columna (ver `valorOrden` en lib/tabla.js; `orden(fila)`
 // opcional en la columna) y las filas se paginan de a 50; en papel salen todas.
 function TablaDatos({
@@ -112,21 +116,32 @@ function TablaDatos({
             ) : filas.length === 0 ? (
               <FilaMensaje columnas={totalColumnas}>{vacio}</FilaMensaje>
             ) : (
-              filas.map((fila, i) => (
-                <tr
-                  key={fila.id}
-                  className={`odd:bg-white even:bg-slate-50/60 hover:bg-indigo-50/50 ${i < inicio || i >= fin ? 'hidden print:table-row' : ''} ${claseFila ? claseFila(fila) : ''}`}
-                >
-                  {columnas.map((c) => (
-                    <td key={c.clave} className={`px-4 py-2.5 align-top text-slate-700 ${alinear(c)}`}>
-                      {c.render ? c.render(fila) : fila[c.clave]}
-                    </td>
-                  ))}
-                  {acciones && (
-                    <td className="whitespace-nowrap px-4 py-2 text-right align-top print:hidden">{acciones(fila)}</td>
-                  )}
-                </tr>
-              ))
+              filas.map((fila, i) => {
+                // Fuera de la página actual solo se ven en papel.
+                const oculta = i < inicio || i >= fin ? 'hidden print:table-row' : ''
+                const fondo = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
+                return (
+                  <Fragment key={fila.id}>
+                    <tr className={`${fondo} hover:bg-indigo-50/50 ${oculta} ${claseFila ? claseFila(fila) : ''}`}>
+                      {columnas.map((c) => (
+                        <td key={c.clave} className={`px-4 py-2.5 align-top text-slate-700 ${alinear(c)}`}>
+                          {c.render ? c.render(fila) : fila[c.clave]}
+                        </td>
+                      ))}
+                      {acciones && (
+                        <td className="whitespace-nowrap px-4 py-2 text-right align-top print:hidden">{acciones(fila)}</td>
+                      )}
+                    </tr>
+                    {tieneNotas(fila.notas) && (
+                      <tr className={`${fondo} ${oculta}`}>
+                        <td colSpan={totalColumnas} className="px-4 pb-2.5 pt-0 text-left">
+                          <Notas valor={fila.notas} compacto />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })
             )}
           </tbody>
         </table>

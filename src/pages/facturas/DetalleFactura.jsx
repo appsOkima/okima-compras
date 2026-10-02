@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase'
 
 // !id_insumo_stock / !id_solicitud_compra: nombra la FK para que el embebido no sea ambiguo.
 const SELECT_LINEAS =
-  'id, created_at, cantidad, precio_neto, descuento_pct, subtotal, qty_stock, insumo_proveedor:insumos_proveedores(nombre, codigo, cantidad_formato, formato_unidad), insumo_stock:insumos!id_insumo_stock(nombre), solicitud:solicitudes_compra!id_solicitud_compra(solicitante, insumo:insumos(nombre))'
+  'id, created_at, cantidad, precio_neto, descuento_pct, subtotal, notas, qty_stock, insumo_proveedor:insumos_proveedores(nombre, codigo, cantidad_formato, formato_unidad), insumo_stock:insumos!id_insumo_stock(nombre), solicitud:solicitudes_compra!id_solicitud_compra(solicitante, insumo:insumos(nombre))'
 
 const nombreInsumoProveedor = (l) => l.insumo_proveedor?.nombre ?? ''
 const nombreInsumoStock = (l) => l.insumo_stock?.nombre ?? ''

@@ -1,5 +1,6 @@
 import PaginaRegistro from '../../components/PaginaRegistro'
 import SelectorSubcategoria from '../../components/SelectorSubcategoria'
+import { campoNotas } from '../../lib/notas'
 
 // La subcategoría embebida solo se usa para identificar los parecidos en el aviso de duplicados.
 const SELECT = '*, subcategoria:subcategorias(id, nombre)'
@@ -40,6 +41,7 @@ const campos = [
     visible: (valores) => valores.venta_directa === 'true',
   },
   { clave: 'descripcion', etiqueta: 'Descripción', tipo: 'area' },
+  campoNotas,
 ]
 
 const valoresIniciales = {
@@ -52,6 +54,7 @@ const valoresIniciales = {
   venta_directa: null,
   precio_venta: '',
   descripcion: '',
+  notas: '',
 }
 
 const etiquetaDuplicado = (r) => (r.subcategoria?.nombre ? `${r.nombre} (${r.subcategoria.nombre})` : r.nombre)

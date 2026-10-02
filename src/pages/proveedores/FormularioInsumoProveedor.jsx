@@ -1,5 +1,6 @@
 import PaginaRegistro from '../../components/PaginaRegistro'
 import { useTabla } from '../../hooks/useTabla'
+import { campoNotas } from '../../lib/notas'
 
 const valoresIniciales = {
   id_proveedor: '',
@@ -14,6 +15,7 @@ const valoresIniciales = {
   fecha_actualizacion: '',
   link_insumo: '',
   descripcion: '',
+  notas: '',
 }
 
 // Distintos proveedores venden legítimamente el mismo producto: solo se avisa de
@@ -56,6 +58,7 @@ function FormularioInsumoProveedor() {
     { clave: 'fecha_actualizacion', etiqueta: 'Fecha de actualización', tipo: 'fecha', nuevaFila: true },
     { clave: 'link_insumo', etiqueta: 'Link', tipo: 'texto' },
     { clave: 'descripcion', etiqueta: 'Descripción', tipo: 'area' },
+    campoNotas,
   ]
 
   return (

@@ -1,4 +1,5 @@
 import PaginaRegistro from '../../components/PaginaRegistro'
+import { campoNotas } from '../../lib/notas'
 import { normalizarRut } from '../../lib/texto'
 
 // En 2 columnas quedan de a pares: Nombre | RUT, Código solo, Dirección | Dirección 2,
@@ -14,7 +15,7 @@ const campos = [
   { clave: 'fono_1', etiqueta: 'Teléfono', tipo: 'texto' },
   { clave: 'fono_2', etiqueta: 'Teléfono 2', tipo: 'texto' },
   { clave: 'datos_transferencia', etiqueta: 'Datos de transferencia', tipo: 'area' },
-  { clave: 'notas', etiqueta: 'Notas', tipo: 'area' },
+  campoNotas,
 ]
 
 const valoresIniciales = Object.fromEntries(campos.map((c) => [c.clave, '']))

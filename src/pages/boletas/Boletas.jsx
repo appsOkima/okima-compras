@@ -50,12 +50,7 @@ const detalle = [
   { etiqueta: 'N° documento', valor: (fila) => fila.numero_documento },
   { etiqueta: 'Plantilla de origen', valor: nombrePlantilla },
   { etiqueta: 'Creado', valor: (fila) => formatoFechaLocal(fila.created_at) },
-  {
-    etiqueta: 'Notas',
-    completo: true,
-    // whitespace-pre-line conserva los saltos de línea escritos en el formulario.
-    valor: (fila) => (estaVacio(fila.notas) ? null : <span className="whitespace-pre-line">{fila.notas}</span>),
-  },
+  // Las notas no van aquí: DetalleRegistro las destaca arriba de la ficha.
 ]
 
 // "Incompletos" = boleta sin centro de costo (sin subcategoría).

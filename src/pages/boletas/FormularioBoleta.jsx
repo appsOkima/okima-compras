@@ -6,6 +6,7 @@ import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, gastosDePlantillaEnMes, mesDe } from '../../lib/gastos'
+import { campoNotas } from '../../lib/notas'
 import { hoyISO } from '../../lib/solicitudes'
 import SelectorProveedor from './SelectorProveedor'
 
@@ -96,7 +97,7 @@ function FormularioBoleta() {
         ),
       },
       { clave: 'numero_documento', etiqueta: 'N° documento', tipo: 'texto' },
-      { clave: 'notas', etiqueta: 'Notas', tipo: 'area' },
+      campoNotas,
     ],
     [opcionesProveedores, cargandoProveedores, errorProveedores],
   )

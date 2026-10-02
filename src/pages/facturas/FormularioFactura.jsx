@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, Loader2, Plus, Save } from 'lucide-react'
+import CampoNotas from '../../components/CampoNotas'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import InputNumero from '../../components/InputNumero'
 import { useTabla } from '../../hooks/useTabla'
@@ -38,8 +39,8 @@ const ORDEN_PENDIENTES = { columna: 'created_at', ascendente: true }
 // Las líneas traen lo aplicado por el trigger (para el aviso de stock) y su
 // solicitud, que ya no está en la vista de pendientes porque quedó 'Comprada'.
 const SELECT_FACTURA =
-  'id, id_proveedor, numero_factura, fecha, descuento_pct, ' +
-  'lineas:detalle_facturas(id, created_at, id_insumo_proveedor, id_solicitud_compra, cantidad, precio_neto, descuento_pct, subtotal, id_insumo_stock, qty_stock, ' +
+  'id, id_proveedor, numero_factura, fecha, descuento_pct, notas, ' +
+  'lineas:detalle_facturas(id, created_at, id_insumo_proveedor, id_solicitud_compra, cantidad, precio_neto, descuento_pct, subtotal, notas, id_insumo_stock, qty_stock, ' +
   'insumo_stock:insumos!id_insumo_stock(nombre), ' +
   'solicitud:solicitudes_compra!id_solicitud_compra(id, created_at, id_insumo_okima, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada, estado, insumo:insumos(nombre)))'
 
@@ -48,7 +49,7 @@ const claseError = ' border-red-400 focus:border-red-500 focus:ring-red-500/30'
 
 // Neto, IVA y total no son parte del estado: se calculan desde las líneas.
 function cabeceraVacia() {
-  return { id_proveedor: '', numero_factura: '', fecha: hoyISO(), descuento_pct: '' }
+  return { id_proveedor: '', numero_factura: '', fecha: hoyISO(), descuento_pct: '', notas: '' }
 }
 
 // «insumo del proveedor» con «insumo Okima», para los mensajes de vínculos.
@@ -144,6 +145,7 @@ function FormularioFactura({ id }) {
           numero_factura: data.numero_factura,
           fecha: data.fecha,
           descuento_pct: descuentoEditable(data.descuento_pct),
+          notas: data.notas ?? '',
         })
         setOriginales(guardadas)
         setLineas(guardadas.length > 0 ? guardadas.map(lineaDesdeBase) : [lineaVacia(`nueva-${++siguienteClave.current}`)])
@@ -520,6 +522,11 @@ function FormularioFactura({ id }) {
                 className={`${claseInput}${errores.cabecera.descuento_pct ? claseError : ''}`}
               />
             </Campo>
+            <CampoNotas
+              valor={cabecera.notas}
+              onChange={(valor) => cambiarCabecera('notas', valor)}
+              className="sm:col-span-2 lg:col-span-4"
+            />
           </div>
         </div>
 

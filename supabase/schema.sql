@@ -81,7 +81,8 @@ create table insumos (
   venta_directa    boolean,
   precio_venta     numeric,  -- aplica cuando venta_directa = true
   qty              numeric not null default 0,  -- acepta decimales; lo mueve el trigger de stock
-  descripcion      text
+  descripcion      text,
+  notas            text  -- indicaciones de interacción; vacío no se muestra
 );
 
 create index insumos_id_subcategoria_idx on insumos (id_subcategoria);
@@ -105,7 +106,8 @@ create table insumos_proveedores (
   formato_unidad       text,
   fecha_actualizacion  date,
   link_insumo          text,
-  descripcion          text
+  descripcion          text,
+  notas                text  -- indicaciones de interacción; vacío no se muestra
 );
 
 create index insumos_proveedores_id_insumo_okima_idx on insumos_proveedores (id_insumo_okima);
@@ -123,7 +125,8 @@ create table solicitudes_compra (
   nivel_urgencia       nivel_urgencia not null default 'Media',
   fecha_esperada       date,
   estado               text not null default 'Pendiente'
-                       check (estado in ('Pendiente', 'Comprada', 'Cancelada'))
+                       check (estado in ('Pendiente', 'Comprada', 'Cancelada')),
+  notas                text  -- indicaciones de interacción; vacío no se muestra
 );
 
 create index solicitudes_compra_id_insumo_okima_idx on solicitudes_compra (id_insumo_okima);
@@ -146,6 +149,7 @@ create table facturas (
                    constraint facturas_descuento_pct_check check (descuento_pct between 0 and 100),
   iva              numeric not null default 0,
   total            numeric not null default 0,
+  notas            text,  -- indicaciones de interacción; vacío no se muestra
   constraint facturas_proveedor_numero_key unique (id_proveedor, numero_factura)
 );
 
@@ -167,7 +171,8 @@ create table detalle_facturas (
   -- Stock aplicado al guardar la línea (lo llena el trigger, no la interfaz):
   -- permite revertir exactamente lo sumado si la línea se edita o se borra.
   id_insumo_stock      uuid references insumos (id),
-  qty_stock            numeric
+  qty_stock            numeric,
+  notas                text  -- indicaciones de interacción; vacío no se muestra
 );
 
 create index detalle_facturas_id_factura_idx on detalle_facturas (id_factura);
@@ -312,7 +317,8 @@ select
   s.nivel_urgencia,
   s.fecha_esperada,
   s.estado,
-  coalesce(sug.proveedores_sugeridos, '') as proveedores_sugeridos
+  coalesce(sug.proveedores_sugeridos, '') as proveedores_sugeridos,
+  s.notas
 from solicitudes_compra s
 join insumos i on i.id = s.id_insumo_okima
 left join lateral (

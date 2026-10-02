@@ -18,7 +18,7 @@
 Orden fijado por `Sprint2.md` §0. Ruta: **I** = inline, **D** = delegado (se registra la evidencia del trigger).
 
 - [x] **T1 Renombrado Otros Gastos → Boletas.** SQL: `otros_gastos` → `boletas` (+ FKs/políticas/comentarios), `datos-prueba.sql`/`limpiar-datos.sql`. Front: `src/pages/gastos/` → `boletas`, ruta `/boletas`, título en `secciones.js`, `Resumen.jsx`, CSV. Docs.
-- [ ] **T2 `notas` universal.** SQL con `ADD COLUMN IF NOT EXISTS` en las tablas de §1.2; componente de notas que no ocupa espacio vacío y se destaca si hay contenido, integrado en formularios, listados y detalle.
+- [x] **T2 `notas` universal.** SQL con `ADD COLUMN IF NOT EXISTS` en las tablas de §1.2; componente de notas que no ocupa espacio vacío y se destaca si hay contenido, integrado en formularios, listados y detalle.
 - [ ] **T3 Perfiles, Auth y RLS por rol.** `perfiles` + trigger + `rol_actual()`; reemplazo de `acceso_publico` por políticas por rol (matriz §2.1); script Node de seeding (`SEED_PASSWORD`, emails `nombre@okima.cl`, forzar cambio de clave); login, sesión persistente, `ProtectedRoute`, menú por rol; `id_solicitante`/`created_by`.
 - [ ] **T4 N:M insumos.** `insumos_proveedores_okima` + migración de vínculos con `factor = COALESCE(cantidad_formato,1)`; retirar `insumos_proveedores.id_insumo_okima`; `movimientos_stock` y triggers reescritos; reescribir `vista_solicitudes_pendientes`; UI de catálogo, "Por vincular" y vínculo desde Facturas con factor.
 - [ ] **T5 `detalle_boletas`.** Cabecera de boleta con total, líneas, migración de cada boleta a una línea única, stock por pivote, UI de líneas de boleta.
@@ -37,8 +37,9 @@ Los de `Sprint2.md` §4.
 - Mapa del repo (subagente de exploración, solo lectura): no hay tests ni runner; SQL aplicado a mano; todo el SQL de negocio está en `supabase/schema.sql`; `otros_gastos` aparece en `FormularioGasto.jsx`, `Gastos.jsx`, `Resumen.jsx` y SQL de prueba. El resumen hoy se calcula en el cliente (`src/lib/resumen.js`).
 - Ruta de la exploración: **D** (trigger de mapeo, 4+ archivos).
 - **T1** (ruta **D**, trigger de escritor: 2+ archivos no triviales): lint y build pasan (verificado por mí tras el agente); sin lógica testeable, no hay tests; `npm test` sin archivos. Migración `supabase/migraciones/2026-10-02-01-renombrar-boletas.sql` (+ `-down`) **pendiente de aplicar por el usuario** en staging. RDD desactivado (`gentle-ai review mode status`: off, global) → revisión nativa: disabled/unmanaged. Redirección `/gastos/*` → `/boletas`. Commit: ver `git log` (feat(boletas)).
+- **T2** (ruta **D**, escritor): RED observado (`Cannot find module './notas'`), GREEN 6/6 con `npx vitest run`; lint y build pasan (re-verificados por mí). Migración `2026-10-02-02-notas-universal.sql` (+ `-down`) **pendiente de aplicar por el usuario**; recrea `vista_solicitudes_pendientes` con `notas`. UI no probada en navegador. `detalle_boletas` queda para T5. `supabase/datos-prueba.sql` aparece eliminado en el árbol (lo borró el usuario): no se incluye en commits. RDD off → disabled/unmanaged.
 - Commit de preparación: docs (`Sprint2.md`, `CLAUDE.md`, este documento).
 
 ## Siguiente paso
 
-T2 (`notas` universal).
+T3 (perfiles, Auth y RLS por rol).

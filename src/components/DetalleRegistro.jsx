@@ -1,4 +1,5 @@
 import { Pencil } from 'lucide-react'
+import Notas from './Notas'
 import { claseBotonPrimario, claseBotonSecundario } from './estilos'
 
 const VACIO = '—'
@@ -9,9 +10,12 @@ const mostrar = (valor) => (valor === null || valor === undefined || valor === '
 // Ficha de solo lectura de un registro: lista de definiciones en 2 columnas desde sm.
 // detalle = [{ etiqueta, valor: (fila) => texto | número | nodo, completo? }];
 // `completo` ocupa todo el ancho (ej. descripciones largas).
+// Si la fila tiene `notas` con contenido, se destacan arriba de la ficha (ver Notas);
+// no hace falta declararlas en `detalle`.
 function DetalleRegistro({ detalle, fila, onEditar, onCerrar }) {
   return (
     <div className="space-y-4">
+      <Notas valor={fila.notas} />
       <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
         {detalle.map(({ etiqueta, valor, completo }) => (
           <div key={etiqueta} className={completo ? 'sm:col-span-2' : undefined}>
