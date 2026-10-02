@@ -40,7 +40,7 @@ const ORDEN_PENDIENTES = { columna: 'created_at', ascendente: true }
 // solicitud, que ya no está en la vista de pendientes porque quedó 'Comprada'.
 const SELECT_FACTURA =
   'id, id_proveedor, numero_factura, fecha, descuento_pct, notas, ' +
-  'lineas:detalle_facturas(id, created_at, id_insumo_proveedor, id_solicitud_compra, cantidad, precio_neto, descuento_pct, subtotal, notas, id_insumo_stock, qty_stock, ' +
+  'lineas:detalle_facturas(id, created_at, id_insumo_proveedor, id_solicitud_compra, cantidad, precio_neto, descuento_pct, subtotal, id_insumo_stock, qty_stock, ' +
   'insumo_stock:insumos!id_insumo_stock(nombre), ' +
   'solicitud:solicitudes_compra!id_solicitud_compra(id, created_at, id_insumo_okima, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada, estado, insumo:insumos(nombre)))'
 

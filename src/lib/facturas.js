@@ -13,7 +13,7 @@ export const TASA_IVA = 0.19
 // Campos de una línea que escribe la interfaz. subtotal no se ingresa: se calcula
 // (ver subtotalLinea). id_insumo_stock y qty_stock no están: los llena el
 // trigger de stock y nunca se envían.
-export const CAMPOS_LINEA = ['id_insumo_proveedor', 'id_solicitud_compra', 'cantidad', 'precio_neto', 'descuento_pct', 'subtotal', 'notas']
+export const CAMPOS_LINEA = ['id_insumo_proveedor', 'id_solicitud_compra', 'cantidad', 'precio_neto', 'descuento_pct', 'subtotal']
 
 // Valor de un input (formato chileno: "1.234,5") o un Number → número, o null si
 // está vacío o no es un número. El punto es de miles; los decimales van con coma.
@@ -129,7 +129,6 @@ export function lineaVacia(clave) {
     cantidad: '',
     precio_neto: '',
     descuento_pct: '',
-    notas: '',
     vinculo: null,
   }
 }
@@ -144,7 +143,6 @@ export function lineaDesdeBase(fila) {
     cantidad: numeroAEditable(fila.cantidad),
     precio_neto: numeroAEditable(fila.precio_neto),
     descuento_pct: descuentoEditable(fila.descuento_pct),
-    notas: fila.notas ?? '',
     vinculo: null,
   }
 }
@@ -168,7 +166,6 @@ export function datosLinea(linea) {
     precio_neto: aNumero(linea.precio_neto),
     descuento_pct: descuentoPct,
     subtotal: subtotalLinea(linea.cantidad, linea.precio_neto, descuentoPct),
-    notas: normalizarNotas(linea.notas),
   }
 }
 

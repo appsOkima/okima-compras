@@ -31,7 +31,7 @@ Directrices de arquitectura y producto para el sprint del proyecto "Okima Compra
 
 ### 1.2 Campo `notas` universal
 
-* `ADD COLUMN IF NOT EXISTS notas TEXT` en: `proveedores`, `insumos_proveedores`, `insumos`, `solicitudes_compra`, `facturas`, `detalle_facturas`, `boletas`, `detalle_boletas`. (`pagos` ya la trae. Las tablas que ya la tienen no se tocan.)
+* `ADD COLUMN IF NOT EXISTS notas TEXT` en: `proveedores`, `insumos_proveedores`, `insumos`, `solicitudes_compra`, `facturas` y `boletas`. **Las líneas (`detalle_facturas`, `detalle_boletas`) no llevan `notas`.** (`pagos` ya la trae. Las tablas que ya la tienen no se tocan.)
 * **UI:** si `notas` está vacía no ocupa espacio. Si tiene contenido, se muestra de forma prominente (banner o chip destacado visible en el listado y en el detalle) para alertar de indicaciones de interacción.
 
 ### 1.3 Pagos (egresos) y ventas a crédito
@@ -71,7 +71,7 @@ Se separa la deuda (factura / boleta) del flujo de caja (pago).
 `boletas` (la actual `otros_gastos`) funciona como cabecera que agrupa varias líneas, igual que `facturas`.
 
 * **Cabecera `boletas`:** `id`, `created_at`, `concepto`, `id_subcategoria` (opcional), `id_plantilla_recurrente` (opcional), `id_proveedor` (opcional), `fecha`, `numero_documento` (opcional), `monto` (total, en CLP), `estado_documento` (ver 1.8), `notas`.
-* **Detalle `detalle_boletas`:** `id`, `id_boleta` (FK a `boletas`, `ON DELETE CASCADE`), `descripcion` (text), `id_insumo_proveedor` (opcional), `cantidad`, `precio`, `subtotal` (calculado por la interfaz), `id_solicitud_compra` (opcional, ver 1.5), `notas`.
+* **Detalle `detalle_boletas`:** `id`, `id_boleta` (FK a `boletas`, `ON DELETE CASCADE`), `descripcion` (text), `id_insumo_proveedor` (opcional), `cantidad`, `precio`, `subtotal` (calculado por la interfaz), `id_solicitud_compra` (opcional, ver 1.5). Sin `notas`.
 * Las boletas no discriminan IVA (es un monto total).
 * Las líneas de boleta **mueven stock** igual que las de factura (ver 1.6): si la línea tiene `id_insumo_proveedor` vinculado en la pivote, suma stock. Las líneas sin `id_insumo_proveedor` (ej. arriendo, sueldos) no tocan stock.
 * Una boleta existente se migra con una línea única que replica su concepto y monto.

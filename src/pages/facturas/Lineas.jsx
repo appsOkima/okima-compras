@@ -11,7 +11,7 @@ import { coincide } from '../../lib/texto'
 // Solo lo que muestra la tabla o exporta el CSV. !id_insumo_stock y
 // !id_solicitud_compra nombran la FK para que el embebido no sea ambiguo.
 const SELECT =
-  'id, id_factura, created_at, cantidad, precio_neto, descuento_pct, subtotal, notas, qty_stock, id_solicitud_compra, ' +
+  'id, id_factura, created_at, cantidad, precio_neto, descuento_pct, subtotal, qty_stock, id_solicitud_compra, ' +
   'factura:facturas(numero_factura, fecha, proveedor:proveedores(nombre, rut)), ' +
   'insumo_proveedor:insumos_proveedores(nombre, codigo, cantidad_formato, formato_unidad), ' +
   'insumo_stock:insumos!id_insumo_stock(nombre), ' +

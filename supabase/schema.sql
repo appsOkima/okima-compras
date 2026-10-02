@@ -171,8 +171,7 @@ create table detalle_facturas (
   -- Stock aplicado al guardar la línea (lo llena el trigger, no la interfaz):
   -- permite revertir exactamente lo sumado si la línea se edita o se borra.
   id_insumo_stock      uuid references insumos (id),
-  qty_stock            numeric,
-  notas                text  -- indicaciones de interacción; vacío no se muestra
+  qty_stock            numeric
 );
 
 create index detalle_facturas_id_factura_idx on detalle_facturas (id_factura);

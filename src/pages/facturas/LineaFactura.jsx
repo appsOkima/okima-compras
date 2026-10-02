@@ -1,6 +1,5 @@
 import { useId } from 'react'
 import { AlertTriangle, Link2, PackageCheck, PackageX, Trash2, X } from 'lucide-react'
-import CampoNotas from '../../components/CampoNotas'
 import Combobox from '../../components/Combobox'
 import InputNumero from '../../components/InputNumero'
 import { claseInput } from '../../components/estilos'
@@ -253,8 +252,6 @@ function LineaFactura({
           </p>
         </div>
       </div>
-
-      <CampoNotas valor={linea.notas} onChange={(valor) => onCambiar('notas', valor)} className="mt-3" />
 
       <PanelVinculo propuesta={propuestaVinculo} onDecidir={onDecidirVinculo} />
 
