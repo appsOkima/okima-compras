@@ -5,10 +5,11 @@ import { formatoCLP, formatoFecha, formatoFechaLocal } from '../../lib/formato'
 import { etiquetaMes, mesDe, mesesPresentes, sumaMontos } from '../../lib/gastos'
 import { estaVacio } from '../../lib/texto'
 import IngresoRapido from './IngresoRapido'
+import LineasBoleta from './LineasBoleta'
 
 // La categoría (centro de costo) se obtiene a través de la subcategoría.
 const SELECT =
-  '*, subcategoria:subcategorias(id, nombre, categoria:categorias(id, nombre)), proveedor:proveedores(id, nombre), plantilla:plantillas_gastos_recurrentes(id, nombre)'
+  '*, subcategoria:subcategorias(id, nombre, categoria:categorias(id, nombre)), proveedor:proveedores(id, nombre), plantilla:plantillas_gastos_recurrentes(id, nombre), lineas:detalle_boletas(count)'
 
 // Más reciente primero; a igual fecha, el último ingresado arriba.
 const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }
@@ -17,6 +18,8 @@ const nombreSubcategoria = (fila) => fila.subcategoria?.nombre ?? ''
 const nombreCategoria = (fila) => fila.subcategoria?.categoria?.nombre ?? ''
 const nombreProveedor = (fila) => fila.proveedor?.nombre ?? ''
 const nombrePlantilla = (fila) => fila.plantilla?.nombre ?? ''
+// De las líneas basta la cantidad (la ficha las consulta al abrirse).
+const numeroLineas = (fila) => fila.lineas?.[0]?.count ?? 0
 
 const columnas = [
   {
@@ -35,6 +38,7 @@ const columnas = [
     render: (fila) => <span className="whitespace-nowrap">{formatoCLP(fila.monto)}</span>,
   },
   { clave: 'numero_documento', titulo: 'N° documento' },
+  { clave: 'n_lineas', titulo: 'Líneas', alinear: 'derecha', render: numeroLineas, csv: numeroLineas },
   { clave: 'plantilla', titulo: 'Plantilla', soloCsv: true, csv: nombrePlantilla },
   { clave: 'notas', titulo: 'Notas', soloCsv: true },
 ]
@@ -43,13 +47,14 @@ const columnas = [
 const detalle = [
   { etiqueta: 'Concepto', valor: (fila) => fila.concepto, completo: true },
   { etiqueta: 'Fecha', valor: (fila) => formatoFecha(fila.fecha) },
-  { etiqueta: 'Monto', valor: (fila) => formatoCLP(fila.monto) },
+  { etiqueta: 'Total', valor: (fila) => formatoCLP(fila.monto) },
   { etiqueta: 'Categoría (centro de costo)', valor: nombreCategoria },
   { etiqueta: 'Subcategoría', valor: nombreSubcategoria },
   { etiqueta: 'Proveedor', valor: nombreProveedor },
   { etiqueta: 'N° documento', valor: (fila) => fila.numero_documento },
   { etiqueta: 'Plantilla de origen', valor: nombrePlantilla },
   { etiqueta: 'Creado', valor: (fila) => formatoFechaLocal(fila.created_at) },
+  { etiqueta: 'Líneas', completo: true, valor: (fila) => <LineasBoleta boleta={fila} /> },
   // Las notas no van aquí: DetalleRegistro las destaca arriba de la ficha.
 ]
 
@@ -68,8 +73,9 @@ const resumen = (filas) => (
   </>
 )
 
-// Boletas: gastos que no son compra de insumos con stock (arriendo, sueldos, IVA,
-// servicios). Los recurrentes se ingresan desde sus plantillas (IngresoRapido).
+// Boletas: cabecera con sus líneas (arriendo, sueldos, IVA, servicios o compras con
+// boleta); el monto es el total de las líneas. Los recurrentes se ingresan desde
+// sus plantillas (IngresoRapido).
 // Crear y editar (también desde "Ver detalles") abren el formulario en su propia
 // página (/boletas/nuevo, /boletas/:id, ver FormularioBoleta), no en un modal.
 function Boletas() {
@@ -106,7 +112,7 @@ function Boletas() {
   return (
     <Mantenedor
       titulo="Boletas"
-      descripcion="Boletas sin stock (arriendo, sueldos, pago de IVA, servicios), del más reciente al más antiguo."
+      descripcion="Boletas con sus líneas (arriendo, sueldos, pago de IVA, servicios), del más reciente al más antiguo."
       tabla="boletas"
       select={SELECT}
       orden={ORDEN}

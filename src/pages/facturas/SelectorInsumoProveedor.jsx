@@ -7,11 +7,12 @@ import { formatoCompra } from '../../lib/formato'
 import { buscarSimilares } from '../../lib/texto'
 import { textoVinculos } from '../../lib/vinculos'
 
-// Detalle de cada opción: código, formato de compra y los insumos Okima a los que
-// suma stock (× factor), o que no está vinculado.
+// Detalle de cada opción: proveedor (si el catálogo trae varios), código, formato de
+// compra y los insumos Okima a los que suma stock (× factor), o que no está vinculado.
 function detalleItem(item) {
   const formato = formatoCompra(item.cantidad_formato, item.formato_unidad)
   return [
+    item.proveedor?.nombre,
     item.codigo,
     formato !== '—' ? formato : null,
     item.vinculos?.length > 0 ? `Insumo Okima: ${textoVinculos(item.vinculos)}` : 'Sin vínculo a insumo Okima',
@@ -25,7 +26,19 @@ function detalleItem(item) {
 // Nunca se pide ni se ofrece el insumo Okima al crear: ese vínculo se hace en
 // Proveedores → Por vincular o, con confirmación explícita, al asociar la línea a
 // una solicitud (ver vinculoPropuesto en lib/facturas).
-function SelectorInsumoProveedor({ id, valor, onChange, catalogo, idProveedor, onCrearInsumo, cargando = false }) {
+// `proveedorOpcional` (Boletas, donde el proveedor no es obligatorio): sin proveedor
+// se puede buscar en todo el catálogo que reciba (con `proveedor:proveedores(nombre)`
+// embebido); crear sigue exigiendo proveedor.
+function SelectorInsumoProveedor({
+  id,
+  valor,
+  onChange,
+  catalogo,
+  idProveedor,
+  onCrearInsumo,
+  cargando = false,
+  proveedorOpcional = false,
+}) {
   const idBase = useId()
   // null = sin mini-formulario abierto; si no, el nombre a crear.
   const [nombreNuevo, setNombreNuevo] = useState(null)
@@ -89,7 +102,9 @@ function SelectorInsumoProveedor({ id, valor, onChange, catalogo, idProveedor, o
   }
 
   const placeholder = !idProveedor
-    ? 'Elige primero el proveedor'
+    ? proveedorOpcional
+      ? 'Buscar insumo (opcional; para crear uno, elige el proveedor)…'
+      : 'Elige primero el proveedor'
     : cargando
       ? 'Cargando catálogo…'
       : 'Buscar o crear insumo del proveedor…'
@@ -103,7 +118,7 @@ function SelectorInsumoProveedor({ id, valor, onChange, catalogo, idProveedor, o
         onChange={onChange}
         onCrear={idProveedor ? abrir : undefined}
         placeholder={placeholder}
-        disabled={!idProveedor || cargando || nombreNuevo !== null}
+        disabled={(!idProveedor && !proveedorOpcional) || cargando || nombreNuevo !== null}
       />
 
       {nombreNuevo !== null && (

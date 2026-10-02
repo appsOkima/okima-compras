@@ -81,13 +81,14 @@ function mismoValor(deBase, actual) {
 
 // '' se guarda como null (ej. una solicitud quitada de la línea).
 const valorGuardable = (v) => (esVacio(v) ? null : v)
-const soloCampos = (linea) => Object.fromEntries(CAMPOS_LINEA.map((c) => [c, valorGuardable(linea?.[c])]))
+const soloCampos = (linea, campos) => Object.fromEntries(campos.map((c) => [c, valorGuardable(linea?.[c])]))
 
 // Cambios a aplicar al editar una factura. `originales` son las líneas guardadas
 // (con id) y `actuales` las del formulario (con id si ya existían). Al actualizar
 // se envían solo los campos que cambiaron: mandar id_solicitud_compra sin cambios
 // volvería a disparar el trigger que marca la solicitud como 'Comprada'.
-export function diffLineas(originales, actuales) {
+// `campos` son los de la línea (los de factura por defecto; Boletas pasa los suyos).
+export function diffLineas(originales, actuales, campos = CAMPOS_LINEA) {
   const porId = new Map((originales ?? []).map((o) => [o.id, o]))
   const conservadas = new Set()
   const actualizar = []
@@ -96,12 +97,12 @@ export function diffLineas(originales, actuales) {
   for (const linea of actuales ?? []) {
     const original = linea?.id ? porId.get(linea.id) : undefined
     if (!original || conservadas.has(linea.id)) {
-      insertar.push(soloCampos(linea))
+      insertar.push(soloCampos(linea, campos))
       continue
     }
     conservadas.add(linea.id)
     const cambios = {}
-    for (const campo of CAMPOS_LINEA) {
+    for (const campo of campos) {
       if (!mismoValor(original[campo], linea[campo])) cambios[campo] = valorGuardable(linea[campo])
     }
     if (Object.keys(cambios).length > 0) actualizar.push({ id: linea.id, datos: cambios })
