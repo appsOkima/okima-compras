@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Cliente único de Supabase para toda la app. Sin login: la sesión no se
-// persiste y todas las consultas van con el rol anon (RLS permisivo).
+// Cliente único de Supabase para toda la app. La sesión de Auth se persiste y
+// se renueva sola; mientras el RLS siga permisivo (T3b) anon y authenticated ven lo mismo.
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 
@@ -19,5 +19,5 @@ if (new URL(url).pathname !== '/') {
 }
 
 export const supabase = createClient(url, key, {
-  auth: { persistSession: false, autoRefreshToken: false },
+  auth: { persistSession: true, autoRefreshToken: true },
 })

@@ -29,3 +29,14 @@ Para cargar las facturas reales de la hoja de cálculo original: `supabase/carga
 ## Despliegue (Vercel)
 
 Importar el repositorio en Vercel (framework Vite; `vercel.json` ya redirige todas las rutas a `index.html` para react-router) y definir en Project Settings → Environment Variables: `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`. Las variables `VITE_*` se incrustan al compilar: tras cambiarlas hay que redesplegar. La app no tiene login y el RLS es permisivo, así que cualquiera con la URL puede leer y escribir la base.
+
+## Usuarios y login
+
+La app exige iniciar sesión (Supabase Auth). No hay registro abierto: los usuarios se siembran con `scripts/seed-usuarios.mjs`, que usa la service-role key (solo desde variable de entorno local, nunca en `src/`).
+
+1. Aplicar `supabase/migraciones/2026-10-02-05-perfiles.sql`.
+2. Copiar `.env.seed.example` a `.env.seed` (ignorado por git) y completar `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y `SEED_PASSWORD` (clave temporal común).
+3. `node --env-file=.env.seed scripts/seed-usuarios.mjs` (idempotente: omite los que ya existen). Cada usuario debe cambiar la clave en su primer ingreso.
+4. Aplicar `supabase/migraciones/2026-10-02-06-vincular-solicitantes.sql` (después de sembrar).
+
+Se ingresa con el nombre (p. ej. `tac`) o el email completo (`tac@okima.cl`).

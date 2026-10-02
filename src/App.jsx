@@ -1,5 +1,7 @@
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter, createRoutesFromElements, Navigate, Route, RouterProvider } from 'react-router-dom'
+import { AuthProvider } from './auth/AuthContext'
+import ProtectedRoute from './auth/ProtectedRoute'
 import Layout from './components/Layout'
 import PaginaPendiente from './components/PaginaPendiente'
 import SeccionConPestanas from './components/SeccionConPestanas'
@@ -29,19 +31,25 @@ const Proveedores = lazy(() => import('./pages/proveedores/Proveedores'))
 const Pendientes = lazy(() => import('./pages/solicitudes/Pendientes'))
 const Resumen = lazy(() => import('./pages/resumen/Resumen'))
 const Todas = lazy(() => import('./pages/solicitudes/Todas'))
+const Login = lazy(() => import('./pages/login/Login'))
 
 // Secciones que ya tienen pantalla propia (con subrutas); el resto sigue con
 // PaginaPendiente hasta que se construya en la Fase 4.
 const conPantalla = new Set(['/solicitudes', '/facturas', '/boletas', '/resumen', '/insumos', '/proveedores', '/centros-costo'])
 
-// Sin login: todas las secciones quedan disponibles directamente.
+// Login con Supabase Auth: ProtectedRoute exige sesión y perfil, y deja pasar solo
+// las secciones permitidas al rol (lib/permisos). /login queda fuera del Layout.
 // Enrutador de datos (createBrowserRouter) y no <BrowserRouter>: lo exige
 // useBlocker, que confirma antes de salir de un formulario con cambios sin
 // guardar (ver hooks/useConfirmarSalida). Se crea una sola vez, fuera del componente.
 const router = createBrowserRouter(
   createRoutesFromElements(
+    <>
+    <Route path="/login" element={<Suspense fallback={null}><Login /></Suspense>} />
+    <Route element={<ProtectedRoute />}>
     <Route element={<Layout />}>
-      <Route index element={<Navigate to={secciones[0].path} replace />} />
+      {/* El inicio ('/') lo redirige ProtectedRoute a la primera sección del rol. */}
+      <Route index element={null} />
       {secciones
         .filter((seccion) => !conPantalla.has(seccion.path))
         .map((seccion) => (
@@ -94,15 +102,21 @@ const router = createBrowserRouter(
         <Route index element={<Categorias />} />
         <Route path="subcategorias" element={<Subcategorias />} />
       </Route>
-      {/* La sección se llamaba Otros Gastos (/gastos): enlaces y marcadores viejos. */}
-      <Route path="/gastos/*" element={<Navigate to="/boletas" replace />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Route>
+    </Route>
+    {/* La sección se llamaba Otros Gastos (/gastos): enlaces y marcadores viejos. */}
+    <Route path="/gastos/*" element={<Navigate to="/boletas" replace />} />
+    <Route path="*" element={<Navigate to="/" replace />} />
+    </>
   ),
 )
 
 function App() {
-  return <RouterProvider router={router} />
+  return (
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  )
 }
 
 export default App

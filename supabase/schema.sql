@@ -341,6 +341,93 @@ where s.estado = 'Pendiente'
 order by s.nivel_urgencia desc, s.fecha_esperada asc nulls last, s.created_at asc;
 
 -- -----------------------------------------------------------------------------
+-- Perfiles de usuario (Sprint 2 / T3a). Detalle: migraciones/2026-10-02-05-perfiles.sql
+-- -----------------------------------------------------------------------------
+-- El rol y el nombre vienen de raw_app_meta_data (solo service role), nunca de
+-- raw_user_meta_data. Sin rol válido no se crea perfil (mínimo privilegio).
+create type rol_usuario as enum ('productor', 'contador', 'admin');
+
+create table perfiles (
+  id              uuid primary key references auth.users (id) on delete cascade,
+  created_at      timestamptz not null default now(),
+  rol             rol_usuario not null,
+  nombre_mostrar  text not null
+);
+
+alter table perfiles enable row level security;
+create policy "perfiles_lectura" on perfiles for select to authenticated using (true);
+
+create function crear_perfil_desde_auth()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_rol text := new.raw_app_meta_data ->> 'rol';
+  v_nombre text := nullif(btrim(coalesce(new.raw_app_meta_data ->> 'nombre_mostrar', '')), '');
+begin
+  if v_rol is null or v_rol not in ('productor', 'contador', 'admin') then
+    return new;
+  end if;
+  insert into public.perfiles (id, rol, nombre_mostrar)
+  values (new.id, v_rol::public.rol_usuario, coalesce(v_nombre, split_part(coalesce(new.email, ''), '@', 1)))
+  on conflict (id) do nothing;
+  return new;
+end
+$$;
+
+create trigger crear_perfil_al_crear_usuario
+  after insert on auth.users
+  for each row execute function crear_perfil_desde_auth();
+
+-- SECURITY DEFINER con search_path fijo: las políticas por rol (T3b) la usan sin recursión.
+create function rol_actual()
+returns rol_usuario
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select rol from public.perfiles where id = auth.uid()
+$$;
+
+revoke all on function rol_actual() from public;
+grant execute on function rol_actual() to authenticated;
+
+-- Trazabilidad: quién creó cada registro y a qué perfil corresponde el solicitante
+-- (el texto `solicitante` se conserva). Los históricos quedan en null.
+alter table solicitudes_compra
+  add column id_solicitante uuid references perfiles (id) on delete set null,
+  add column created_by     uuid references perfiles (id) on delete set null;
+alter table facturas add column created_by uuid references perfiles (id) on delete set null;
+alter table boletas  add column created_by uuid references perfiles (id) on delete set null;
+
+create index solicitudes_compra_id_solicitante_idx on solicitudes_compra (id_solicitante);
+
+-- created_by sale de auth.uid() y pisa lo que mande el cliente; sin sesión o sin perfil queda como venga.
+create function asignar_created_by()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is not null and exists (select 1 from public.perfiles where id = auth.uid()) then
+    new.created_by := auth.uid();
+  end if;
+  return new;
+end
+$$;
+
+create trigger asignar_created_by before insert on solicitudes_compra
+  for each row execute function asignar_created_by();
+create trigger asignar_created_by before insert on facturas
+  for each row execute function asignar_created_by();
+create trigger asignar_created_by before insert on boletas
+  for each row execute function asignar_created_by();
+
+-- -----------------------------------------------------------------------------
 -- RLS: habilitado en todas las tablas, acceso total sin login (MVP)
 -- -----------------------------------------------------------------------------
 do $$

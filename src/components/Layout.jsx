@@ -1,6 +1,8 @@
 import { Suspense, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Menu, PackageSearch, X } from 'lucide-react'
+import { LogOut, Menu, PackageSearch, X } from 'lucide-react'
+import { useAuth } from '../auth/contexto'
+import { puedeVerSeccion } from '../lib/permisos'
 import { secciones } from '../secciones'
 
 // Menú lateral fijo en escritorio; en móvil se abre desde la barra superior.
@@ -9,6 +11,8 @@ function Layout() {
   const [menuAbierto, setMenuAbierto] = useState(false)
   const cerrarMenu = () => setMenuAbierto(false)
   const { pathname } = useLocation()
+  const { perfil, cerrarSesion } = useAuth()
+  const visibles = secciones.filter(({ path }) => puedeVerSeccion(perfil?.rol, path))
 
   useEffect(() => {
     const seccion = secciones.find(({ path }) => pathname === path || pathname.startsWith(`${path}/`))
@@ -35,15 +39,15 @@ function Layout() {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 border-r border-slate-200 bg-white transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 print:hidden ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 border-r border-slate-200 bg-white transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 flex flex-col print:hidden ${
           menuAbierto ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="hidden px-5 py-5 md:block">
           <Marca />
         </div>
-        <nav className="flex flex-col gap-1 px-3 py-4 md:py-0">
-          {secciones.map(({ path, titulo, icono: Icono }) => (
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4 md:py-0">
+          {visibles.map(({ path, titulo, icono: Icono }) => (
             <NavLink
               key={path}
               to={path}
@@ -59,6 +63,17 @@ function Layout() {
             </NavLink>
           ))}
         </nav>
+        <div className="border-t border-slate-200 px-4 py-3">
+          <p className="truncate text-sm font-medium text-slate-700">{perfil?.nombre_mostrar}</p>
+          <button
+            type="button"
+            onClick={cerrarSesion}
+            className="mt-1 inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900"
+          >
+            <LogOut className="h-4 w-4" />
+            Cerrar sesión
+          </button>
+        </div>
       </aside>
 
       <main className="min-w-0 flex-1 p-4 md:p-8 print:p-0">
