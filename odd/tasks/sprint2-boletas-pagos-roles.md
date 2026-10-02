@@ -21,7 +21,8 @@ Orden fijado por `Sprint2.md` §0. Ruta: **I** = inline, **D** = delegado (se re
 - [x] **T2 `notas` universal.** SQL con `ADD COLUMN IF NOT EXISTS` en las tablas de §1.2; componente de notas que no ocupa espacio vacío y se destaca si hay contenido, integrado en formularios, listados y detalle.
 - [x] **T3a Perfiles, seeding y login (aditiva, RLS aún permisivo).** `perfiles` (+ enum `rol`, trigger que lee el rol de `raw_app_meta_data`, nunca de `user_metadata`), `rol_actual()`, columnas `id_solicitante`/`created_by`; script Node de seeding (`scripts/seed-usuarios.mjs`, lee `.env.seed`); migración que vincula `solicitante` → `id_solicitante` (se corre después del seeding); login, sesión persistente, cambio de clave forzado, `ProtectedRoute` y menú por rol (`src/lib/permisos.js` con tests).
 - [ ] **T3b RLS por rol (corte de acceso).** Reemplaza `acceso_publico` por políticas por rol según la matriz §2.1, con reversa que restaura `acceso_publico`. Se aplica SOLO después de sembrar usuarios y comprobar el login. Las pruebas se hacen en el mismo proyecto de Supabase (decisión del usuario): ver riesgo.
-- [ ] **T4 N:M insumos.** `insumos_proveedores_okima` + migración de vínculos con `factor = COALESCE(cantidad_formato,1)`; retirar `insumos_proveedores.id_insumo_okima`; `movimientos_stock` y triggers reescritos; reescribir `vista_solicitudes_pendientes`; UI de catálogo, "Por vincular" y vínculo desde Facturas con factor.
+- [ ] **T4a N:M en base de datos.** `insumos_proveedores_okima` (UNIQUE, factor > 0) + migración de vínculos con `factor = COALESCE(cantidad_formato,1)`; `movimientos_stock` (con triggers de suma/resta sobre `insumos.qty`) en lugar de `id_insumo_stock`/`qty_stock`, copiando lo ya aplicado SIN reaplicarlo; retirar `insumos_proveedores.id_insumo_okima`; reescribir `vista_solicitudes_pendientes` conservando las columnas de notas.
+- [ ] **T4b N:M en la interfaz.** Catálogo (vínculos con factor), "Por vincular", vínculo desde Facturas con factor, detalle de factura y líneas leyendo `movimientos_stock`, selectores que usaban `id_insumo_okima`.
 - [ ] **T5 `detalle_boletas` (sin `notas`).** Cabecera de boleta con total, líneas, migración de cada boleta a una línea única, stock por pivote, UI de líneas de boleta.
 - [ ] **T6 Estado Anulado.** `estado_documento` + auditoría en `facturas` y `boletas`; reversa de stock al anular; UI con confirmación; permisos Contador/Admin; mostrar "Anulada" para solicitudes `Cancelada`.
 - [ ] **T7 Pagos.** Tabla `pagos` + migración idempotente de pagos históricos (con verificación Σ pagos = Σ totales); vista `estado_pago`; `Resumen` pasa a sumar `pagos` de documentos vigentes con prorrateo por subcategoría; pestaña "Cuotas/Pagos"; permisos Contador CR / Admin CRUD.
@@ -46,4 +47,4 @@ Los de `Sprint2.md` §4.
 
 ## Siguiente paso
 
-T3b (RLS por rol), solo tras comprobar el login real.
+T4a. T3b (RLS por rol) queda pendiente: el usuario ya comprobó el login real con los perfiles; falta decidir cuándo cortar el acceso.
