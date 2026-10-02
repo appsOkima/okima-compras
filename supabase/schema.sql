@@ -202,13 +202,13 @@ create index detalle_facturas_id_solicitud_compra_idx on detalle_facturas (id_so
 -- la línea o la factura (cascada) revierte el stock sin código adicional.
 -- id_insumo SIN cascade: borrar un insumo con movimientos falla a propósito
 -- (el historial de stock no se pierde en silencio).
--- Extensión prevista (T5, boletas): id_detalle_factura pasará a nullable, se
--- agregará id_detalle_boleta uuid references detalle_boletas (id) on delete cascade
--- y CHECK (num_nonnulls(id_detalle_factura, id_detalle_boleta) = 1).
+-- Los movimientos también nacen de líneas de boleta (T5a): id_detalle_factura es
+-- nullable y id_detalle_boleta se agrega más abajo, en la sección de detalle_boletas
+-- (la tabla se declara después de boletas), con CHECK de origen único.
 create table movimientos_stock (
   id                  uuid primary key default gen_random_uuid(),
   created_at          timestamptz not null default now(),
-  id_detalle_factura  uuid not null references detalle_facturas (id) on delete cascade,
+  id_detalle_factura  uuid references detalle_facturas (id) on delete cascade,
   id_insumo           uuid not null references insumos (id),
   qty                 numeric not null
 );
@@ -327,6 +327,8 @@ create table boletas (
   -- Si viene de un atajo de gasto recurrente, indica de cuál plantilla (la boleta nace de un gasto recurrente).
   id_plantilla_recurrente  uuid references plantillas_gastos_recurrentes (id),
   id_proveedor             uuid references proveedores (id),
+  -- Total de la boleta en CLP = Σ subtotal de sus líneas (detalle_boletas). Lo calcula y guarda
+  -- la interfaz, como el total de facturas; la base no lo recalcula.
   monto                    numeric not null,
   fecha                    date not null default current_date,
   numero_documento         text,
@@ -337,6 +339,85 @@ create index boletas_id_subcategoria_idx on boletas (id_subcategoria);
 create index boletas_id_plantilla_recurrente_idx on boletas (id_plantilla_recurrente);
 create index boletas_id_proveedor_idx on boletas (id_proveedor);
 create index boletas_fecha_idx on boletas (fecha);
+
+-- -----------------------------------------------------------------------------
+-- 7b. detalle_boletas (líneas de boleta; Sprint 2 / T5a)
+-- -----------------------------------------------------------------------------
+-- La boleta es la cabecera y boletas.monto el total de las líneas (calculado por la
+-- interfaz). Sin notas (decisión del usuario). id_solicitud_compra se agrega en T8.
+-- id_insumo_proveedor es opcional (arriendo, sueldos y servicios no tienen insumo) y
+-- SIN cascade, igual que detalle_facturas. precio = CLP por unidad, IVA incluido según
+-- la boleta (sin descuento ni IVA discriminado). subtotal lo calcula la interfaz:
+-- round(cantidad × precio). vista_solicitudes_pendientes y el Resumen no se tocan.
+create table detalle_boletas (
+  id                   uuid primary key default gen_random_uuid(),
+  created_at           timestamptz not null default now(),
+  id_boleta            uuid not null references boletas (id) on delete cascade,
+  descripcion          text not null,
+  id_insumo_proveedor  uuid references insumos_proveedores (id),
+  cantidad             numeric not null default 1 check (cantidad > 0),
+  precio               numeric not null,
+  subtotal             numeric not null
+);
+
+create index detalle_boletas_id_boleta_idx on detalle_boletas (id_boleta);
+create index detalle_boletas_id_insumo_proveedor_idx on detalle_boletas (id_insumo_proveedor);
+
+comment on table detalle_boletas is
+  'Líneas de boleta. boletas.monto es el total de estas líneas (lo calcula y guarda la interfaz; la base no lo recalcula).';
+comment on column detalle_boletas.id_insumo_proveedor is
+  'Opcional: arriendo, sueldos y servicios no tienen insumo. Si está vinculado en la pivote, la línea mueve stock.';
+comment on column detalle_boletas.precio is
+  'CLP por unidad, IVA incluido según la boleta (sin descuento ni IVA discriminado).';
+comment on column detalle_boletas.subtotal is
+  'Calculado por la interfaz: round(cantidad × precio). La base no lo calcula.';
+comment on column boletas.monto is
+  'Total de la boleta en CLP = suma de subtotal de sus líneas (detalle_boletas). Lo calcula y guarda la interfaz; la base no lo recalcula.';
+
+-- movimientos_stock admite líneas de boleta: cada movimiento nace de una línea de factura
+-- O de una de boleta. Borrar la línea o la boleta (cascade) revierte el stock vía trigger.
+alter table movimientos_stock
+  add column id_detalle_boleta uuid references detalle_boletas (id) on delete cascade,
+  add constraint movimientos_stock_origen_check
+    check (num_nonnulls(id_detalle_factura, id_detalle_boleta) = 1);
+
+create unique index movimientos_stock_detalle_boleta_insumo_key on movimientos_stock (id_detalle_boleta, id_insumo);
+
+-- Análogo a generar_movimientos_stock_factura: por cada fila de la pivote del
+-- insumo_proveedor de la línea, qty = cantidad × factor_conversion. Sin insumo_proveedor
+-- o sin filas en la pivote no hay stock (vincular después no lo aplica retroactivamente).
+-- Al cambiar cantidad o insumo_proveedor se borran los movimientos de la línea (revierte)
+-- y se regeneran.
+create function generar_movimientos_stock_boleta()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'UPDATE' then
+    delete from movimientos_stock where id_detalle_boleta = new.id;
+  end if;
+
+  insert into movimientos_stock (id_detalle_boleta, id_insumo, qty)
+  select new.id, po.id_insumo_okima, new.cantidad * po.factor_conversion
+  from insumos_proveedores_okima po
+  where po.id_insumo_proveedor = new.id_insumo_proveedor;
+  return null;
+end;
+$$;
+
+create trigger detalle_boletas_generar_stock_ins
+after insert on detalle_boletas
+for each row
+execute function generar_movimientos_stock_boleta();
+
+create trigger detalle_boletas_generar_stock_upd
+after update on detalle_boletas
+for each row
+when (old.cantidad is distinct from new.cantidad
+      or old.id_insumo_proveedor is distinct from new.id_insumo_proveedor)
+execute function generar_movimientos_stock_boleta();
 
 -- -----------------------------------------------------------------------------
 -- Vista: vista_solicitudes_pendientes (Función 1: lista e impresión)
@@ -488,7 +569,8 @@ begin
     'detalle_facturas',
     'movimientos_stock',
     'plantillas_gastos_recurrentes',
-    'boletas'
+    'boletas',
+    'detalle_boletas'
   ]
   loop
     execute format('alter table %I enable row level security', t);
