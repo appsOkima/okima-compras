@@ -26,7 +26,7 @@ export function resumenAnulacion(tipo, accion) {
   )
 }
 
-// Líneas de detalle_facturas con `solicitud:solicitudes_compra(id, estado, solicitante,
+// Líneas de detalle_facturas o detalle_boletas con `solicitud:solicitudes_compra(id, estado, solicitante,
 // insumo:insumos(nombre))` → solicitudes distintas como "Insumo (solicitante, estado)".
 // El estado se muestra como en la interfaz (Cancelada → Anulada).
 export function solicitudesVinculadas(lineas) {

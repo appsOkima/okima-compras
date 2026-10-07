@@ -16,6 +16,15 @@ describe('mensajeError', () => {
     expect(mensajeError({ code: '42501' })).toBe('Tu rol no tiene permiso para realizar esta acción.')
   })
 
+  it('23514 de la exclusividad factura/boleta: se muestra el mensaje de la base', () => {
+    const error = { code: '23514', message: 'La solicitud ya está vinculada a líneas de factura y no puede vincularse también a una boleta.' }
+    expect(mensajeError(error)).toBe(error.message)
+  })
+
+  it('23514 sin mensaje: texto genérico', () => {
+    expect(mensajeError({ code: '23514' })).toBe('El dato no cumple una regla del sistema.')
+  })
+
   it('mantiene los mensajes existentes', () => {
     expect(mensajeError({ code: '23505' })).toBe('Ya existe un registro con esos datos.')
     expect(mensajeError(null)).toBe('')

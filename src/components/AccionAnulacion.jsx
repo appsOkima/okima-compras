@@ -13,7 +13,7 @@ import { claseBotonPrimario, claseBotonSecundario, claseInput } from './estilos'
 // - `tipo`: 'factura' | 'boleta'; `doc`: la fila; `nombre`: cómo se llama en los mensajes.
 // - `onCambiar(datos)`: guarda los campos en la cabecera (useTabla.actualizar) y lanza el error.
 // - `cargarSolicitudes(idDocumento)` (opcional, async; función estable): líneas con su solicitud vinculada, para avisar
-//   antes de anular (solo facturas; en boletas no hay vínculo todavía).
+//   antes de anular (facturas y boletas).
 function AccionAnulacion({ tipo, doc, nombre, onCambiar, cargarSolicitudes }) {
   const { perfil } = useAuth()
   const [abierto, setAbierto] = useState(false)

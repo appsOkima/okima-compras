@@ -8,7 +8,7 @@ import { normalizarNotas } from './notas.js'
 import { numeroAEditable, numeroDesdeBase } from './numero.js'
 
 // Campos de una línea que escribe la interfaz. subtotal no se ingresa: se calcula.
-export const CAMPOS_LINEA_BOLETA = ['descripcion', 'id_insumo_proveedor', 'cantidad', 'precio', 'subtotal']
+export const CAMPOS_LINEA_BOLETA = ['descripcion', 'id_insumo_proveedor', 'id_solicitud_compra', 'cantidad', 'precio', 'subtotal']
 
 // round(cantidad × precio) de una línea del formulario; null si falta cantidad o precio.
 export const subtotalDeBoleta = (linea) => subtotalLinea(linea?.cantidad, linea?.precio)
@@ -21,9 +21,9 @@ export function totalBoleta(lineas) {
   return suma
 }
 
-// Línea nueva: cantidad 1 por defecto, sin insumo (es opcional).
+// Línea nueva: cantidad 1 por defecto, sin insumo ni solicitud (ambos opcionales).
 export function lineaBoletaVacia(clave) {
-  return { clave, descripcion: '', id_insumo_proveedor: '', cantidad: '1', precio: '' }
+  return { clave, descripcion: '', id_insumo_proveedor: '', id_solicitud_compra: '', cantidad: '1', precio: '' }
 }
 
 // Línea guardada → línea editable (texto de inputs).
@@ -33,6 +33,7 @@ export function lineaBoletaDesdeBase(fila) {
     id: fila.id,
     descripcion: fila.descripcion ?? '',
     id_insumo_proveedor: fila.id_insumo_proveedor ?? '',
+    id_solicitud_compra: fila.id_solicitud_compra ?? '',
     cantidad: numeroAEditable(fila.cantidad),
     precio: numeroAEditable(fila.precio),
   }
@@ -44,6 +45,7 @@ export function datosLineaBoleta(linea) {
     ...(linea.id ? { id: linea.id } : {}),
     descripcion: String(linea.descripcion ?? '').trim(),
     id_insumo_proveedor: linea.id_insumo_proveedor || null,
+    id_solicitud_compra: linea.id_solicitud_compra || null,
     cantidad: aNumero(linea.cantidad),
     precio: aNumero(linea.precio),
     subtotal: subtotalDeBoleta(linea),

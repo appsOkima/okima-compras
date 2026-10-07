@@ -39,7 +39,28 @@ describe('línea de boleta', () => {
   it('desde la base pasa a texto editable', () => {
     expect(
       lineaBoletaDesdeBase({ id: 'l1', descripcion: 'Taza', id_insumo_proveedor: null, cantidad: '2.5', precio: '1500.00' }),
-    ).toEqual({ clave: 'l1', id: 'l1', descripcion: 'Taza', id_insumo_proveedor: '', cantidad: '2,5', precio: '1.500' })
+    ).toEqual({
+      clave: 'l1',
+      id: 'l1',
+      descripcion: 'Taza',
+      id_insumo_proveedor: '',
+      id_solicitud_compra: '',
+      cantidad: '2,5',
+      precio: '1.500',
+    })
+  })
+
+  it('la solicitud vinculada va y viene de la base; vacía es null', () => {
+    expect(lineaBoletaDesdeBase({ id: 'l1', id_solicitud_compra: 's1', cantidad: 1, precio: 1 }).id_solicitud_compra).toBe('s1')
+    expect(lineaBoletaVacia('x').id_solicitud_compra).toBe('')
+    expect(datosLineaBoleta(linea({ id_solicitud_compra: 's1' })).id_solicitud_compra).toBe('s1')
+    expect(datosLineaBoleta(linea()).id_solicitud_compra).toBeNull()
+  })
+
+  it('cambiar la solicitud de una línea guardada entra en el diff', () => {
+    const original = { id: 'l1', descripcion: 'Arriendo', id_insumo_proveedor: null, id_solicitud_compra: null, cantidad: 1, precio: 1000, subtotal: 1000 }
+    const actual = datosLineaBoleta(linea({ id: 'l1', id_solicitud_compra: 's1' }))
+    expect(diffLineasBoleta([original], [actual]).actualizar).toEqual([{ id: 'l1', datos: { id_solicitud_compra: 's1' } }])
   })
 
   it('datosLineaBoleta convierte, recorta y calcula el subtotal', () => {
@@ -47,6 +68,7 @@ describe('línea de boleta', () => {
       id: 'l1',
       descripcion: 'Luz',
       id_insumo_proveedor: null,
+      id_solicitud_compra: null,
       cantidad: 2,
       precio: 1500,
       subtotal: 3000,
@@ -118,7 +140,7 @@ describe('diffLineasBoleta', () => {
     expect(diffLineasBoleta(originales, actuales)).toEqual({
       eliminar: ['b'],
       actualizar: [{ id: 'a', datos: { precio: 1200, subtotal: 1200 } }],
-      insertar: [{ descripcion: 'Gas', id_insumo_proveedor: null, cantidad: 1, precio: 300, subtotal: 300 }],
+      insertar: [{ descripcion: 'Gas', id_insumo_proveedor: null, id_solicitud_compra: null, cantidad: 1, precio: 300, subtotal: 300 }],
     })
   })
 })

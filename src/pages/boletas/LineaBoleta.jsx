@@ -5,12 +5,14 @@ import { claseInput } from '../../components/estilos'
 import { subtotalDeBoleta } from '../../lib/boletas'
 import { formatoCLP } from '../../lib/formato'
 import Campo from '../facturas/Campo'
+import CampoSolicitud from '../facturas/CampoSolicitud'
 import SelectorInsumoProveedor from '../facturas/SelectorInsumoProveedor'
 
 const claseError = ' border-red-400 focus:border-red-500 focus:ring-red-500/30'
 
 // Una línea de la boleta: descripción, insumo del proveedor opcional (con creación
-// al vuelo si la boleta tiene proveedor), cantidad y precio unitario. El subtotal se
+// al vuelo si la boleta tiene proveedor), solicitud de compra opcional (`opcionesSolicitud`
+// ya viene filtrada y ordenada), cantidad y precio unitario. El subtotal se
 // calcula y solo se muestra. El stock lo mueve la base al guardar si el insumo está
 // vinculado a insumos Okima.
 function LineaBoleta({
@@ -21,6 +23,8 @@ function LineaBoleta({
   idProveedor,
   onCrearInsumo,
   cargandoCatalogo,
+  opcionesSolicitud,
+  cargandoSolicitudes,
   onCambiar,
   onQuitar,
   puedeQuitar,
@@ -80,6 +84,13 @@ function LineaBoleta({
             proveedorOpcional
           />
         </Campo>
+        <CampoSolicitud
+          id={`${idBase}-solicitud`}
+          opciones={opcionesSolicitud}
+          valor={linea.id_solicitud_compra}
+          onChange={(v) => onCambiar('id_solicitud_compra', v)}
+          cargando={cargandoSolicitudes}
+        />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">

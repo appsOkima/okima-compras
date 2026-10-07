@@ -5,6 +5,7 @@ import CampoNotas from '../../components/CampoNotas'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import InputNumero from '../../components/InputNumero'
 import SwitchPagoContado from '../../components/SwitchPagoContado'
+import { useSolicitudesOcupadas } from '../../hooks/useSolicitudesOcupadas'
 import { useTabla } from '../../hooks/useTabla'
 import { estaAnulado } from '../../lib/anulacion'
 import { errorSinFilas, mensajeError } from '../../lib/errores'
@@ -25,9 +26,9 @@ import {
   vinculoPropuesto,
   vinculosAAplicar,
 } from '../../lib/facturas'
-import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
+import { formatoCLP, formatoNumero } from '../../lib/formato'
 import { mensajePagoCreacion, pagoAlContado } from '../../lib/pagos'
-import { hoyISO } from '../../lib/solicitudes'
+import { hoyISO, opcionSolicitud, solicitudesDisponibles } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import { validarFactor } from '../../lib/vinculos'
 import Campo from './Campo'
@@ -64,22 +65,6 @@ function cabeceraVacia() {
 // «insumo del proveedor» con «insumo Okima», para los mensajes de vínculos.
 const parVinculo = (v) => `«${v.nombreInsumoProveedor}» con «${v.nombreInsumoOkima}»`
 
-// Opción del selector de solicitud: insumo × cantidad, y quién la pidió.
-function opcionSolicitud(s, idsInsumoOkima) {
-  const detalle = [
-    s.solicitante,
-    `urgencia ${s.nivel_urgencia}`,
-    s.fecha_esperada ? `tope ${formatoFecha(s.fecha_esperada)}` : null,
-    s.estado && s.estado !== 'Pendiente' ? s.estado : null,
-    idsInsumoOkima.includes(s.id_insumo_okima) ? 'mismo insumo' : null,
-  ]
-  return {
-    valor: s.id,
-    etiqueta: `${s.insumo_nombre} × ${formatoNumero(s.cantidad_solicitada)}`,
-    detalle: detalle.filter(Boolean).join(' · '),
-  }
-}
-
 // /facturas/nueva y /facturas/:id. La key reinicia el formulario si cambia la ruta.
 function PaginaFactura() {
   const { id } = useParams()
@@ -114,6 +99,8 @@ function FormularioFactura({ id }) {
     cargando: cargandoPendientes,
     error: errorPendientes,
   } = useTabla('vista_solicitudes_pendientes', { select: SELECT_PENDIENTES, orden: ORDEN_PENDIENTES })
+  // Solicitudes ya vinculadas a líneas de boleta: no se ofrecen aquí (exclusividad).
+  const ocupadasPorBoletas = useSolicitudesOcupadas('detalle_boletas')
 
   // Claves locales de las líneas nuevas (las guardadas usan su id).
   const siguienteClave = useRef(0)
@@ -183,7 +170,8 @@ function FormularioFactura({ id }) {
   )
   const originalesPorId = useMemo(() => new Map(originales.map((o) => [o.id, o])), [originales])
 
-  // Pendientes + las ya asociadas a esta factura (ya 'Comprada'), sin repetir.
+  // Pendientes + las ya asociadas a esta factura (ya 'Comprada'), sin repetir, y sin
+  // las vinculadas a boletas (salvo las de esta factura).
   const solicitudes = useMemo(() => {
     const lista = [...pendientes]
     const ids = new Set(lista.map((s) => s.id))
@@ -193,8 +181,9 @@ function FormularioFactura({ id }) {
         lista.push({ ...solicitud, insumo_nombre: solicitud.insumo?.nombre ?? '' })
       }
     }
-    return lista
-  }, [pendientes, originales])
+    const propias = originales.map((o) => o.id_solicitud_compra).filter(Boolean)
+    return solicitudesDisponibles(lista, ocupadasPorBoletas, propias)
+  }, [pendientes, originales, ocupadasPorBoletas])
   const solicitudesPorId = useMemo(() => new Map(solicitudes.map((s) => [s.id, s])), [solicitudes])
 
   // Vínculos aceptados que se aplicarán al guardar; por insumo del proveedor.

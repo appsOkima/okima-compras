@@ -1,12 +1,12 @@
 import { useId } from 'react'
-import { AlertTriangle, Link2, PackageCheck, PackageX, Trash2, X } from 'lucide-react'
-import Combobox from '../../components/Combobox'
+import { AlertTriangle, Link2, PackageCheck, PackageX, Trash2 } from 'lucide-react'
 import InputNumero from '../../components/InputNumero'
 import { claseInput } from '../../components/estilos'
 import { efectoStock, subtotalDe } from '../../lib/facturas'
 import { formatoCLP, formatoNumero } from '../../lib/formato'
 import { AYUDA_FACTOR, validarFactor } from '../../lib/vinculos'
 import Campo from './Campo'
+import CampoSolicitud from './CampoSolicitud'
 import SelectorInsumoProveedor from './SelectorInsumoProveedor'
 
 const claseError = ' border-red-400 focus:border-red-500 focus:ring-red-500/30'
@@ -220,30 +220,13 @@ function LineaFactura({
             cargando={cargandoCatalogo}
           />
         </Campo>
-        <Campo id={`${idBase}-solicitud`} etiqueta="Solicitud de compra" ayuda="Opcional: al guardar, la solicitud pasa a 'Comprada'.">
-          <div className="flex items-center gap-2">
-            <Combobox
-              id={`${idBase}-solicitud`}
-              className="flex-1"
-              opciones={opcionesSolicitud}
-              valor={linea.id_solicitud_compra}
-              onChange={(v) => onCambiar('id_solicitud_compra', v)}
-              placeholder={cargandoSolicitudes ? 'Cargando solicitudes…' : 'Sin solicitud (opcional)…'}
-              disabled={cargandoSolicitudes}
-            />
-            {linea.id_solicitud_compra && (
-              <button
-                type="button"
-                onClick={() => onCambiar('id_solicitud_compra', '')}
-                className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Quitar solicitud"
-                title="Quitar solicitud"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        </Campo>
+        <CampoSolicitud
+          id={`${idBase}-solicitud`}
+          opciones={opcionesSolicitud}
+          valor={linea.id_solicitud_compra}
+          onChange={(v) => onCambiar('id_solicitud_compra', v)}
+          cargando={cargandoSolicitudes}
+        />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">

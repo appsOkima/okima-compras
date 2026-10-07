@@ -1,6 +1,6 @@
 // Reglas de presentación de las solicitudes de compra (sin React ni Supabase,
 // para poder verificarlas con node). La extensión .js explícita es para node.
-import { formatoFecha } from './formato.js'
+import { formatoFecha, formatoNumero } from './formato.js'
 import { normalizar } from './texto.js'
 
 // En el orden del enum nivel_urgencia de la base (Baja < Media < Alta).
@@ -87,7 +87,7 @@ export function accionEstado(nuevoEstado) {
 }
 
 // Solo al dejar de estar comprada (Pendiente o Cancelada) importa avisar qué
-// facturas la referencian: el vínculo de la línea no se toca.
+// facturas y boletas la referencian: el vínculo de la línea no se toca.
 export function avisaFacturas(nuevoEstado) {
   return nuevoEstado === 'Pendiente' || nuevoEstado === 'Cancelada'
 }
@@ -111,31 +111,52 @@ export function facturasDeLineas(lineas) {
   return [...vistas.values()]
 }
 
+// Líneas de detalle_boletas con `boleta:boletas(id, concepto, fecha, numero_documento)` →
+// boletas distintas, como texto "«Concepto» N° 12 (dd-mm-aaaa)". Varias líneas de una
+// misma boleta cuentan una vez.
+export function boletasDeLineas(lineas) {
+  const vistas = new Map()
+  for (const linea of lineas ?? []) {
+    const b = linea?.boleta
+    if (!b) continue
+    const clave = b.id ?? `${b.concepto}|${b.fecha}|${b.numero_documento}`
+    if (vistas.has(clave)) continue
+    let texto = `«${b.concepto ?? '?'}»`
+    if (b.numero_documento) texto += ` N° ${b.numero_documento}`
+    if (b.fecha) texto += ` (${formatoFecha(b.fecha)})`
+    vistas.set(clave, texto)
+  }
+  return [...vistas.values()]
+}
+
 const unirConY = (lista) =>
   lista.length <= 1 ? (lista[0] ?? '') : `${lista.slice(0, -1).join(', ')} y ${lista[lista.length - 1]}`
 
 // Texto del window.confirm al cambiar el estado. `solicitud` puede venir de la
 // vista (insumo_nombre) o de la tabla con el insumo embebido (insumo.nombre);
-// `facturas` es la salida de facturasDeLineas (solo se menciona al pasar a
-// Pendiente o Anulada; avisa, no bloquea).
+// `facturas` y `boletas` son la salida de facturasDeLineas y boletasDeLineas (solo se
+// mencionan al pasar a Pendiente o Anulada; avisa, no bloquea).
 const PREGUNTAS_ESTADO = {
   Pendiente: 'Volver a dejar como pendiente',
   Comprada: 'Marcar como comprada',
   Cancelada: 'Anular',
 }
 
-export function textoConfirmacionEstado(solicitud, nuevoEstado, facturas = []) {
+export function textoConfirmacionEstado(solicitud, nuevoEstado, facturas = [], boletas = []) {
   const nombre = solicitud?.insumo_nombre ?? solicitud?.insumo?.nombre ?? ''
   const estado = solicitud?.estado
   const pregunta = PREGUNTAS_ESTADO[nuevoEstado] ?? `Pasar a '${etiquetaEstado(nuevoEstado)}'`
   let texto = `¿${pregunta} la solicitud de "${nombre}"? Hoy está '${estado ? etiquetaEstado(estado) : '—'}'.`
   if (nuevoEstado === 'Pendiente') texto += ' Volverá a la lista de pendientes.'
   else if (estado === 'Pendiente') texto += ' Saldrá de la lista de pendientes.'
-  if (avisaFacturas(nuevoEstado) && facturas?.length) {
-    const varias = facturas.length > 1
-    texto +=
-      `\n\nEstá asociada a ${varias ? 'las facturas' : 'la factura'} ${unirConY(facturas)}; ` +
-      `el vínculo con ${varias ? 'las facturas' : 'la factura'} se mantiene.`
+  if (avisaFacturas(nuevoEstado)) {
+    const documentos = [
+      facturas?.length && `${facturas.length > 1 ? 'las facturas' : 'la factura'} ${unirConY(facturas)}`,
+      boletas?.length && `${boletas.length > 1 ? 'las boletas' : 'la boleta'} ${unirConY(boletas)}`,
+    ].filter(Boolean)
+    if (documentos.length > 0) texto += `
+
+Está asociada a ${documentos.join(' y a ')}; el vínculo se mantiene.`
   }
   return texto
 }
@@ -208,5 +229,32 @@ export function guardarUltimoSolicitante(nombre) {
     if (texto) window.localStorage.setItem(CLAVE_SOLICITANTE, texto)
   } catch {
     // Sin almacenamiento disponible: el campo simplemente no se pre-llena.
+  }
+}
+
+// Una solicitud se vincula a líneas de factura O de boleta, nunca a ambas (lo hace
+// cumplir la base). Quita las solicitudes ya ocupadas por el OTRO tipo de documento
+// (`ocupadasPorOtroTipo`: ids), salvo las que ya tiene este documento (`actuales`: ids),
+// que se conservan para poder verlas y mantenerlas.
+export function solicitudesDisponibles(solicitudes, ocupadasPorOtroTipo, actuales = []) {
+  const ocupadas = new Set(ocupadasPorOtroTipo ?? [])
+  const propias = new Set(actuales ?? [])
+  return (solicitudes ?? []).filter((s) => !ocupadas.has(s.id) || propias.has(s.id))
+}
+
+// Opción del selector de solicitud de una línea: insumo × cantidad, y quién la pidió.
+// `idsInsumoOkima`: insumos Okima de la línea, para marcar "mismo insumo" (opcional).
+export function opcionSolicitud(s, idsInsumoOkima = []) {
+  const detalle = [
+    s.solicitante,
+    `urgencia ${s.nivel_urgencia}`,
+    s.fecha_esperada ? `tope ${formatoFecha(s.fecha_esperada)}` : null,
+    s.estado && s.estado !== 'Pendiente' ? s.estado : null,
+    idsInsumoOkima.includes(s.id_insumo_okima) ? 'mismo insumo' : null,
+  ]
+  return {
+    valor: s.id,
+    etiqueta: `${s.insumo_nombre} × ${formatoNumero(s.cantidad_solicitada)}`,
+    detalle: detalle.filter(Boolean).join(' · '),
   }
 }

@@ -6,6 +6,7 @@ import DetalleRegistro from '../../components/DetalleRegistro'
 import SelectorSubcategoria from '../../components/SelectorSubcategoria'
 import SwitchPagoContado from '../../components/SwitchPagoContado'
 import { claseBotonAdvertencia, claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
+import { useSolicitudesOcupadas } from '../../hooks/useSolicitudesOcupadas'
 import { useConfirmarSalida } from '../../hooks/useConfirmarSalida'
 import { useTabla } from '../../hooks/useTabla'
 import {
@@ -21,11 +22,12 @@ import {
 } from '../../lib/boletas'
 import { estaAnulado } from '../../lib/anulacion'
 import { errorSinFilas, mensajeError } from '../../lib/errores'
+import { ordenarSolicitudesParaLinea } from '../../lib/facturas'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, gastosDePlantillaEnMes, mesDe } from '../../lib/gastos'
 import { numeroAEditable } from '../../lib/numero'
 import { mensajePagoCreacion, pagoAlContado } from '../../lib/pagos'
-import { hoyISO } from '../../lib/solicitudes'
+import { hoyISO, opcionSolicitud, solicitudesDisponibles } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import Campo from '../facturas/Campo'
 import { EMBEDS_BOLETA, detalleBoleta } from './detalleBoleta'
@@ -38,11 +40,16 @@ const SELECT_PROVEEDORES = 'id, nombre, rut'
 // nombre del proveedor distingue insumos homónimos en el selector.
 const SELECT_CATALOGO =
   'id, nombre, codigo, id_proveedor, cantidad_formato, formato_unidad, proveedor:proveedores(nombre), vinculos:insumos_proveedores_okima(id_insumo_okima, factor_conversion, insumo:insumos(id, nombre))'
+const SELECT_PENDIENTES =
+  'id, created_at, id_insumo_okima, insumo_nombre, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada'
+const ORDEN_PENDIENTES = { columna: 'created_at', ascendente: true }
 // `*` y los embebidos traen también el estado de anulación y lo que muestra la ficha de
 // solo lectura de una boleta anulada (no se edita desde la interfaz).
 const SELECT_BOLETA =
   `*, ${EMBEDS_BOLETA}, ` +
-  'lineas:detalle_boletas(id, created_at, descripcion, id_insumo_proveedor, cantidad, precio, subtotal)'
+  'lineas:detalle_boletas(id, created_at, descripcion, id_insumo_proveedor, id_solicitud_compra, cantidad, precio, subtotal, ' +
+  // Solicitud ya vinculada: ya no está en la vista de pendientes porque quedó 'Comprada'.
+  'solicitud:solicitudes_compra!id_solicitud_compra(id, created_at, id_insumo_okima, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada, estado, insumo:insumos(nombre)))'
 
 const claseTarjeta = 'rounded-lg border border-slate-200 bg-white p-4 shadow-sm'
 const claseError = ' border-red-400 focus:border-red-500 focus:ring-red-500/30'
@@ -96,6 +103,13 @@ function FormularioBoleta({ id, idPlantilla }) {
     cargando: cargandoPlantillas,
     error: errorPlantillas,
   } = useTabla('plantillas_gastos_recurrentes', { select: SELECT_PLANTILLAS })
+  const {
+    filas: pendientes,
+    cargando: cargandoPendientes,
+    error: errorPendientes,
+  } = useTabla('vista_solicitudes_pendientes', { select: SELECT_PENDIENTES, orden: ORDEN_PENDIENTES })
+  // Solicitudes ya vinculadas a líneas de factura: no se ofrecen aquí (exclusividad).
+  const ocupadasPorFacturas = useSolicitudesOcupadas('detalle_facturas')
 
   const plantilla = idPlantilla ? (plantillas.find((p) => p.id === idPlantilla) ?? null) : null
 
@@ -211,6 +225,33 @@ function FormularioBoleta({ id, idPlantilla }) {
     () => (cabecera.id_proveedor ? catalogo.filter((item) => item.id_proveedor === cabecera.id_proveedor) : catalogo),
     [catalogo, cabecera.id_proveedor],
   )
+
+  // Pendientes + las ya asociadas a esta boleta (ya 'Comprada'), sin repetir, y sin las
+  // vinculadas a facturas (salvo las de esta boleta).
+  const solicitudes = useMemo(() => {
+    const lista = [...pendientes]
+    const ids = new Set(lista.map((s) => s.id))
+    for (const { solicitud } of originales) {
+      if (solicitud && !ids.has(solicitud.id)) {
+        ids.add(solicitud.id)
+        lista.push({ ...solicitud, insumo_nombre: solicitud.insumo?.nombre ?? '' })
+      }
+    }
+    const propias = originales.map((o) => o.id_solicitud_compra).filter(Boolean)
+    return solicitudesDisponibles(lista, ocupadasPorFacturas, propias)
+  }, [pendientes, originales, ocupadasPorFacturas])
+
+  // Una solicitud se asocia a una sola línea de este formulario: se ocultan las elegidas en otras.
+  const opcionesSolicitudPara = (linea) => {
+    const enOtras = new Set(
+      lineas.filter((l) => l.clave !== linea.clave && l.id_solicitud_compra).map((l) => l.id_solicitud_compra),
+    )
+    const idsInsumoOkima = (catalogoPorId.get(linea.id_insumo_proveedor)?.vinculos ?? []).map((v) => v.id_insumo_okima)
+    return ordenarSolicitudesParaLinea(
+      solicitudes.filter((s) => !enOtras.has(s.id)),
+      idsInsumoOkima,
+    ).map((s) => opcionSolicitud(s, idsInsumoOkima))
+  }
 
   // Total en vivo: es el mismo que se guarda en boletas.monto (ver datosBoleta).
   const total = totalBoleta(lineas)
@@ -456,6 +497,7 @@ function FormularioBoleta({ id, idPlantilla }) {
   const erroresCarga = [
     errorProveedores && `proveedores (${mensajeError(errorProveedores)})`,
     errorCatalogo && `catálogo (${mensajeError(errorCatalogo)})`,
+    errorPendientes && `solicitudes pendientes (${mensajeError(errorPendientes)})`,
   ].filter(Boolean)
 
   const titulo = esNueva
@@ -479,7 +521,9 @@ function FormularioBoleta({ id, idPlantilla }) {
         {plantilla
           ? 'Pre-llenado desde la plantilla recurrente: revisa el precio y confirma la fecha. '
           : 'Ingresa las líneas de la boleta; el subtotal de cada una y el total se calculan solos. '}
-        Si una línea tiene un insumo del proveedor vinculado a insumos Okima, suma stock al guardar.
+        Si una línea tiene un insumo del proveedor vinculado a insumos Okima, suma stock al guardar. Al asociar una
+        solicitud de compra a una línea, la solicitud pasa a 'Comprada' al guardar (una solicitud se vincula a
+        facturas o a boletas, no a ambas).
       </p>
 
       {erroresCarga.length > 0 && (
@@ -569,6 +613,8 @@ function FormularioBoleta({ id, idPlantilla }) {
                 idProveedor={cabecera.id_proveedor}
                 onCrearInsumo={crearInsumoProveedor}
                 cargandoCatalogo={cargandoCatalogo}
+                opcionesSolicitud={opcionesSolicitudPara(linea)}
+                cargandoSolicitudes={cargandoPendientes}
                 onCambiar={(campo, valor) => cambiarLinea(linea.clave, campo, valor)}
                 onQuitar={() => quitarLinea(linea.clave)}
                 puedeQuitar={lineas.length > 1}

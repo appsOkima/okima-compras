@@ -23,6 +23,12 @@ export function mensajeError(error) {
       return error.message && !/row-level security|permission denied/i.test(error.message)
         ? error.message
         : 'Tu rol no tiene permiso para realizar esta acción.'
+    case '23514':
+      // Exclusividad factura/boleta de una solicitud (trigger, mensaje en español); un CHECK
+      // cualquiera llega en inglés y se reemplaza por un texto genérico.
+      return error.message && !/violates check constraint/i.test(error.message)
+        ? error.message
+        : 'El dato no cumple una regla del sistema.'
     case 'PGRST116':
       // update(...).select().single() sin filas: el RLS lo denegó o el registro ya no existe.
       return MENSAJE_SIN_FILAS

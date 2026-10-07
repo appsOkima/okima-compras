@@ -11,6 +11,7 @@ import { estaAnulado, vigentes } from '../../lib/anulacion'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, mesDe, mesesPresentes, sumaMontos } from '../../lib/gastos'
 import { mensajeBorradoDocumento, textoEstadoPago } from '../../lib/pagos'
+import { supabase } from '../../lib/supabase'
 import { estaVacio } from '../../lib/texto'
 import {
   EMBEDS_BOLETA,
@@ -25,6 +26,17 @@ import IngresoRapido from './IngresoRapido'
 
 // La categoría (centro de costo) se obtiene a través de la subcategoría.
 const SELECT = `*, ${EMBEDS_BOLETA}, lineas:detalle_boletas(count)`
+
+// Solicitudes vinculadas a las líneas de una boleta, para avisar antes de anularla.
+const cargarSolicitudes = async (idBoleta) => {
+  const { data, error } = await supabase
+    .from('detalle_boletas')
+    .select('solicitud:solicitudes_compra!id_solicitud_compra(id, estado, solicitante, insumo:insumos(nombre))')
+    .eq('id_boleta', idBoleta)
+    .not('id_solicitud_compra', 'is', null)
+  if (error) throw error
+  return data
+}
 
 // Más reciente primero; a igual fecha, el último ingresado arriba.
 const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }
@@ -168,6 +180,7 @@ function Boletas() {
           tipo="boleta"
           doc={fila}
           nombre={fila.concepto}
+          cargarSolicitudes={cargarSolicitudes}
           onCambiar={async (datos) => {
             await actualizar(fila.id, datos)
             recargarEstados()

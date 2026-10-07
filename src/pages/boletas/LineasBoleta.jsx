@@ -5,10 +5,12 @@ import { supabase } from '../../lib/supabase'
 import { textoMovimientos } from '../../lib/vinculos'
 
 // movimientos: el stock que aplicó el trigger a cada insumo Okima (puede ser más de uno).
+// !id_solicitud_compra: nombra la FK para que el embebido no sea ambiguo.
 const SELECT_LINEAS =
-  'id, created_at, descripcion, cantidad, precio, subtotal, insumo_proveedor:insumos_proveedores(nombre, codigo), movimientos:movimientos_stock(qty, revertido, insumo:insumos(nombre))'
+  'id, created_at, descripcion, cantidad, precio, subtotal, insumo_proveedor:insumos_proveedores(nombre, codigo), movimientos:movimientos_stock(qty, revertido, insumo:insumos(nombre)), solicitud:solicitudes_compra!id_solicitud_compra(solicitante, insumo:insumos(nombre))'
 
 const nombreInsumoProveedor = (l) => l.insumo_proveedor?.nombre ?? ''
+const textoSolicitud = (l) => (l.solicitud ? `${l.solicitud.insumo?.nombre ?? ''} (${l.solicitud.solicitante})` : '')
 
 const columnas = [
   { clave: 'descripcion', titulo: 'Descripción' },
@@ -50,6 +52,7 @@ const columnas = [
         <span className="text-xs text-slate-400">Sin stock</span>
       ),
   },
+  { clave: 'solicitud', titulo: 'Solicitud', render: textoSolicitud, csv: textoSolicitud },
 ]
 
 // Líneas de una boleta para su ficha "Ver detalles" (se consultan al abrir; el
