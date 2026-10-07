@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 // Ids de solicitudes ya vinculadas a líneas de la tabla dada ('detalle_facturas' o
@@ -23,4 +23,12 @@ export function useSolicitudesOcupadas(tabla) {
   }, [tabla])
 
   return ids
+}
+
+// Ids de solicitudes que ya tienen alguna línea, de factura o de boleta: las "sueltas" son
+// las que no están aquí. Un rol que no lee líneas (productor) recibe un conjunto vacío.
+export function useSolicitudesConLineas() {
+  const enFacturas = useSolicitudesOcupadas('detalle_facturas')
+  const enBoletas = useSolicitudesOcupadas('detalle_boletas')
+  return useMemo(() => new Set([...enFacturas, ...enBoletas]), [enFacturas, enBoletas])
 }

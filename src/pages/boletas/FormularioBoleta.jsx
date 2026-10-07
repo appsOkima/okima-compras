@@ -22,12 +22,11 @@ import {
 } from '../../lib/boletas'
 import { estaAnulado } from '../../lib/anulacion'
 import { errorSinFilas, mensajeError } from '../../lib/errores'
-import { ordenarSolicitudesParaLinea } from '../../lib/facturas'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, gastosDePlantillaEnMes, mesDe } from '../../lib/gastos'
 import { numeroAEditable } from '../../lib/numero'
 import { mensajePagoCreacion, pagoAlContado } from '../../lib/pagos'
-import { hoyISO, opcionSolicitud, solicitudesDisponibles } from '../../lib/solicitudes'
+import { hoyISO, solicitudesDisponibles } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import Campo from '../facturas/Campo'
 import { EMBEDS_BOLETA, detalleBoleta } from './detalleBoleta'
@@ -241,17 +240,12 @@ function FormularioBoleta({ id, idPlantilla }) {
     return solicitudesDisponibles(lista, ocupadasPorFacturas, propias)
   }, [pendientes, originales, ocupadasPorFacturas])
 
-  // Una solicitud se asocia a una sola línea de este formulario: se ocultan las elegidas en otras.
-  const opcionesSolicitudPara = (linea) => {
-    const enOtras = new Set(
-      lineas.filter((l) => l.clave !== linea.clave && l.id_solicitud_compra).map((l) => l.id_solicitud_compra),
-    )
-    const idsInsumoOkima = (catalogoPorId.get(linea.id_insumo_proveedor)?.vinculos ?? []).map((v) => v.id_insumo_okima)
-    return ordenarSolicitudesParaLinea(
-      solicitudes.filter((s) => !enOtras.has(s.id)),
-      idsInsumoOkima,
-    ).map((s) => opcionSolicitud(s, idsInsumoOkima))
-  }
+  // Una solicitud se asocia a una sola línea de este formulario: el modal oculta las elegidas
+  // en otras (`excluir`) y prioriza las del insumo Okima de la línea (`idsInsumoOkima`).
+  const datosSolicitudPara = (linea) => ({
+    excluir: lineas.filter((l) => l.clave !== linea.clave && l.id_solicitud_compra).map((l) => l.id_solicitud_compra),
+    idsInsumoOkima: (catalogoPorId.get(linea.id_insumo_proveedor)?.vinculos ?? []).map((v) => v.id_insumo_okima),
+  })
 
   // Total en vivo: es el mismo que se guarda en boletas.monto (ver datosBoleta).
   const total = totalBoleta(lineas)
@@ -603,23 +597,28 @@ function FormularioBoleta({ id, idPlantilla }) {
             </h3>
           </div>
           <div className="space-y-3">
-            {lineas.map((linea, i) => (
-              <LineaBoleta
-                key={linea.clave}
-                linea={linea}
-                numero={i + 1}
-                errores={errores.lineas[linea.clave]}
-                catalogo={catalogoDisponible}
-                idProveedor={cabecera.id_proveedor}
-                onCrearInsumo={crearInsumoProveedor}
-                cargandoCatalogo={cargandoCatalogo}
-                opcionesSolicitud={opcionesSolicitudPara(linea)}
-                cargandoSolicitudes={cargandoPendientes}
-                onCambiar={(campo, valor) => cambiarLinea(linea.clave, campo, valor)}
-                onQuitar={() => quitarLinea(linea.clave)}
-                puedeQuitar={lineas.length > 1}
-              />
-            ))}
+            {lineas.map((linea, i) => {
+              const { excluir, idsInsumoOkima } = datosSolicitudPara(linea)
+              return (
+                <LineaBoleta
+                  key={linea.clave}
+                  linea={linea}
+                  numero={i + 1}
+                  errores={errores.lineas[linea.clave]}
+                  catalogo={catalogoDisponible}
+                  idProveedor={cabecera.id_proveedor}
+                  onCrearInsumo={crearInsumoProveedor}
+                  cargandoCatalogo={cargandoCatalogo}
+                  solicitudes={solicitudes}
+                  excluirSolicitudes={excluir}
+                  idsInsumoOkima={idsInsumoOkima}
+                  cargandoSolicitudes={cargandoPendientes}
+                  onCambiar={(campo, valor) => cambiarLinea(linea.clave, campo, valor)}
+                  onQuitar={() => quitarLinea(linea.clave)}
+                  puedeQuitar={lineas.length > 1}
+                />
+              )
+            })}
           </div>
           <button type="button" onClick={agregarLinea} className={`${claseBotonSecundario} mt-3`}>
             <Plus className="h-4 w-4" />

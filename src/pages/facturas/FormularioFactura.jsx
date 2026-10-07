@@ -22,13 +22,12 @@ import {
   erroresLinea,
   lineaDesdeBase,
   lineaVacia,
-  ordenarSolicitudesParaLinea,
   vinculoPropuesto,
   vinculosAAplicar,
 } from '../../lib/facturas'
 import { formatoCLP, formatoNumero } from '../../lib/formato'
 import { mensajePagoCreacion, pagoAlContado } from '../../lib/pagos'
-import { hoyISO, opcionSolicitud, solicitudesDisponibles } from '../../lib/solicitudes'
+import { hoyISO, solicitudesDisponibles } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import { validarFactor } from '../../lib/vinculos'
 import Campo from './Campo'
@@ -190,20 +189,15 @@ function FormularioFactura({ id }) {
   const vinculos = vinculosAAplicar(lineas, catalogoPorId, solicitudesPorId)
   const vinculosPendientesDe = (idInsumoProveedor) => vinculos.filter((v) => v.idInsumoProveedor === idInsumoProveedor)
 
-  // Una solicitud se asocia a una sola línea: se ocultan las elegidas en otras.
-  const opcionesSolicitudPara = (linea) => {
-    const enOtras = new Set(
-      lineas.filter((l) => l.clave !== linea.clave && l.id_solicitud_compra).map((l) => l.id_solicitud_compra),
-    )
-    const idsInsumoOkima = [
+  // Una solicitud se asocia a una sola línea: el modal oculta las elegidas en otras
+  // (`excluir`) y prioriza las del insumo Okima de la línea (`idsInsumoOkima`).
+  const datosSolicitudPara = (linea) => ({
+    excluir: lineas.filter((l) => l.clave !== linea.clave && l.id_solicitud_compra).map((l) => l.id_solicitud_compra),
+    idsInsumoOkima: [
       ...(catalogoPorId.get(linea.id_insumo_proveedor)?.vinculos ?? []).map((v) => v.id_insumo_okima),
       ...vinculosPendientesDe(linea.id_insumo_proveedor).map((v) => v.idInsumoOkima),
-    ]
-    return ordenarSolicitudesParaLinea(
-      solicitudes.filter((s) => !enOtras.has(s.id)),
-      idsInsumoOkima,
-    ).map((s) => opcionSolicitud(s, idsInsumoOkima))
-  }
+    ],
+  })
 
   // Totales en vivo: son los mismos que se guardan (ver datosCabecera).
   const totales = calcularTotales(lineas, cabecera.descuento_pct)
@@ -593,6 +587,7 @@ function FormularioFactura({ id }) {
           <div className="space-y-3">
             {lineas.map((linea, i) => {
               const propuesta = vinculoPropuesto(linea, catalogoPorId, solicitudesPorId)
+              const { excluir, idsInsumoOkima } = datosSolicitudPara(linea)
               return (
                 <LineaFactura
                   key={linea.clave}
@@ -604,7 +599,9 @@ function FormularioFactura({ id }) {
                   idProveedor={cabecera.id_proveedor}
                   onCrearInsumo={crearInsumoProveedor}
                   cargandoCatalogo={cargandoCatalogo}
-                  opcionesSolicitud={opcionesSolicitudPara(linea)}
+                  solicitudes={solicitudes}
+                  excluirSolicitudes={excluir}
+                  idsInsumoOkima={idsInsumoOkima}
                   cargandoSolicitudes={cargandoPendientes}
                   original={linea.id ? (originalesPorId.get(linea.id) ?? null) : null}
                   propuestaVinculo={propuesta}

@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react'
 import { AlertCircle, Pencil, Search, X } from 'lucide-react'
+import { useAuth } from '../../auth/contexto'
 import EtiquetaUrgencia from '../../components/EtiquetaUrgencia'
 import Modal from '../../components/Modal'
 import TablaDatos from '../../components/TablaDatos'
 import { claseInput } from '../../components/estilos'
+import { useSolicitudesConLineas } from '../../hooks/useSolicitudesOcupadas'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
+import { puedeHacer } from '../../lib/permisos'
 import { ESTADOS_SOLICITUD, claseEstado, etiquetaEstado } from '../../lib/solicitudes'
 import { coincide } from '../../lib/texto'
 import AccionesEstado from './AccionesEstado'
+import AccionVincularLinea from './AccionVincularLinea'
 import { confirmarCambioEstado } from './confirmarCambioEstado'
 import FormularioSolicitud from './FormularioSolicitud'
 
@@ -31,7 +35,12 @@ const VISTAS_ESTADO = {
 }
 
 function Todas({ estadoFijo }) {
-  const { filas, cargando, error, actualizar } = useTabla('solicitudes_compra', { select: SELECT, orden: ORDEN })
+  const { filas, cargando, error, actualizar, recargar } = useTabla('solicitudes_compra', { select: SELECT, orden: ORDEN })
+  // Vincular a una línea ya guardada: solo contador y admin (el productor no lee líneas) y
+  // solo para pendientes sueltas, sin ninguna línea de factura ni de boleta.
+  const { perfil } = useAuth()
+  const puedeVincular = puedeHacer(perfil?.rol, 'facturas', 'editar') && puedeHacer(perfil?.rol, 'boletas', 'editar')
+  const conLineas = useSolicitudesConLineas()
   const [filtroElegido, setFiltro] = useState('Todas')
   const filtro = estadoFijo ?? filtroElegido
   const vista = VISTAS_ESTADO[estadoFijo]
@@ -194,6 +203,13 @@ function Todas({ estadoFijo }) {
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
+              )}
+              {puedeVincular && fila.estado === 'Pendiente' && !conLineas.has(fila.id) && (
+                <AccionVincularLinea
+                  solicitud={fila}
+                  nombre={nombreInsumo(fila)}
+                  onVinculado={() => recargar({ silencioso: true })}
+                />
               )}
               <AccionesEstado
                 estado={fila.estado}

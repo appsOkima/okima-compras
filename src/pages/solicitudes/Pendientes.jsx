@@ -1,19 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { AlertCircle, Pencil, Plus, Printer, Search, X } from 'lucide-react'
+import { useAuth } from '../../auth/contexto'
 import EtiquetaUrgencia from '../../components/EtiquetaUrgencia'
 import Modal from '../../components/Modal'
 import Notas from '../../components/Notas'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
+import { useSolicitudesConLineas } from '../../hooks/useSolicitudesOcupadas'
 import { useTabla } from '../../hooks/useTabla'
 import { errorSinFilas, mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
 import { notasImpresion } from '../../lib/notas'
+import { puedeHacer } from '../../lib/permisos'
 import { compararPendientes, estadoFechaTope, hoyISO, metaUrgencia } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import { coincide } from '../../lib/texto'
 import AccionesEstado from './AccionesEstado'
+import AccionVincularLinea from './AccionVincularLinea'
 import { confirmarCambioEstado } from './confirmarCambioEstado'
 import FormularioSolicitud from './FormularioSolicitud'
 
@@ -52,6 +56,11 @@ function notasEnPapel(fila) {
 // impresión (skill vista-impresion): en papel queda solo el encabezado y la tabla.
 function Pendientes() {
   const { filas, cargando, error, recargar } = useTabla('vista_solicitudes_pendientes', { orden: ORDEN_CONSULTA })
+  // Vincular a una línea ya guardada: solo contador y admin (el productor no lee líneas) y
+  // solo para solicitudes sueltas, sin ninguna línea de factura ni de boleta.
+  const { perfil } = useAuth()
+  const puedeVincular = puedeHacer(perfil?.rol, 'facturas', 'editar') && puedeHacer(perfil?.rol, 'boletas', 'editar')
+  const conLineas = useSolicitudesConLineas()
   const [busqueda, setBusqueda] = useState('')
   // null = cerrado; { registro: null } = nueva; { registro } = edición.
   const [edicion, setEdicion] = useState(null)
@@ -229,6 +238,13 @@ function Pendientes() {
               >
                 <Pencil className="h-4 w-4" />
               </button>
+              {puedeVincular && !conLineas.has(fila.id) && (
+                <AccionVincularLinea
+                  solicitud={fila}
+                  nombre={fila.insumo_nombre}
+                  onVinculado={() => recargar({ silencioso: true })}
+                />
+              )}
               <AccionesEstado
                 estado="Pendiente"
                 nombre={fila.insumo_nombre}

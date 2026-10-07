@@ -20,6 +20,7 @@ const FormularioFactura = lazy(() => import('./pages/facturas/FormularioFactura'
 const FormularioBoleta = lazy(() => import('./pages/boletas/FormularioBoleta'))
 const Lineas = lazy(() => import('./pages/facturas/Lineas'))
 const Boletas = lazy(() => import('./pages/boletas/Boletas'))
+const LineasBoletas = lazy(() => import('./pages/boletas/Lineas'))
 const Plantillas = lazy(() => import('./pages/boletas/Plantillas'))
 const FormularioInsumo = lazy(() => import('./pages/insumos/FormularioInsumo'))
 const Insumos = lazy(() => import('./pages/insumos/Insumos'))
@@ -75,6 +76,7 @@ const router = createBrowserRouter(
           catalogo, por-vincular, nuevo) ganan a :id. */}
       <Route path="/boletas" element={<SeccionBoletas />}>
         <Route index element={<Boletas />} />
+        <Route path="lineas" element={<LineasBoletas />} />
         <Route path="plantillas" element={<Plantillas />} />
         {/* ?plantilla=<id>: ingreso rápido de boleta recurrente, pre-llenado. */}
         <Route path="nuevo" element={<FormularioBoleta />} />

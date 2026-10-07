@@ -134,7 +134,7 @@ function PanelVinculo({ propuesta, onDecidir, onCambiarFactor }) {
 // Una línea de la factura: insumo del proveedor (con creación al vuelo), solicitud
 // opcional, cantidad, precio, descuento en % y el aviso de stock. El subtotal se
 // calcula y solo se muestra. `original` es la línea guardada (null
-// si es nueva) y `opcionesSolicitud` ya viene ordenada para esta línea.
+// si es nueva) y `solicitudes` y los ids a excluir/priorizar los usa el modal de solicitudes.
 // `propuestaVinculo` (ver vinculoPropuesto) y `vinculosPendientes` (vínculos
 // aceptados en esta u otra línea para este insumo, que se aplicarán al guardar)
 // alimentan el panel de vínculo y el aviso de stock.
@@ -147,7 +147,9 @@ function LineaFactura({
   idProveedor,
   onCrearInsumo,
   cargandoCatalogo,
-  opcionesSolicitud,
+  solicitudes,
+  excluirSolicitudes,
+  idsInsumoOkima,
   cargandoSolicitudes,
   original,
   propuestaVinculo,
@@ -222,7 +224,9 @@ function LineaFactura({
         </Campo>
         <CampoSolicitud
           id={`${idBase}-solicitud`}
-          opciones={opcionesSolicitud}
+          solicitudes={solicitudes}
+          excluir={excluirSolicitudes}
+          idsInsumoOkima={idsInsumoOkima}
           valor={linea.id_solicitud_compra}
           onChange={(v) => onCambiar('id_solicitud_compra', v)}
           cargando={cargandoSolicitudes}
