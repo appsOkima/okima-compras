@@ -223,6 +223,9 @@ create table movimientos_stock (
 create unique index movimientos_stock_detalle_factura_insumo_key on movimientos_stock (id_detalle_factura, id_insumo);
 create index movimientos_stock_id_insumo_idx on movimientos_stock (id_insumo);
 
+comment on column movimientos_stock.revertido is
+  'true = movimiento revertido por la anulación de su documento: se conserva el registro pero ya no cuenta en insumos.qty. Reactivar el documento lo vuelve a false (reaplica exactamente qty).';
+
 -- SECURITY DEFINER: el RLS por rol impide que algunos roles actualicen insumos;
 -- el stock lo mueve siempre el trigger.
 create function aplicar_movimiento_stock()
@@ -356,6 +359,9 @@ create index boletas_id_subcategoria_idx on boletas (id_subcategoria);
 create index boletas_id_plantilla_recurrente_idx on boletas (id_plantilla_recurrente);
 create index boletas_id_proveedor_idx on boletas (id_proveedor);
 create index boletas_fecha_idx on boletas (fecha);
+
+comment on table boletas is
+  'Boletas: gastos que no son compra de un insumo con stock (arriendo, sueldos, pago de IVA, servicios). Antes otros_gastos.';
 
 -- -----------------------------------------------------------------------------
 -- 7b. detalle_boletas (líneas de boleta; Sprint 2 / T5a)
@@ -543,11 +549,9 @@ left join lateral (
   select
     string_agg(distinct p.nombre, ', ' order by p.nombre) as proveedores_sugeridos,
     -- Para la hoja impresa: solo las notas con contenido, una por línea.
-    string_agg(distinct p.nombre || ': ' || btrim(p.notas), E'
-')
+    string_agg(distinct p.nombre || ': ' || btrim(p.notas), E'\n')
       filter (where btrim(coalesce(p.notas, '')) <> '') as notas_proveedores,
-    string_agg(distinct p.nombre || ' · ' || ip.nombre || ': ' || btrim(ip.notas), E'
-')
+    string_agg(distinct p.nombre || ' · ' || ip.nombre || ': ' || btrim(ip.notas), E'\n')
       filter (where btrim(coalesce(ip.notas, '')) <> '') as notas_catalogo
   from insumos_proveedores_okima po
   join insumos_proveedores ip on ip.id = po.id_insumo_proveedor

@@ -8,7 +8,7 @@ Directrices de arquitectura y producto para el sprint del proyecto "Okima Compra
 
 * Se mantienen los nombres actuales del esquema: `insumos` (insumos Okima), `insumos_proveedores`, `detalle_facturas`, `solicitudes_compra`, y el prefijo `id_` en las FK (`id_factura`, `id_insumo_proveedor`). Las tablas nuevas siguen esa misma convención: `boletas`, `detalle_boletas`, `pagos`, `perfiles`, `insumos_proveedores_okima`.
 * Todos los cambios sobre tablas existentes se hacen con `ALTER TABLE ... RENAME` / `ADD COLUMN IF NOT EXISTS`, nunca con drop/create, para conservar datos.
-* Cada migración es un archivo SQL numerado, con su script de reversa, y se prueba primero en un proyecto o rama de staging de Supabase.
+* Cada migración es un archivo SQL numerado, con su script de reversa, y se prueba primero en un proyecto o rama de staging de Supabase. **[Corrección: ver sección 6]** No hubo staging: las migraciones se aplicaron a mano en el SQL Editor sobre la única base, tras respaldar.
 * Una migración por punto de la sección 1, en el orden siguiente:
   1. Renombrado (1.1)
   2. `notas` (1.2)
@@ -195,9 +195,51 @@ Actualiza `tailwind.config.js` (o variables CSS) con:
 * Anular una factura o boleta con líneas vinculadas a insumos revierte el stock y desaparece del resumen.
 * Guardar una línea de boleta con insumo vinculado suma stock, y editarla o borrarla lo revierte exactamente.
 * Una solicitud no puede quedar con líneas de factura y de boleta a la vez.
-* El switch "Pagado al contado" no deja nunca una factura sin pago ante un fallo a mitad de guardado.
+* El switch "Pagado al contado" no deja nunca una factura sin pago ante un fallo a mitad de guardado. **[Corrección: ver sección 6]** Al ser el pago el último paso (no una RPC, ver 3.1), si su insert falla el documento queda pendiente y el mensaje lo indica; lo que se garantiza es que el pago nunca impide borrar un documento a medio guardar.
 * El resumen de gastos solo suma `pagos` de documentos vigentes.
 
 ## 5. Pendientes por confirmar
 
-* Si los pagos de un documento anulado, al volver a `vigente`, vuelven a contar sin más pasos (1.8).
+* Si los pagos de un documento anulado, al volver a `vigente`, vuelven a contar sin más pasos (1.8). **[Resuelto en la implementación]** Sí: el Resumen y `vista_estado_pago` filtran por el estado del documento, así que al reactivar vuelven a contar sin pasos adicionales.
+
+## 6. Estado de implementación y desviaciones
+
+Las secciones 0 a 5 se conservan como la especificación original; esta sección registra lo realmente implementado (fuente: `odd/tasks/sprint2-boletas-pagos-roles.md` y `supabase/schema.sql`). Las pocas correcciones al cuerpo están marcadas en línea.
+
+### 6.1 Tareas
+
+| Tarea | Alcance | Migración | Estado | Commits |
+| --- | --- | --- | --- | --- |
+| T1 | Renombrado Otros Gastos → Boletas (§1.1) | 01 | Hecha | `7fca8f8` |
+| T2 | `notas` universal (§1.2); retirada de líneas; notas solo en impresión | 02, 03, 04 | Hecha | `4301a38`, `fb41783`, `d922429` |
+| T3a | Perfiles, seeding, login, `ProtectedRoute` (§1.7, §2) | 05, 06 | Hecha | `3e24697` |
+| T3b | RLS por rol (§2.2) | 11 | Hecha | `4b009e8` |
+| T4 | Pivote N:M con factor y `movimientos_stock` (§1.6), base e interfaz | 07 | Hecha | `ab7738e`, `ccdd840` |
+| T5 | `detalle_boletas` (§1.4), base e interfaz | 08 | Hecha | `46be0d5`, `f7bdc40` |
+| T6 | Estado anulado (§1.8), base e interfaz | 09 | Hecha | `84e3188`, `4490558`, `6b2bf6d`, `2394180` |
+| T7 | Pagos, migración histórica, Resumen sobre pagos (§1.3), base e interfaz | 10 | Hecha | `439eb73`, `bc70539`, `0c0ca4b` |
+| Switch contado | "Pagado al contado" (§3.1), adelantado de T9 | — | Hecho | `1ee0ff2` |
+| T8 | Vínculo solicitud ↔ línea de boleta y exclusividad (§1.5), base e interfaz | 12 | Hecha | `a3edbec`, `bbdbd9b` |
+| T9 | Modal de solicitudes, filtros, vinculación rápida (§3.2, §3.3) y paleta (§3.4) | — | Hecha | `7d7aabf`, `69eb24a` |
+| T10 | Cierre: `CLAUDE.md`, `historial-decisiones.md`, `README.md` y esta sección | — | Documentación alineada | — |
+
+Las migraciones (`supabase/migraciones/2026-10-02-NN-*.sql`) se aplican a mano y en orden; ver `README.md`. Quedan por verificar en un entorno real las que el registro ODD marca como "no validada por parser ni ejecutada" y la interfaz "no probada contra Supabase real ni en navegador", incluidos los embebidos PostgREST con `!inner` de T9a.
+
+### 6.2 Desviaciones respecto del texto original
+
+* **Sin RPC para el pago al contado.** El pago se inserta desde la interfaz como último paso (ver 3.1); si falla, el documento queda pendiente y solo lo indica el mensaje. El criterio de aceptación sobre el switch se cumple en esa forma atenuada.
+* **Solicitudes: 'Cancelada' en la base, "Anulada" en la UI.** Como ya preveía §1.8; no se renombró el valor.
+* **`boletas.monto` es el total de las líneas**, calculado y guardado por la interfaz (no por la base). Las boletas existentes se migraron a una línea única.
+* **`UNIQUE (id_proveedor, numero_factura)` intacto** (decisión del usuario): una factura anulada sigue ocupando su número.
+* **Pago histórico con la fecha del documento** (decisión del usuario), solo si `pagos` se crea en esa ejecución (idempotente).
+* **La propuesta "Vincular insumo" no existe en boletas** (decisión del usuario). §1.6 y §3.2 la describen para Facturas; el modal de solicitudes de boletas no la ofrece.
+* **El Productor ve y edita `insumos` completo, incluido `qty`.** El RLS no distingue columnas; riesgo conocido y aceptado.
+* **El Contador puede borrar su propia cabecera recién creada** (sin líneas ni pagos) y las líneas de factura/boleta, aunque §2.1 dice que borrar es solo del Admin: es el rollback de un guardado fallido. El resto del borrado es exclusivo del Admin.
+* **Plantillas de gasto recurrente:** Contador y Admin las leen (ingreso rápido); solo el Admin escribe.
+* **Orden de migraciones:** el RLS por rol (11) se aplicó después de la pivote, las boletas, el anulado y los pagos, no en 3.º lugar, para cubrir de una vez todas las tablas nuevas; el vínculo de solicitudes a boletas es la 12. `perfiles` (05) y el vínculo de solicitantes (06) se separaron porque la 06 exige haber sembrado los usuarios.
+* **Sin staging.** Todas las migraciones se aplicaron sobre la única base, con respaldo previo (ver la corrección en §0).
+* **`cantidad_formato = 0` migra con factor 1** (en vez de 0, que violaría `factor_conversion > 0`).
+* **Resumen:** el pago de una factura se prorratea según el subtotal de sus líneas por centro de costo (el de una boleta va a la subcategoría de la boleta); con varios vínculos N:M, el centro de costo de una línea usa el primer vínculo.
+* **Límites conocidos de T9a:** el modal de vinculación inversa carga hasta 500 líneas por tipo, y "Cambiar" una solicitud ya vinculada deja la anterior en 'Comprada'.
+* **Pendientes menores:** el formulario de solo lectura de un documento anulado no muestra Cuotas/Pagos (sí "Ver detalles"); el Productor no ve el aviso de facturas vinculadas al cambiar el estado de una solicitud (no lee facturas).
+* **Seguridad de la clave inicial:** la clave común se lee de `SEED_PASSWORD` (variable de entorno) y se exige cambiarla en el primer login (`user_metadata.debe_cambiar_clave`); el login acepta el nombre (`tac`) o el email completo.
