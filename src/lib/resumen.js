@@ -34,7 +34,8 @@ export function repartir(total, pesos) {
 
 // Factura → movimientos, uno por línea: su `total` (con IVA y descuento global)
 // se reparte en proporción al subtotal de cada línea. La subcategoría es la del
-// insumo Okima vinculado al insumo del proveedor (null si no está vinculado).
+// primer insumo Okima vinculado al insumo del proveedor (relación N:M; null si no está
+// vinculado). El reparto exacto con varios vínculos se redefine con los pagos (T7).
 // Sin líneas, o con subtotales que suman 0, todo el total queda sin centro de costo.
 // El total se lleva a pesos enteros (ya se guarda redondeado al peso).
 export function movimientosDeFactura(factura) {
@@ -50,7 +51,7 @@ export function movimientosDeFactura(factura) {
   return lineas.map((l, i) => ({
     mes,
     origen: 'factura',
-    idSubcategoria: l?.insumo_proveedor?.insumo?.id_subcategoria ?? null,
+    idSubcategoria: l?.insumo_proveedor?.vinculos?.[0]?.insumo?.id_subcategoria ?? null,
     monto: partes[i],
   }))
 }

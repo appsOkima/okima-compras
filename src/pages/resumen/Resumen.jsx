@@ -21,7 +21,7 @@ import { supabase } from '../../lib/supabase'
 // De cada factura, su total (con IVA) y el subtotal de sus líneas con la
 // subcategoría del insumo Okima vinculado al insumo del proveedor (ver lib/resumen).
 const SELECT_FACTURAS =
-  'id, fecha, total, lineas:detalle_facturas(subtotal, insumo_proveedor:insumos_proveedores(insumo:insumos(id_subcategoria)))'
+  'id, fecha, total, lineas:detalle_facturas(subtotal, insumo_proveedor:insumos_proveedores(vinculos:insumos_proveedores_okima(insumo:insumos(id_subcategoria))))'
 const SELECT_GASTOS = 'id, fecha, monto, id_subcategoria'
 // Todas, también las inactivas: el historial puede usarlas.
 const SELECT_SUBCATEGORIAS = 'id, nombre, activo, categoria:categorias(id, nombre, activo)'
