@@ -15,7 +15,7 @@ function CampoNotas({ valor, onChange, etiqueta = 'Notas', className = '' }) {
         <button
           type="button"
           onClick={() => setAbierto(true)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-indigo-700"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-primary-darker"
         >
           <StickyNote className="h-3.5 w-3.5" />
           Agregar nota

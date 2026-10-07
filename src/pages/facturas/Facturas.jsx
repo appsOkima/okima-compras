@@ -242,7 +242,7 @@ function Facturas() {
               <button
                 type="button"
                 onClick={() => setIdDetalle(f.id)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                 aria-label={`Ver detalles de la factura ${f.numero_factura}`}
                 title="Ver detalles"
               >
@@ -251,7 +251,7 @@ function Facturas() {
               {puedeEditar && !estaAnulado(f) && (
                 <Link
                   to={`/facturas/${f.id}`}
-                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                   aria-label={`Editar la factura ${f.numero_factura}`}
                   title="Editar"
                 >

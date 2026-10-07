@@ -266,7 +266,7 @@ function Mantenedor({
                 <button
                   type="button"
                   onClick={() => setIdDetalle(fila.id)}
-                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                   aria-label={`Ver detalles de ${nombreRegistro(fila) ?? ''}`}
                   title="Ver detalles"
                 >
@@ -277,7 +277,7 @@ function Mantenedor({
                 <button
                   type="button"
                   onClick={() => abrirEdicion(fila)}
-                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                   aria-label={`Editar ${nombreRegistro(fila) ?? ''}`}
                   title="Editar"
                 >

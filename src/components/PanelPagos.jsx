@@ -116,7 +116,7 @@ function PanelPagos({ tipo, documento, onCambio }) {
               <button
                 type="button"
                 onClick={() => setEdicion(p)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                 aria-label={`Editar el pago del ${formatoFecha(p.fecha_pago)}`}
                 title="Editar"
               >

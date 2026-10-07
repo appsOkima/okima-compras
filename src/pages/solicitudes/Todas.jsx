@@ -142,7 +142,7 @@ function Todas({ estadoFijo }) {
               onClick={() => setFiltro(opcion)}
               className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium ${
                 filtro === opcion
-                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                  ? 'border-primary-300 bg-primary-50 text-primary-darker'
                   : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
@@ -197,7 +197,7 @@ function Todas({ estadoFijo }) {
                 <button
                   type="button"
                   onClick={() => setEdicion(fila)}
-                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                   aria-label={`Editar solicitud de ${nombreInsumo(fila)}`}
                   title="Editar"
                 >

@@ -248,7 +248,7 @@ function Campo({ id, className, campo, valor, valores, error, onChange, onBlur }
             checked={valor}
             onChange={(e) => onChange(e.target.checked)}
             aria-describedby={idAyuda}
-            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
           />
           {etiqueta}
         </label>

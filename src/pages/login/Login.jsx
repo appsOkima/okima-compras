@@ -25,7 +25,7 @@ function Login() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
       <form onSubmit={enviar} className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center gap-2">
-          <PackageSearch className="h-6 w-6 text-indigo-600" />
+          <PackageSearch className="h-6 w-6 text-primary" />
           <h1 className="text-lg font-semibold text-slate-800">Okima Compras</h1>
         </div>
         <label className="block text-sm font-medium text-slate-700">

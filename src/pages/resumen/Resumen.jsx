@@ -177,7 +177,7 @@ function Resumen() {
           reparte entre sus líneas según su subtotal (un pago parcial, con las mismas proporciones); cada línea va al centro
           de costo del insumo Okima vinculado a su insumo del proveedor. El pago de una boleta va a su subcategoría. Las líneas
           sin insumo Okima vinculado quedan en "{ETIQUETA_SIN_CENTRO}" hasta que se vinculen en{' '}
-          <Link to="/proveedores/por-vincular" className="font-medium text-indigo-700 hover:underline">
+          <Link to="/proveedores/por-vincular" className="font-medium text-primary-darker hover:underline">
             Proveedores → Por vincular
           </Link>
           .

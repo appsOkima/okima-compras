@@ -50,8 +50,8 @@ function ModalSolicitudes({ solicitudes, excluir, idsInsumoOkima, valorActual, o
                 <button
                   type="button"
                   onClick={() => onElegir(s.id)}
-                  className={`flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md border p-3 text-left text-sm hover:bg-indigo-50/60 ${
-                    actual ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 bg-white'
+                  className={`flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md border p-3 text-left text-sm hover:bg-primary-50/60 ${
+                    actual ? 'border-primary-light bg-primary-50' : 'border-slate-200 bg-white'
                   }`}
                 >
                   <span className="min-w-0">
@@ -71,7 +71,7 @@ function ModalSolicitudes({ solicitudes, excluir, idsInsumoOkima, valorActual, o
                     )}
                   </span>
                   <span className="flex items-center gap-2">
-                    {actual && <span className="text-xs font-medium text-indigo-700">Vinculada</span>}
+                    {actual && <span className="text-xs font-medium text-primary-darker">Vinculada</span>}
                     <EtiquetaUrgencia nivel={s.nivel_urgencia} />
                   </span>
                 </button>

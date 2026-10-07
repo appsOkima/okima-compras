@@ -6,7 +6,7 @@ import { ordenarSolicitudesParaLinea } from '../../lib/facturas'
 import { opcionSolicitud } from '../../lib/solicitudes'
 import { vincularLinea } from './vincularLinea'
 
-const claseEnlace = 'rounded px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50'
+const claseEnlace = 'rounded px-2 py-1 text-xs font-medium text-primary-darker hover:bg-primary-50 disabled:opacity-50'
 
 // Acción de fila en las vistas de líneas (Sprint2 §3.3): selector de solicitud + "Vincular"
 // para una línea sin solicitud, o "Cambiar" / "Desvincular" si ya tiene. `linea` es la forma
@@ -66,7 +66,7 @@ function AccionVinculoLinea({ linea, tabla, solicitudes, onCambio }) {
             type="button"
             onClick={() => aplicar(elegida)}
             disabled={!elegida || enCurso}
-            className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-md bg-primary-dark px-3 py-2 text-xs font-medium text-white hover:bg-primary-darker disabled:cursor-not-allowed disabled:opacity-50"
           >
             {enCurso ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
             Vincular

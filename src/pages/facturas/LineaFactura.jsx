@@ -76,7 +76,7 @@ function PanelVinculo({ propuesta, onDecidir, onCambiarFactor }) {
   if (propuesta.decision === 'aceptado') {
     return (
       <div className="mt-2 space-y-1">
-        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-indigo-700">
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-primary-darker">
           <Link2 className="h-3.5 w-3.5 shrink-0" />
           Se vinculará {par} al guardar.
           {campoFactor}
@@ -100,9 +100,9 @@ function PanelVinculo({ propuesta, onDecidir, onCambiarFactor }) {
     )
   }
   return (
-    <div className="mt-2 rounded-md border border-indigo-200 bg-indigo-50/60 p-2 text-sm text-slate-700" role="group" aria-label="Vincular insumo">
+    <div className="mt-2 rounded-md border border-primary-200 bg-primary-50/60 p-2 text-sm text-slate-700" role="group" aria-label="Vincular insumo">
       <p className="flex items-start gap-1.5">
-        <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-indigo-700" />
+        <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-primary-darker" />
         <span>
           ¿Vincular «{propuesta.nombreInsumoProveedor}» con el insumo Okima «{propuesta.nombreInsumoOkima}»? Desde ahora sus
           compras sumarán stock a ese insumo.
@@ -120,7 +120,7 @@ function PanelVinculo({ propuesta, onDecidir, onCambiarFactor }) {
         <button
           type="button"
           onClick={() => onDecidir(true)}
-          className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+          className="rounded-md bg-primary-dark px-3 py-1 text-xs font-medium text-white hover:bg-primary-darker"
         >
           Vincular
         </button>

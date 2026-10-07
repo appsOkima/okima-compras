@@ -11,7 +11,7 @@ function AccionVincularLinea({ solicitud, nombre, onVinculado }) {
       <button
         type="button"
         onClick={() => setAbierto(true)}
-        className="rounded-md p-1.5 text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"
+        className="rounded-md p-1.5 text-slate-500 hover:bg-primary-50 hover:text-primary-darker"
         aria-label={`Vincular a una línea: ${nombre}`}
         title="Vincular a una línea de factura o de boleta"
       >

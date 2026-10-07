@@ -466,7 +466,7 @@ function FormularioFactura({ id }) {
         <button
           type="button"
           onClick={cancelar}
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-indigo-700"
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-primary-darker"
         >
           <ArrowLeft className="h-4 w-4" />
           Volver al listado
@@ -492,7 +492,7 @@ function FormularioFactura({ id }) {
       <button
         type="button"
         onClick={cancelar}
-        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-indigo-700"
+        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-primary-darker"
       >
         <ArrowLeft className="h-4 w-4" />
         Volver al listado

@@ -232,7 +232,7 @@ function Pendientes() {
               <button
                 type="button"
                 onClick={() => setEdicion({ registro: fila })}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                 aria-label={`Editar solicitud de ${fila.insumo_nombre}`}
                 title="Editar"
               >

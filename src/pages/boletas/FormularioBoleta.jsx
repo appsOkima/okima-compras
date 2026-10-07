@@ -475,7 +475,7 @@ function FormularioBoleta({ id, idPlantilla }) {
         <button
           type="button"
           onClick={volver}
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-indigo-700"
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-primary-darker"
         >
           <ArrowLeft className="h-4 w-4" />
           Volver al listado
@@ -505,7 +505,7 @@ function FormularioBoleta({ id, idPlantilla }) {
       <button
         type="button"
         onClick={volver}
-        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-indigo-700"
+        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-primary-darker"
       >
         <ArrowLeft className="h-4 w-4" />
         Volver al listado

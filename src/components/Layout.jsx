@@ -54,7 +54,7 @@ function Layout() {
               onClick={cerrarMenu}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${
-                  isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  isActive ? 'bg-primary-50 text-primary-darker shadow-[inset_3px_0_0_var(--color-accent-dark)]' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`
               }
             >
@@ -88,7 +88,7 @@ function Layout() {
 function Marca() {
   return (
     <div className="flex items-center gap-2">
-      <PackageSearch className="h-6 w-6 text-indigo-600" />
+      <PackageSearch className="h-6 w-6 text-primary" />
       <span className="text-lg font-semibold">Okima Compras</span>
     </div>
   )

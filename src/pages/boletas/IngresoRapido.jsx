@@ -21,7 +21,7 @@ function IngresoRapido() {
   return (
     <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm print:hidden">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-        <Repeat className="h-4 w-4 text-indigo-600" />
+        <Repeat className="h-4 w-4 text-primary" />
         Ingreso rápido de gasto recurrente
       </h3>
 
@@ -32,7 +32,7 @@ function IngresoRapido() {
       ) : activas.length === 0 ? (
         <p className="mt-2 text-sm text-slate-500">
           No hay plantillas activas.{' '}
-          <Link to="/boletas/plantillas" className="font-medium text-indigo-700 hover:underline">
+          <Link to="/boletas/plantillas" className="font-medium text-primary-darker hover:underline">
             Crea una en Plantillas recurrentes
           </Link>
           .
@@ -43,10 +43,10 @@ function IngresoRapido() {
             <Link
               key={p.id}
               to={`/boletas/nuevo?plantilla=${p.id}`}
-              className="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100"
+              className="inline-flex items-center gap-2 rounded-md border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-darker hover:bg-primary-100"
             >
               {p.nombre}
-              <span className="text-xs font-normal text-indigo-600">{formatoCLP(p.monto_default)}</span>
+              <span className="text-xs font-normal text-primary-dark">{formatoCLP(p.monto_default)}</span>
             </Link>
           ))}
         </div>

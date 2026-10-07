@@ -11,8 +11,8 @@ function SwitchPagoContado({ activo, onCambiar }) {
           aria-labelledby="pago-contado-etiqueta"
           aria-describedby="pago-contado-ayuda"
           onClick={() => onCambiar(!activo)}
-          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
-            activo ? 'bg-indigo-600' : 'bg-slate-300'
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
+            activo ? 'bg-primary-dark' : 'bg-slate-300'
           }`}
         >
           <span

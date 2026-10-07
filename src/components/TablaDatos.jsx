@@ -121,7 +121,7 @@ function TablaDatos({
                 const fondo = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
                 return (
                   <Fragment key={fila.id}>
-                    <tr className={`${fondo} hover:bg-indigo-50/50 ${oculta} ${claseFila ? claseFila(fila) : ''}`}>
+                    <tr className={`${fondo} hover:bg-primary-50/50 ${oculta} ${claseFila ? claseFila(fila) : ''}`}>
                       {columnas.map((c) => (
                         <td key={c.clave} className={`px-4 py-2.5 align-top text-slate-700 ${alinear(c)}`}>
                           {c.render ? c.render(fila) : fila[c.clave]}
@@ -179,10 +179,10 @@ function BotonOrden({ columna, orden, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex cursor-pointer items-center gap-1 rounded uppercase tracking-wide hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 print:cursor-auto"
+      className="inline-flex cursor-pointer items-center gap-1 rounded uppercase tracking-wide hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary print:cursor-auto"
     >
       {columna.titulo}
-      <Icono className={`h-3.5 w-3.5 shrink-0 print:hidden ${activa ? 'text-indigo-600' : 'text-slate-300'}`} aria-hidden="true" />
+      <Icono className={`h-3.5 w-3.5 shrink-0 print:hidden ${activa ? 'text-primary' : 'text-slate-300'}`} aria-hidden="true" />
     </button>
   )
 }

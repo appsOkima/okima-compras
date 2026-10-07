@@ -32,7 +32,7 @@ function CampoSolicitud({ id, solicitudes, excluir, idsInsumoOkima, valor, onCha
             id={id}
             type="button"
             onClick={() => setAbierto(true)}
-            className="rounded px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+            className="rounded px-2 py-1 text-xs font-medium text-primary-darker hover:bg-primary-50"
           >
             Cambiar
           </button>

@@ -7,7 +7,7 @@ function Interruptor({ activo, onCambiar, children }) {
       onClick={() => onCambiar(!activo)}
       className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
         activo
-          ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+          ? 'border-primary-300 bg-primary-50 text-primary-darker'
           : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
       }`}
     >

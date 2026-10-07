@@ -181,7 +181,7 @@ function Combobox({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => elegir(opcion)}
                 onMouseEnter={() => setResaltado(i)}
-                className={`cursor-pointer px-3 py-2 ${i === indice ? 'bg-indigo-50 text-indigo-800' : 'text-slate-700'}`}
+                className={`cursor-pointer px-3 py-2 ${i === indice ? 'bg-primary-50 text-primary-darker' : 'text-slate-700'}`}
               >
                 <span className={`block truncate ${opcion.valor === valor ? 'font-semibold' : ''}`}>{opcion.etiqueta}</span>
                 {opcion.detalle && <span className="block truncate text-xs text-slate-500">{opcion.detalle}</span>}
@@ -205,8 +205,8 @@ function Combobox({
                     ? 'bg-amber-100 text-amber-900'
                     : 'text-amber-800'
                   : indice === visibles.length
-                    ? 'bg-indigo-50 text-indigo-800'
-                    : 'text-indigo-700'
+                    ? 'bg-primary-50 text-primary-darker'
+                    : 'text-primary-darker'
               }`}
             >
               {crear.conSimilares ? (

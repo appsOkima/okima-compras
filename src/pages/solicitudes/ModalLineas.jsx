@@ -114,7 +114,7 @@ function ModalLineas({ solicitud, onVinculado, onCerrar }) {
               onClick={() => setTipo(t.valor)}
               className={`rounded-md border px-3 py-2 text-sm font-medium ${
                 tipo === t.valor
-                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                  ? 'border-primary-300 bg-primary-50 text-primary-darker'
                   : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
@@ -153,7 +153,7 @@ function ModalLineas({ solicitud, onVinculado, onCerrar }) {
                   type="button"
                   disabled={enCurso}
                   onClick={() => elegir(l)}
-                  className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md border border-slate-200 bg-white p-3 text-left text-sm hover:bg-indigo-50/60 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md border border-slate-200 bg-white p-3 text-left text-sm hover:bg-primary-50/60 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="min-w-0">
                     <span className="block font-medium text-slate-800">

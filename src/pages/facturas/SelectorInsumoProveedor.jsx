@@ -123,14 +123,14 @@ function SelectorInsumoProveedor({
 
       {nombreNuevo !== null && (
         <div
-          className="space-y-3 rounded-md border border-indigo-200 bg-indigo-50/60 p-3"
+          className="space-y-3 rounded-md border border-primary-200 bg-primary-50/60 p-3"
           role="group"
           aria-label="Nuevo insumo del proveedor"
           onKeyDown={alPresionar}
         >
           <div>
             <label htmlFor={`${idBase}-nombre`} className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-700">
-              <Plus className="h-3.5 w-3.5 text-indigo-700" />
+              <Plus className="h-3.5 w-3.5 text-primary-darker" />
               Nuevo insumo del proveedor — nombre <span className="text-red-600">*</span>
             </label>
             <input
