@@ -10,6 +10,12 @@ export function mensajeError(error) {
       return 'Ya existe un registro con esos datos.'
     case '23502':
       return 'Falta completar un campo obligatorio.'
+    case '42501':
+      // Los triggers de la base (anular/reactivar) traen su mensaje en español; el
+      // rechazo del RLS llega en inglés y se reemplaza por uno entendible.
+      return error.message && !/row-level security|permission denied/i.test(error.message)
+        ? error.message
+        : 'Tu rol no tiene permiso para realizar esta acción.'
     default:
       return error.message || 'Ocurrió un error inesperado.'
   }

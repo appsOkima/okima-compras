@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { useTabla } from '../hooks/useTabla'
+import { estaAnulado } from '../lib/anulacion'
 import { buscarDuplicados as buscarDuplicadosEn } from '../lib/duplicados'
 import { CODIGO_EN_USO, mensajeError } from '../lib/errores'
 import { coincide } from '../lib/texto'
 import DetalleRegistro from './DetalleRegistro'
 import FormularioRegistro from './FormularioRegistro'
+import Interruptor from './Interruptor'
 import Modal from './Modal'
 import TablaDatos from './TablaDatos'
 import { claseBotonPrimario, claseInput } from './estilos'
@@ -31,6 +33,9 @@ const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
 //   barra (recibe todas las filas cargadas); se aplica antes de búsqueda e Incompletos.
 // - `antesDeTabla({ filas, crear })`: contenido entre el encabezado y la tabla.
 // - `resumen(filasVisibles)`: línea bajo la tabla (ej. total de lo filtrado).
+// - `tieneAnulados` (facturas y boletas): oculta por defecto los documentos anulados, con
+//   un interruptor "Mostrar anuladas"; un anulado no se edita (sin botón Editar ni en la ficha).
+// - `accionesFila(fila, { actualizar })`: botones extra en cada fila (ej. Anular/Reactivar).
 // - `rutaFormulario` (ej. '/proveedores'): crear y editar abren el formulario en su
 //   propia página (`${rutaFormulario}/nuevo` y `${rutaFormulario}/:id`, ver
 //   PaginaRegistro) en vez del modal; `campos`, `valoresIniciales`, `antesDeGuardar`
@@ -60,6 +65,8 @@ function Mantenedor({
   antesDeTabla,
   resumen,
   rutaFormulario,
+  tieneAnulados = false,
+  accionesFila,
 }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -67,6 +74,7 @@ function Mantenedor({
   const [busqueda, setBusqueda] = useState('')
   const [soloIncompletos, setSoloIncompletos] = useState(false)
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
+  const [mostrarAnuladas, setMostrarAnuladas] = useState(false)
   // null = cerrado; { registro: null } = nuevo; { registro } = edición.
   const [edicion, setEdicion] = useState(null)
   // Se guarda el id y no la fila para mostrar siempre los datos recargados;
@@ -81,6 +89,7 @@ function Mantenedor({
     if (rutaFormulario && location.state?.mensaje) navigate(location.pathname, { replace: true, state: null })
   }, [rutaFormulario, location, navigate])
 
+  const totalAnuladas = useMemo(() => (tieneAnulados ? filas.filter(estaAnulado).length : 0), [filas, tieneAnulados])
   const filaDetalle = idDetalle ? filas.find((f) => f.id === idDetalle) : null
 
   const aplicaFiltroExtra = filtroExtra?.aplica
@@ -88,9 +97,11 @@ function Mantenedor({
     () =>
       filas.filter(
         (f) =>
-          (!tieneActivo || mostrarInactivos || f.activo !== false) && (!aplicaFiltroExtra || aplicaFiltroExtra(f)),
+          (!tieneActivo || mostrarInactivos || f.activo !== false) &&
+          (!tieneAnulados || mostrarAnuladas || !estaAnulado(f)) &&
+          (!aplicaFiltroExtra || aplicaFiltroExtra(f)),
       ),
-    [filas, tieneActivo, mostrarInactivos, aplicaFiltroExtra],
+    [filas, tieneActivo, mostrarInactivos, tieneAnulados, mostrarAnuladas, aplicaFiltroExtra],
   )
   const totalIncompletos = useMemo(
     () => (esIncompleto ? filasActivas.filter(esIncompleto).length : 0),
@@ -167,6 +178,18 @@ function Mantenedor({
           Mostrar inactivos
         </Interruptor>
       )}
+      {tieneAnulados && (
+        <Interruptor activo={mostrarAnuladas} onCambiar={setMostrarAnuladas}>
+          Mostrar anuladas
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              totalAnuladas > 0 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
+            }`}
+          >
+            {totalAnuladas}
+          </span>
+        </Interruptor>
+      )}
     </>
   )
 
@@ -224,6 +247,7 @@ function Mantenedor({
               : 'Todavía no hay registros.'
           }
           barra={barra}
+          claseFila={tieneAnulados ? (fila) => (estaAnulado(fila) ? 'opacity-60' : '') : undefined}
           acciones={(fila) => (
             <div className="inline-flex gap-1">
               {detalle && (
@@ -237,15 +261,18 @@ function Mantenedor({
                   <Eye className="h-4 w-4" />
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => abrirEdicion(fila)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
-                aria-label={`Editar ${nombreRegistro(fila) ?? ''}`}
-                title="Editar"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
+              {!(tieneAnulados && estaAnulado(fila)) && (
+                <button
+                  type="button"
+                  onClick={() => abrirEdicion(fila)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                  aria-label={`Editar ${nombreRegistro(fila) ?? ''}`}
+                  title="Editar"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              {accionesFila?.(fila, { actualizar })}
               <button
                 type="button"
                 onClick={() => borrar(fila)}
@@ -266,10 +293,14 @@ function Mantenedor({
           <DetalleRegistro
             detalle={detalle}
             fila={filaDetalle}
-            onEditar={() => {
-              setIdDetalle(null)
-              abrirEdicion(filaDetalle)
-            }}
+            onEditar={
+              tieneAnulados && estaAnulado(filaDetalle)
+                ? undefined
+                : () => {
+                    setIdDetalle(null)
+                    abrirEdicion(filaDetalle)
+                  }
+            }
             onCerrar={() => setIdDetalle(null)}
           />
         </Modal>
@@ -293,24 +324,6 @@ function Mantenedor({
         </Modal>
       )}
     </section>
-  )
-}
-
-// Botón de filtro tipo interruptor (aria-pressed), igual en todos los Mantenedores.
-function Interruptor({ activo, onCambiar, children }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={activo}
-      onClick={() => onCambiar(!activo)}
-      className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
-        activo
-          ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-      }`}
-    >
-      {children}
-    </button>
   )
 }
 

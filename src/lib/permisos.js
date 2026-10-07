@@ -29,3 +29,9 @@ export const puedeVerSeccion = (rol, ruta) =>
   seccionesPermitidas(rol).some((path) => ruta === path || ruta.startsWith(`${path}/`))
 
 export const rutaInicial = (rol) => seccionesPermitidas(rol)[0] ?? null
+
+// Anular facturas y boletas: contador y admin; reactivar un documento anulado: solo
+// admin. Como el resto, es ergonomía de la interfaz: la base lo exige con rol_actual().
+export const puedeAnular = (rol) => rol === 'contador' || rol === 'admin'
+
+export const puedeReactivar = (rol) => rol === 'admin'

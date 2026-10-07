@@ -1,5 +1,6 @@
 // Resumen de gastos: facturas y otros gastos juntos, por mes y por centro de
 // costo (sin React ni Supabase, para poder verificarlo con node).
+import { vigentes } from './anulacion.js'
 import { mesDe } from './gastos.js'
 
 // Valor del filtro "Centro de costo" para ver solo lo que no tiene subcategoría
@@ -64,8 +65,9 @@ export function movimientoDeGasto(gasto) {
   }
 }
 
+// Los documentos anulados no cuentan (el Resumen ya los pide vigentes; esto es la red).
 export function movimientos(facturas, gastos) {
-  return [...(facturas ?? []).flatMap(movimientosDeFactura), ...(gastos ?? []).map(movimientoDeGasto)]
+  return [...vigentes(facturas).flatMap(movimientosDeFactura), ...vigentes(gastos).map(movimientoDeGasto)]
 }
 
 // subcategorias = [{ id, nombre, categoria: { id, nombre } }] → Map id → datos

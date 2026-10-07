@@ -30,14 +30,13 @@ const SELECT_SUBCATEGORIAS = 'id, nombre, activo, categoria:categorias(id, nombr
 // pide por páginas para que el resumen no quede corto cuando haya más registros.
 const TAMANO_PAGINA = 1000
 
-async function cargarTodo(tabla, select) {
+// `soloVigentes`: facturas y boletas anuladas no cuentan en el Resumen.
+async function cargarTodo(tabla, select, soloVigentes = false) {
   const filas = []
   for (let desde = 0; ; desde += TAMANO_PAGINA) {
-    const { data, error } = await supabase
-      .from(tabla)
-      .select(select)
-      .order('id')
-      .range(desde, desde + TAMANO_PAGINA - 1)
+    let consulta = supabase.from(tabla).select(select)
+    if (soloVigentes) consulta = consulta.eq('estado_documento', 'vigente')
+    const { data, error } = await consulta.order('id').range(desde, desde + TAMANO_PAGINA - 1)
     if (error) throw error
     filas.push(...(data ?? []))
     if (!data || data.length < TAMANO_PAGINA) return filas
@@ -51,8 +50,8 @@ function useDatosResumen() {
   useEffect(() => {
     let vigente = true
     Promise.all([
-      cargarTodo('facturas', SELECT_FACTURAS),
-      cargarTodo('boletas', SELECT_GASTOS),
+      cargarTodo('facturas', SELECT_FACTURAS, true),
+      cargarTodo('boletas', SELECT_GASTOS, true),
       cargarTodo('subcategorias', SELECT_SUBCATEGORIAS),
     ])
       .then(([facturas, gastos, subcategorias]) => {
@@ -177,7 +176,7 @@ function Resumen() {
       <div>
         <h2 className="text-xl font-semibold text-slate-800">Resumen mensual</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Facturas y boletas juntas. Cada factura cuenta por su total con IVA, repartido entre sus líneas según su
+          Facturas y boletas vigentes juntas (las anuladas no cuentan). Cada factura cuenta por su total con IVA, repartido entre sus líneas según su
           subtotal; cada línea va al centro de costo del insumo Okima vinculado a su insumo del proveedor. Las líneas
           sin insumo Okima vinculado quedan en "{ETIQUETA_SIN_CENTRO}" hasta que se vinculen en{' '}
           <Link to="/proveedores/por-vincular" className="font-medium text-indigo-700 hover:underline">

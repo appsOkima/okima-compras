@@ -59,6 +59,11 @@ const CLASES_ESTADO = {
   Cancelada: 'bg-slate-100 text-slate-600 ring-slate-500/20',
 }
 
+// En la base el estado sigue siendo 'Cancelada'; en la interfaz se muestra "Anulada".
+export function etiquetaEstado(estado) {
+  return estado === 'Cancelada' ? 'Anulada' : (estado ?? '')
+}
+
 export function claseEstado(estado) {
   return CLASES_ESTADO[estado] ?? CLASES_ESTADO.Cancelada
 }
@@ -74,7 +79,7 @@ export function transicionesDisponibles(estado) {
 const ACCIONES_ESTADO = {
   Pendiente: 'Volver a pendiente',
   Comprada: 'Marcar comprada',
-  Cancelada: 'Cancelar solicitud',
+  Cancelada: 'Anular solicitud',
 }
 
 export function accionEstado(nuevoEstado) {
@@ -112,18 +117,18 @@ const unirConY = (lista) =>
 // Texto del window.confirm al cambiar el estado. `solicitud` puede venir de la
 // vista (insumo_nombre) o de la tabla con el insumo embebido (insumo.nombre);
 // `facturas` es la salida de facturasDeLineas (solo se menciona al pasar a
-// Pendiente o Cancelada; avisa, no bloquea).
+// Pendiente o Anulada; avisa, no bloquea).
 const PREGUNTAS_ESTADO = {
   Pendiente: 'Volver a dejar como pendiente',
   Comprada: 'Marcar como comprada',
-  Cancelada: 'Cancelar',
+  Cancelada: 'Anular',
 }
 
 export function textoConfirmacionEstado(solicitud, nuevoEstado, facturas = []) {
   const nombre = solicitud?.insumo_nombre ?? solicitud?.insumo?.nombre ?? ''
   const estado = solicitud?.estado
-  const pregunta = PREGUNTAS_ESTADO[nuevoEstado] ?? `Pasar a '${nuevoEstado}'`
-  let texto = `¿${pregunta} la solicitud de "${nombre}"? Hoy está '${estado ?? '—'}'.`
+  const pregunta = PREGUNTAS_ESTADO[nuevoEstado] ?? `Pasar a '${etiquetaEstado(nuevoEstado)}'`
+  let texto = `¿${pregunta} la solicitud de "${nombre}"? Hoy está '${estado ? etiquetaEstado(estado) : '—'}'.`
   if (nuevoEstado === 'Pendiente') texto += ' Volverá a la lista de pendientes.'
   else if (estado === 'Pendiente') texto += ' Saldrá de la lista de pendientes.'
   if (avisaFacturas(nuevoEstado) && facturas?.length) {

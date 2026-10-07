@@ -8,7 +8,7 @@ import { textoMovimientos } from '../../lib/vinculos'
 // !id_solicitud_compra: nombra la FK para que el embebido no sea ambiguo.
 // movimientos: el stock que aplicó el trigger a cada insumo Okima (puede ser más de uno).
 const SELECT_LINEAS =
-  'id, created_at, cantidad, precio_neto, descuento_pct, subtotal, insumo_proveedor:insumos_proveedores(nombre, codigo, cantidad_formato, formato_unidad), movimientos:movimientos_stock(qty, insumo:insumos(nombre)), solicitud:solicitudes_compra!id_solicitud_compra(solicitante, insumo:insumos(nombre))'
+  'id, created_at, cantidad, precio_neto, descuento_pct, subtotal, insumo_proveedor:insumos_proveedores(nombre, codigo, cantidad_formato, formato_unidad), movimientos:movimientos_stock(qty, revertido, insumo:insumos(nombre)), solicitud:solicitudes_compra!id_solicitud_compra(solicitante, insumo:insumos(nombre))'
 
 const nombreInsumoProveedor = (l) => l.insumo_proveedor?.nombre ?? ''
 const porcentaje = (n) => `${formatoNumero(n ?? 0)} %`
@@ -42,7 +42,11 @@ const columnasLineas = [
       l.movimientos?.length > 0 ? (
         <span>
           {l.movimientos.map((m, i) => (
-            <span key={i} className="block">
+            <span
+              key={i}
+              className={`block ${m.revertido ? 'text-slate-400 line-through' : ''}`}
+              title={m.revertido ? 'Stock revertido por la anulación del documento' : undefined}
+            >
               +{formatoNumero(m.qty)} <span className="text-xs text-slate-500">{m.insumo?.nombre ?? ''}</span>
             </span>
           ))}
@@ -107,7 +111,8 @@ function DetalleFactura({ factura, onEditar, onCerrar }) {
     },
   ]
 
-  return <DetalleRegistro detalle={detalle} fila={factura} onEditar={onEditar} onCerrar={onCerrar} />
+  // Sin `onEditar` (factura anulada) no hay botón Editar; el aviso de anulación lo pone DetalleRegistro.
+  return <DetalleRegistro detalle={detalle} fila={factura} onEditar={onEditar} onCerrar={onCerrar} tipo="factura" />
 }
 
 export default DetalleFactura

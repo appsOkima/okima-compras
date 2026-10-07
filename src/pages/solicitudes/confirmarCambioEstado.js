@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 const SELECT_LINEAS = 'id, factura:facturas(numero_factura, fecha, proveedor:proveedores(nombre))'
 
 // Pide confirmación para cambiar a mano el estado de una solicitud. Al pasarla a
-// 'Pendiente' o 'Cancelada' consulta antes qué facturas la referencian y lo
+// 'Pendiente' o 'Cancelada' (en pantalla, "Anulada") consulta antes qué facturas la referencian y lo
 // incluye en el aviso (no bloquea: el vínculo de la línea se mantiene).
 // Devuelve true si el usuario confirmó; lanza el error si la consulta falla.
 //

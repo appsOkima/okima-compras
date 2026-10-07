@@ -7,7 +7,7 @@ import { claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
-import { ESTADOS_SOLICITUD, claseEstado } from '../../lib/solicitudes'
+import { ESTADOS_SOLICITUD, claseEstado, etiquetaEstado } from '../../lib/solicitudes'
 import { coincide } from '../../lib/texto'
 import AccionesEstado from './AccionesEstado'
 import { confirmarCambioEstado } from './confirmarCambioEstado'
@@ -24,10 +24,10 @@ const nombreInsumo = (fila) => fila.insumo?.nombre ?? ''
 // inicial: muchas facturas se ingresan sin asociar la solicitud). El trigger de
 // facturas sigue marcando 'Comprada' al asociar una línea.
 // Con `estadoFijo` sirve de vista de un solo estado (pestañas Compradas y
-// Canceladas): sin botones de filtro, que ahí serían redundantes.
+// Anuladas; en la base el estado sigue siendo 'Cancelada'): sin botones de filtro, que ahí serían redundantes.
 const VISTAS_ESTADO = {
   Comprada: { titulo: 'Solicitudes compradas', archivo: 'solicitudes-compradas' },
-  Cancelada: { titulo: 'Solicitudes canceladas', archivo: 'solicitudes-canceladas' },
+  Cancelada: { titulo: 'Solicitudes anuladas', archivo: 'solicitudes-anuladas' },
 }
 
 function Todas({ estadoFijo }) {
@@ -103,9 +103,10 @@ function Todas({ estadoFijo }) {
       titulo: 'Estado',
       render: (fila) => (
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${claseEstado(fila.estado)}`}>
-          {fila.estado}
+          {etiquetaEstado(fila.estado)}
         </span>
       ),
+      csv: (fila) => etiquetaEstado(fila.estado),
     },
   ]
 
@@ -136,7 +137,7 @@ function Todas({ estadoFijo }) {
                   : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
-              {opcion}
+              {etiquetaEstado(opcion)}
               <span className="rounded-full bg-slate-100 px-1.5 text-xs text-slate-500">{totales[opcion] ?? 0}</span>
             </button>
           ))}

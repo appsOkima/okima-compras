@@ -1,23 +1,29 @@
 import { useMemo, useState } from 'react'
 import Mantenedor from '../../components/Mantenedor'
 import { claseInput } from '../../components/estilos'
-import { formatoCLP, formatoFecha, formatoFechaLocal } from '../../lib/formato'
+import AccionAnulacion from '../../components/AccionAnulacion'
+import EtiquetaAnulada from '../../components/EtiquetaAnulada'
+import { estaAnulado, vigentes } from '../../lib/anulacion'
+import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, mesDe, mesesPresentes, sumaMontos } from '../../lib/gastos'
 import { estaVacio } from '../../lib/texto'
+import {
+  EMBEDS_BOLETA,
+  detalleBoleta,
+  nombreBoleta,
+  nombreCategoria,
+  nombrePlantilla,
+  nombreProveedor,
+  nombreSubcategoria,
+} from './detalleBoleta'
 import IngresoRapido from './IngresoRapido'
-import LineasBoleta from './LineasBoleta'
 
 // La categoría (centro de costo) se obtiene a través de la subcategoría.
-const SELECT =
-  '*, subcategoria:subcategorias(id, nombre, categoria:categorias(id, nombre)), proveedor:proveedores(id, nombre), plantilla:plantillas_gastos_recurrentes(id, nombre), lineas:detalle_boletas(count)'
+const SELECT = `*, ${EMBEDS_BOLETA}, lineas:detalle_boletas(count)`
 
 // Más reciente primero; a igual fecha, el último ingresado arriba.
 const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }
 
-const nombreSubcategoria = (fila) => fila.subcategoria?.nombre ?? ''
-const nombreCategoria = (fila) => fila.subcategoria?.categoria?.nombre ?? ''
-const nombreProveedor = (fila) => fila.proveedor?.nombre ?? ''
-const nombrePlantilla = (fila) => fila.plantilla?.nombre ?? ''
 // De las líneas basta la cantidad (la ficha las consulta al abrirse).
 const numeroLineas = (fila) => fila.lineas?.[0]?.count ?? 0
 
@@ -39,23 +45,14 @@ const columnas = [
   },
   { clave: 'numero_documento', titulo: 'N° documento' },
   { clave: 'n_lineas', titulo: 'Líneas', alinear: 'derecha', render: numeroLineas, csv: numeroLineas },
+  {
+    clave: 'estado_documento',
+    titulo: 'Estado',
+    render: (fila) => (estaAnulado(fila) ? <EtiquetaAnulada /> : ''),
+    csv: (fila) => fila.estado_documento ?? 'vigente',
+  },
   { clave: 'plantilla', titulo: 'Plantilla', soloCsv: true, csv: nombrePlantilla },
   { clave: 'notas', titulo: 'Notas', soloCsv: true },
-]
-
-// Ficha de "Ver detalles": todos los campos de la boleta.
-const detalle = [
-  { etiqueta: 'Concepto', valor: (fila) => fila.concepto, completo: true },
-  { etiqueta: 'Fecha', valor: (fila) => formatoFecha(fila.fecha) },
-  { etiqueta: 'Total', valor: (fila) => formatoCLP(fila.monto) },
-  { etiqueta: 'Categoría (centro de costo)', valor: nombreCategoria },
-  { etiqueta: 'Subcategoría', valor: nombreSubcategoria },
-  { etiqueta: 'Proveedor', valor: nombreProveedor },
-  { etiqueta: 'N° documento', valor: (fila) => fila.numero_documento },
-  { etiqueta: 'Plantilla de origen', valor: nombrePlantilla },
-  { etiqueta: 'Creado', valor: (fila) => formatoFechaLocal(fila.created_at) },
-  { etiqueta: 'Líneas', completo: true, valor: (fila) => <LineasBoleta boleta={fila} /> },
-  // Las notas no van aquí: DetalleRegistro las destaca arriba de la ficha.
 ]
 
 // "Incompletos" = boleta sin centro de costo (sin subcategoría).
@@ -63,15 +60,17 @@ const esIncompleto = (fila) => estaVacio(fila.id_subcategoria)
 
 const camposBusqueda = ['concepto', 'numero_documento', nombreProveedor, nombreSubcategoria, nombreCategoria]
 
-const nombreBoleta = (fila) => fila.concepto
-
 // Total de lo que se está mostrando (después de todos los filtros).
-const resumen = (filas) => (
-  <>
-    Total: <span className="font-semibold text-slate-800">{formatoCLP(sumaMontos(filas))}</span> ({filas.length}{' '}
-    {filas.length === 1 ? 'boleta' : 'boletas'})
-  </>
-)
+// Las anuladas que se muestren no suman ni se cuentan.
+const resumen = (filas) => {
+  const n = vigentes(filas).length
+  return (
+    <>
+      Total: <span className="font-semibold text-slate-800">{formatoCLP(sumaMontos(filas))}</span> ({n}{' '}
+      {n === 1 ? 'boleta' : 'boletas'})
+    </>
+  )
+}
 
 // Boletas: cabecera con sus líneas (arriendo, sueldos, IVA, servicios o compras con
 // boleta); el monto es el total de las líneas. Los recurrentes se ingresan desde
@@ -120,12 +119,21 @@ function Boletas() {
       esIncompleto={esIncompleto}
       camposBusqueda={camposBusqueda}
       nombreArchivo="boletas"
-      detalle={detalle}
+      detalle={detalleBoleta}
       nombreRegistro={nombreBoleta}
       filtroExtra={filtroMes}
       resumen={resumen}
       antesDeTabla={() => <IngresoRapido />}
       rutaFormulario="/boletas"
+      tieneAnulados
+      accionesFila={(fila, { actualizar }) => (
+        <AccionAnulacion
+          tipo="boleta"
+          doc={fila}
+          nombre={fila.concepto}
+          onCambiar={(datos) => actualizar(fila.id, datos)}
+        />
+      )}
     />
   )
 }

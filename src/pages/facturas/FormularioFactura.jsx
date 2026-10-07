@@ -5,6 +5,7 @@ import CampoNotas from '../../components/CampoNotas'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import InputNumero from '../../components/InputNumero'
 import { useTabla } from '../../hooks/useTabla'
+import { estaAnulado } from '../../lib/anulacion'
 import { mensajeError } from '../../lib/errores'
 import {
   aNumero,
@@ -28,6 +29,7 @@ import { hoyISO } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import { validarFactor } from '../../lib/vinculos'
 import Campo from './Campo'
+import DetalleFactura from './DetalleFactura'
 import LineaFactura from './LineaFactura'
 import SelectorProveedorFactura from './SelectorProveedorFactura'
 
@@ -41,8 +43,10 @@ const ORDEN_PENDIENTES = { columna: 'created_at', ascendente: true }
 // Las líneas traen el stock que aplicó el trigger (movimientos_stock, para el aviso
 // de stock) y su solicitud, que ya no está en la vista de pendientes porque quedó
 // 'Comprada'.
+// `*`, proveedor y perfil_anulo también alimentan la vista de solo lectura de una factura
+// anulada (no se edita desde la interfaz).
 const SELECT_FACTURA =
-  'id, id_proveedor, numero_factura, fecha, descuento_pct, notas, ' +
+  '*, proveedor:proveedores(id, nombre, rut), perfil_anulo:perfiles!anulado_por(nombre_mostrar), ' +
   'lineas:detalle_facturas(id, created_at, id_insumo_proveedor, id_solicitud_compra, cantidad, precio_neto, descuento_pct, subtotal, ' +
   'movimientos:movimientos_stock(qty, insumo:insumos(nombre)), ' +
   'solicitud:solicitudes_compra!id_solicitud_compra(id, created_at, id_insumo_okima, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada, estado, insumo:insumos(nombre)))'
@@ -117,6 +121,8 @@ function FormularioFactura({ id }) {
   const [carga, setCarga] = useState(esNueva ? 'lista' : 'cargando')
   const [errorCarga, setErrorCarga] = useState(null)
   const [numeroOriginal, setNumeroOriginal] = useState('')
+  // Factura anulada: se muestra en solo lectura (la base tampoco deja editarla).
+  const [anulada, setAnulada] = useState(null)
   const [cabecera, setCabecera] = useState(cabeceraVacia)
   const [lineas, setLineas] = useState(() => [lineaVacia('nueva-0')])
   // Líneas tal como están guardadas: base del diff al editar.
@@ -140,6 +146,11 @@ function FormularioFactura({ id }) {
           // 22P02: el id de la URL no es un uuid válido.
           setCarga(!error || error.code === '22P02' ? 'no-encontrada' : 'error')
           setErrorCarga(error)
+          return
+        }
+        if (estaAnulado(data)) {
+          setAnulada(data)
+          setCarga('lista')
           return
         }
         const guardadas = [...(data.lineas ?? [])].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
@@ -440,6 +451,27 @@ function FormularioFactura({ id }) {
             </p>
           </div>
         )}
+      </section>
+    )
+  }
+
+  if (anulada) {
+    return (
+      <section className="mt-6">
+        <button
+          type="button"
+          onClick={cancelar}
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-indigo-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Volver al listado
+        </button>
+        <h2 className="mt-2 text-xl font-semibold text-slate-800">
+          Factura N° {anulada.numero_factura} — {anulada.proveedor?.nombre ?? ''}
+        </h2>
+        <div className={`${claseTarjeta} mt-4 max-w-4xl`}>
+          <DetalleFactura factura={anulada} onCerrar={cancelar} />
+        </div>
       </section>
     )
   }

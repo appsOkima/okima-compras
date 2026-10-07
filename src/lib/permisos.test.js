@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest'
 import { secciones } from '../secciones'
-import { esRolValido, puedeVerSeccion, rutaInicial, seccionesPermitidas } from './permisos'
+import { esRolValido, puedeAnular, puedeReactivar, puedeVerSeccion, rutaInicial, seccionesPermitidas } from './permisos'
+
+describe('puedeAnular / puedeReactivar', () => {
+  it('anulan contador y admin; productor no', () => {
+    expect(puedeAnular('contador')).toBe(true)
+    expect(puedeAnular('admin')).toBe(true)
+    expect(puedeAnular('productor')).toBe(false)
+  })
+
+  it('reactiva solo el admin', () => {
+    expect(puedeReactivar('admin')).toBe(true)
+    expect(puedeReactivar('contador')).toBe(false)
+    expect(puedeReactivar('productor')).toBe(false)
+  })
+
+  it('rol desconocido, vacío o sin rol: ninguna de las dos', () => {
+    for (const rol of ['gerente', 'Admin', '', null, undefined]) {
+      expect(puedeAnular(rol)).toBe(false)
+      expect(puedeReactivar(rol)).toBe(false)
+    }
+  })
+})
 
 describe('puedeVerSeccion', () => {
   it('productor: solicitudes, proveedores e insumos', () => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AlertCircle, AlertTriangle, ArrowLeft, Loader2, Plus, Save } from 'lucide-react'
 import CampoNotas from '../../components/CampoNotas'
+import DetalleRegistro from '../../components/DetalleRegistro'
 import SelectorSubcategoria from '../../components/SelectorSubcategoria'
 import { claseBotonAdvertencia, claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import { useConfirmarSalida } from '../../hooks/useConfirmarSalida'
@@ -17,6 +18,7 @@ import {
   totalBoleta,
   valoresDesdePlantilla,
 } from '../../lib/boletas'
+import { estaAnulado } from '../../lib/anulacion'
 import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, gastosDePlantillaEnMes, mesDe } from '../../lib/gastos'
@@ -24,6 +26,7 @@ import { numeroAEditable } from '../../lib/numero'
 import { hoyISO } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import Campo from '../facturas/Campo'
+import { EMBEDS_BOLETA, detalleBoleta } from './detalleBoleta'
 import LineaBoleta from './LineaBoleta'
 import SelectorProveedor from './SelectorProveedor'
 
@@ -33,8 +36,10 @@ const SELECT_PROVEEDORES = 'id, nombre, rut'
 // nombre del proveedor distingue insumos homónimos en el selector.
 const SELECT_CATALOGO =
   'id, nombre, codigo, id_proveedor, cantidad_formato, formato_unidad, proveedor:proveedores(nombre), vinculos:insumos_proveedores_okima(id_insumo_okima, factor_conversion, insumo:insumos(id, nombre))'
+// `*` y los embebidos traen también el estado de anulación y lo que muestra la ficha de
+// solo lectura de una boleta anulada (no se edita desde la interfaz).
 const SELECT_BOLETA =
-  'id, concepto, id_subcategoria, id_proveedor, fecha, numero_documento, notas, monto, ' +
+  `*, ${EMBEDS_BOLETA}, ` +
   'lineas:detalle_boletas(id, created_at, descripcion, id_insumo_proveedor, cantidad, precio, subtotal)'
 
 const claseTarjeta = 'rounded-lg border border-slate-200 bg-white p-4 shadow-sm'
@@ -99,6 +104,8 @@ function FormularioBoleta({ id, idPlantilla }) {
   const [carga, setCarga] = useState(esNueva ? 'lista' : 'cargando')
   const [errorCarga, setErrorCarga] = useState(null)
   const [conceptoOriginal, setConceptoOriginal] = useState('')
+  // Boleta anulada: se muestra en solo lectura (la base tampoco deja editarla).
+  const [anulada, setAnulada] = useState(null)
   const [cabecera, setCabecera] = useState(cabeceraVacia)
   const [lineas, setLineas] = useState(() => [lineaBoletaVacia('nueva-0')])
   // Líneas tal como están guardadas: base del diff al editar.
@@ -152,6 +159,11 @@ function FormularioBoleta({ id, idPlantilla }) {
           // 22P02: el id de la URL no es un uuid válido.
           setCarga(!error || error.code === '22P02' ? 'no-encontrada' : 'error')
           setErrorCarga(error)
+          return
+        }
+        if (estaAnulado(data)) {
+          setAnulada(data)
+          setCarga('lista')
           return
         }
         const guardadas = [...(data.lineas ?? [])].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
@@ -396,6 +408,25 @@ function FormularioBoleta({ id, idPlantilla }) {
             </p>
           </div>
         )}
+      </section>
+    )
+  }
+
+  if (anulada) {
+    return (
+      <section className="mt-6">
+        <button
+          type="button"
+          onClick={volver}
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-indigo-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Volver al listado
+        </button>
+        <h2 className="mt-2 text-xl font-semibold text-slate-800">{anulada.concepto}</h2>
+        <div className={`${claseTarjeta} mt-4 max-w-4xl`}>
+          <DetalleRegistro detalle={detalleBoleta} fila={anulada} onCerrar={volver} tipo="boleta" />
+        </div>
       </section>
     )
   }

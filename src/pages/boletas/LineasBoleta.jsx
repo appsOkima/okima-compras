@@ -6,7 +6,7 @@ import { textoMovimientos } from '../../lib/vinculos'
 
 // movimientos: el stock que aplicó el trigger a cada insumo Okima (puede ser más de uno).
 const SELECT_LINEAS =
-  'id, created_at, descripcion, cantidad, precio, subtotal, insumo_proveedor:insumos_proveedores(nombre, codigo), movimientos:movimientos_stock(qty, insumo:insumos(nombre))'
+  'id, created_at, descripcion, cantidad, precio, subtotal, insumo_proveedor:insumos_proveedores(nombre, codigo), movimientos:movimientos_stock(qty, revertido, insumo:insumos(nombre))'
 
 const nombreInsumoProveedor = (l) => l.insumo_proveedor?.nombre ?? ''
 
@@ -37,7 +37,11 @@ const columnas = [
       l.movimientos?.length > 0 ? (
         <span>
           {l.movimientos.map((m, i) => (
-            <span key={i} className="block">
+            <span
+              key={i}
+              className={`block ${m.revertido ? 'text-slate-400 line-through' : ''}`}
+              title={m.revertido ? 'Stock revertido por la anulación del documento' : undefined}
+            >
               +{formatoNumero(m.qty)} <span className="text-xs text-slate-500">{m.insumo?.nombre ?? ''}</span>
             </span>
           ))}

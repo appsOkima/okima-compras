@@ -90,7 +90,7 @@ function Pendientes() {
     await recargar({ silencioso: true })
   }
 
-  // Marcar comprada o cancelar a mano (con confirmación); la fila sale de la lista al recargar.
+  // Marcar comprada o anular a mano (con confirmación); la fila sale de la lista al recargar.
   const cambiarEstado = async (fila, nuevoEstado) => {
     setErrorAccion('')
     setEnCurso(fila.id)
