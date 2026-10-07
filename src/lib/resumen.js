@@ -1,10 +1,10 @@
-// Resumen de gastos: facturas y otros gastos juntos, por mes y por centro de
-// costo (sin React ni Supabase, para poder verificarlo con node).
-import { vigentes } from './anulacion.js'
+// Resumen de gastos: suma los pagos (flujo de caja) de facturas y boletas, por mes
+// del pago y por centro de costo (sin React ni Supabase, para poder verificarlo con node).
+import { estaAnulado } from './anulacion.js'
 import { mesDe } from './gastos.js'
 
 // Valor del filtro "Centro de costo" para ver solo lo que no tiene subcategoría
-// (líneas de factura sin insumo Okima vinculado, gastos sin subcategoría).
+// (líneas de factura sin insumo Okima vinculado, boletas sin subcategoría).
 // No es un uuid, así que no choca con ningún id de categoría.
 export const SIN_CENTRO = 'sin-centro'
 
@@ -32,43 +32,46 @@ export function repartir(total, pesos) {
   return partes
 }
 
-// Factura → movimientos, uno por línea: su `total` (con IVA y descuento global)
-// se reparte en proporción al subtotal de cada línea. La subcategoría es la del
-// primer insumo Okima vinculado al insumo del proveedor (relación N:M; null si no está
-// vinculado). El reparto exacto con varios vínculos se redefine con los pagos (T7).
-// Sin líneas, o con subtotales que suman 0, todo el total queda sin centro de costo.
-// El total se lleva a pesos enteros (ya se guarda redondeado al peso).
-export function movimientosDeFactura(factura) {
-  const mes = mesDe(factura?.fecha)
-  const total = Math.round(numero(factura?.total))
-  const lineas = factura?.lineas ?? []
-  const pesos = lineas.map((l) => numero(l?.subtotal))
-  const sumaPesos = pesos.reduce((s, p) => s + p, 0)
-  if (lineas.length === 0 || sumaPesos <= 0) {
-    return [{ mes, origen: 'factura', idSubcategoria: null, monto: total }]
-  }
+// Reparte un monto de pago de una factura entre las subcategorías de sus líneas, en
+// proporción al subtotal de cada una (resto mayor: pesos enteros, suma exacta). La
+// subcategoría de una línea es la del primer insumo Okima vinculado al insumo del
+// proveedor (relación N:M; null si no está vinculado). Sin líneas, o con subtotales que
+// suman 0, todo el monto queda sin centro de costo. El monto se lleva a pesos enteros.
+export function repartirMonto(monto, lineas) {
+  const total = Math.round(numero(monto))
+  const pesos = (lineas ?? []).map((l) => numero(l?.subtotal))
+  if (pesos.reduce((s, p) => s + p, 0) <= 0) return [{ idSubcategoria: null, monto: total }]
   const partes = repartir(total, pesos)
   return lineas.map((l, i) => ({
-    mes,
-    origen: 'factura',
     idSubcategoria: l?.insumo_proveedor?.vinculos?.[0]?.insumo?.id_subcategoria ?? null,
     monto: partes[i],
   }))
 }
 
-// Otro gasto → un movimiento con su monto en su subcategoría.
-export function movimientoDeGasto(gasto) {
-  return {
-    mes: mesDe(gasto?.fecha),
-    origen: 'gasto',
-    idSubcategoria: gasto?.id_subcategoria || null,
-    monto: numero(gasto?.monto),
+// Pago → movimientos, en el mes de su `fecha_pago`. Un pago de factura se prorratea por
+// líneas (un pago parcial usa las mismas proporciones); uno de boleta va entero a su
+// subcategoría. Espera el documento embebido en `factura` o `boleta`.
+export function movimientosDePago(pago) {
+  const mes = mesDe(pago?.fecha_pago)
+  if (pago?.factura) {
+    return repartirMonto(pago.monto, pago.factura.lineas).map((m) => ({ mes, origen: 'factura', ...m }))
   }
+  return [
+    {
+      mes,
+      origen: 'boleta',
+      idSubcategoria: pago?.boleta?.id_subcategoria || null,
+      monto: Math.round(numero(pago?.monto)),
+    },
+  ]
 }
 
-// Los documentos anulados no cuentan (el Resumen ya los pide vigentes; esto es la red).
-export function movimientos(facturas, gastos) {
-  return [...vigentes(facturas).flatMap(movimientosDeFactura), ...vigentes(gastos).map(movimientoDeGasto)]
+// Los pagos de documentos anulados no cuentan (el Resumen ya los pide vigentes; esto es
+// la red). Un pago sin su documento embebido tampoco: no se sabría a qué centro va.
+export function movimientos(pagos) {
+  return (pagos ?? [])
+    .filter((p) => (p?.factura || p?.boleta) && !estaAnulado(p.factura ?? p.boleta))
+    .flatMap(movimientosDePago)
 }
 
 // subcategorias = [{ id, nombre, categoria: { id, nombre } }] → Map id → datos
