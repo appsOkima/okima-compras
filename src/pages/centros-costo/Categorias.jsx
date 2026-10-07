@@ -34,6 +34,7 @@ function Categorias() {
     <Mantenedor
       titulo="Categorías"
       descripcion="Centros de costo. Cada uno se desglosa en subcategorías."
+      entidad="categorias"
       tabla="categorias"
       select={SELECT}
       columnas={columnas}

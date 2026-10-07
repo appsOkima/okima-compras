@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mensajeError } from './errores'
+import { errorSinFilas, MENSAJE_SIN_FILAS, mensajeError } from './errores'
 
 describe('mensajeError', () => {
   it('42501 con mensaje de la base en español: se muestra tal cual', () => {
@@ -19,5 +19,23 @@ describe('mensajeError', () => {
   it('mantiene los mensajes existentes', () => {
     expect(mensajeError({ code: '23505' })).toBe('Ya existe un registro con esos datos.')
     expect(mensajeError(null)).toBe('')
+  })
+
+  it('PGRST116 (update con .single() sin filas, ej. RLS): mensaje de permiso o registro ausente', () => {
+    const error = { code: 'PGRST116', message: 'Cannot coerce the result to a single JSON object' }
+    expect(mensajeError(error)).toBe(MENSAJE_SIN_FILAS)
+  })
+})
+
+describe('errorSinFilas', () => {
+  it('con las filas esperadas: null', () => {
+    expect(errorSinFilas([{ id: 1 }])).toBeNull()
+    expect(errorSinFilas([{ id: 1 }, { id: 2 }], 2)).toBeNull()
+  })
+
+  it('vacío, ausente o menos filas de las esperadas: error con el mensaje de permiso', () => {
+    for (const [data, esperadas] of [[[], 1], [null, 1], [undefined, 1], [[{ id: 1 }], 2]]) {
+      expect(errorSinFilas(data, esperadas).message).toBe(MENSAJE_SIN_FILAS)
+    }
   })
 })

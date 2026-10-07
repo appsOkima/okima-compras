@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import PaginaRegistro from '../../components/PaginaRegistro'
 import { useTabla } from '../../hooks/useTabla'
-import { mensajeError } from '../../lib/errores'
+import { errorSinFilas, mensajeError } from '../../lib/errores'
 import { aNumeroDesdeTexto } from '../../lib/numero'
 import { campoNotas } from '../../lib/notas'
 import { supabase } from '../../lib/supabase'
@@ -43,12 +43,14 @@ async function guardarVinculos(guardado, valores, registro) {
   const { insertar, actualizar, eliminar } = cambiosVinculos(registro?.vinculos, valores.vinculos)
   try {
     if (eliminar.length > 0) {
-      const { error } = await supabase.from('insumos_proveedores_okima').delete().in('id', eliminar)
-      if (error) throw error
+      const { data, error } = await supabase.from('insumos_proveedores_okima').delete().in('id', eliminar).select('id')
+      const fallo = error ?? errorSinFilas(data, eliminar.length)
+      if (fallo) throw fallo
     }
     for (const { id, datos } of actualizar) {
-      const { error } = await supabase.from('insumos_proveedores_okima').update(datos).eq('id', id)
-      if (error) throw error
+      const { data, error } = await supabase.from('insumos_proveedores_okima').update(datos).eq('id', id).select('id')
+      const fallo = error ?? errorSinFilas(data)
+      if (fallo) throw fallo
     }
     if (insertar.length > 0) {
       const { error } = await supabase
@@ -133,6 +135,7 @@ function FormularioInsumoProveedor() {
   return (
     <PaginaRegistro
       titulo="insumo del proveedor"
+      entidad="catalogo"
       tabla="insumos_proveedores"
       select={SELECT}
       campos={campos}

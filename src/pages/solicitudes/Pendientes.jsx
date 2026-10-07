@@ -7,7 +7,7 @@ import Notas from '../../components/Notas'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
-import { mensajeError } from '../../lib/errores'
+import { errorSinFilas, mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
 import { notasImpresion } from '../../lib/notas'
 import { compararPendientes, estadoFechaTope, hoyISO, metaUrgencia } from '../../lib/solicitudes'
@@ -81,9 +81,11 @@ function Pendientes() {
 
   const guardar = async (datos) => {
     const registro = edicion?.registro
-    const { error: errorGuardar } = registro
-      ? await supabase.from('solicitudes_compra').update(datos).eq('id', registro.id)
+    const { data, error } = registro
+      ? await supabase.from('solicitudes_compra').update(datos).eq('id', registro.id).select('id')
       : await supabase.from('solicitudes_compra').insert(datos)
+    // Un UPDATE denegado por el RLS no da error: afecta 0 filas.
+    const errorGuardar = error ?? (registro ? errorSinFilas(data) : null)
     if (errorGuardar) throw errorGuardar
     setEdicion(null)
     // Se recarga la vista: trae el nombre del insumo y los proveedores sugeridos.
@@ -96,10 +98,12 @@ function Pendientes() {
     setEnCurso(fila.id)
     try {
       if (!(await confirmarCambioEstado(fila, nuevoEstado))) return
-      const { error: errorCambio } = await supabase
+      const { data, error } = await supabase
         .from('solicitudes_compra')
         .update({ estado: nuevoEstado })
         .eq('id', fila.id)
+        .select('id')
+      const errorCambio = error ?? errorSinFilas(data)
       if (errorCambio) throw errorCambio
       await recargar({ silencioso: true })
     } catch (e) {

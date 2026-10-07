@@ -44,3 +44,30 @@ export const puedeRegistrarPago = (rol) => rol === 'contador' || rol === 'admin'
 export const puedeEditarPago = (rol) => rol === 'admin'
 
 export const puedeBorrarPago = (rol) => rol === 'admin'
+
+// Crear / editar / borrar por entidad (migración T3b, rls-por-rol; ahí está la matriz
+// completa). Un UPDATE o DELETE denegado por el RLS no da error, afecta 0 filas: por eso
+// la interfaz no ofrece lo que el rol no puede hacer. Facturas y boletas: el contador
+// borra solo la cabecera de un guardado fallido (rollback), no hay botón. Entidad o
+// acción desconocida, rol desconocido o sin perfil: nada.
+const C = 'crear'
+const U = 'editar'
+const D = 'borrar'
+const todo = [C, U, D]
+const contadorEstandar = [C, U]
+
+const permisosPorEntidad = {
+  solicitudes: { productor: [C, U], contador: [C, U], admin: todo },
+  proveedores: { contador: contadorEstandar, admin: todo },
+  catalogo: { contador: contadorEstandar, admin: todo },
+  insumos: { productor: [C, U], contador: [C, U], admin: todo },
+  vinculos: { productor: [C, U], contador: todo, admin: todo },
+  facturas: { contador: contadorEstandar, admin: todo },
+  boletas: { contador: contadorEstandar, admin: todo },
+  plantillas: { admin: todo },
+  categorias: { admin: todo },
+  subcategorias: { admin: todo },
+}
+
+export const puedeHacer = (rol, entidad, accion) =>
+  esRolValido(rol) && (Object.hasOwn(permisosPorEntidad, entidad) ? (permisosPorEntidad[entidad][rol]?.includes(accion) ?? false) : false)

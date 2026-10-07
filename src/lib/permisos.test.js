@@ -5,6 +5,7 @@ import {
   puedeAnular,
   puedeBorrarPago,
   puedeEditarPago,
+  puedeHacer,
   puedeReactivar,
   puedeRegistrarPago,
   puedeVerSeccion,
@@ -115,5 +116,46 @@ describe('esRolValido', () => {
     expect(esRolValido('Admin')).toBe(false)
     expect(esRolValido('toString')).toBe(false)
     expect(esRolValido(null)).toBe(false)
+  })
+})
+
+// Matriz de la migración T3b (rls-por-rol): C=crear, U=editar, D=borrar por entidad y rol.
+const MATRIZ = {
+  solicitudes: { productor: 'CU', contador: 'CU', admin: 'CUD' },
+  proveedores: { productor: '', contador: 'CU', admin: 'CUD' },
+  catalogo: { productor: '', contador: 'CU', admin: 'CUD' },
+  insumos: { productor: 'CU', contador: 'CU', admin: 'CUD' },
+  vinculos: { productor: 'CU', contador: 'CUD', admin: 'CUD' },
+  facturas: { productor: '', contador: 'CU', admin: 'CUD' },
+  boletas: { productor: '', contador: 'CU', admin: 'CUD' },
+  plantillas: { productor: '', contador: '', admin: 'CUD' },
+  categorias: { productor: '', contador: '', admin: 'CUD' },
+  subcategorias: { productor: '', contador: '', admin: 'CUD' },
+}
+const LETRA = { crear: 'C', editar: 'U', borrar: 'D' }
+
+describe('puedeHacer', () => {
+  for (const [entidad, porRol] of Object.entries(MATRIZ)) {
+    for (const [rol, letras] of Object.entries(porRol)) {
+      it(`${entidad} / ${rol}: ${letras || 'nada'}`, () => {
+        for (const accion of Object.keys(LETRA)) {
+          expect(puedeHacer(rol, entidad, accion)).toBe(letras.includes(LETRA[accion]))
+        }
+      })
+    }
+  }
+
+  it('rol desconocido, vacío o sin rol: nada', () => {
+    for (const rol of ['gerente', 'Admin', '', null, undefined]) {
+      for (const entidad of Object.keys(MATRIZ)) {
+        for (const accion of Object.keys(LETRA)) expect(puedeHacer(rol, entidad, accion)).toBe(false)
+      }
+    }
+  })
+
+  it('entidad o acción desconocida: nada, incluso para admin', () => {
+    expect(puedeHacer('admin', 'pagos', 'crear')).toBe(false)
+    expect(puedeHacer('admin', 'solicitudes', 'leer')).toBe(false)
+    expect(puedeHacer('admin', 'toString', 'crear')).toBe(false)
   })
 })

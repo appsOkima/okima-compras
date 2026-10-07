@@ -147,6 +147,7 @@ function Boletas() {
     <Mantenedor
       titulo="Boletas"
       descripcion="Boletas con sus líneas (arriendo, sueldos, pago de IVA, servicios), del más reciente al más antiguo."
+      entidad="boletas"
       tabla="boletas"
       select={SELECT}
       orden={ORDEN}

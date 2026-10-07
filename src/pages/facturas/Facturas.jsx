@@ -10,12 +10,14 @@ import Interruptor from '../../components/Interruptor'
 import Modal from '../../components/Modal'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseInput } from '../../components/estilos'
+import { useAuth } from '../../auth/contexto'
 import { useEstadosPago } from '../../hooks/useEstadosPago'
 import { useTabla } from '../../hooks/useTabla'
 import { estaAnulado, vigentes } from '../../lib/anulacion'
 import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
 import { etiquetaMes, mesDe, mesesPresentes, sumaCampo } from '../../lib/gastos'
+import { puedeHacer } from '../../lib/permisos'
 import { mensajeBorradoDocumento, textoEstadoPago } from '../../lib/pagos'
 import { hoyISO } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
@@ -84,6 +86,10 @@ const columnasFacturas = (estados) => [
 function Facturas() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { perfil } = useAuth()
+  const puedeCrear = puedeHacer(perfil?.rol, 'facturas', 'crear')
+  const puedeEditar = puedeHacer(perfil?.rol, 'facturas', 'editar')
+  const puedeBorrar = puedeHacer(perfil?.rol, 'facturas', 'borrar')
   const { filas, cargando, error, actualizar, eliminar } = useTabla('facturas', { select: SELECT, orden: ORDEN })
   const { estados, recargar: recargarEstados } = useEstadosPago('factura')
   const columnas = useMemo(() => columnasFacturas(estados), [estados])
@@ -190,10 +196,12 @@ function Facturas() {
             y el descuento en %.
           </p>
         </div>
-        <Link to="/facturas/nueva" className={claseBotonPrimario}>
-          <Plus className="h-4 w-4" />
-          Nueva factura
-        </Link>
+        {puedeCrear && (
+          <Link to="/facturas/nueva" className={claseBotonPrimario}>
+            <Plus className="h-4 w-4" />
+            Nueva factura
+          </Link>
+        )}
       </div>
 
       {aviso && (
@@ -240,7 +248,7 @@ function Facturas() {
               >
                 <Eye className="h-4 w-4" />
               </button>
-              {!estaAnulado(f) && (
+              {puedeEditar && !estaAnulado(f) && (
                 <Link
                   to={`/facturas/${f.id}`}
                   className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
@@ -260,15 +268,17 @@ function Facturas() {
                 }}
                 cargarSolicitudes={cargarSolicitudes}
               />
-              <button
-                type="button"
-                onClick={() => borrar(f)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                aria-label={`Eliminar la factura ${f.numero_factura}`}
-                title="Eliminar"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {puedeBorrar && (
+                <button
+                  type="button"
+                  onClick={() => borrar(f)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                  aria-label={`Eliminar la factura ${f.numero_factura}`}
+                  title="Eliminar"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           )}
         />
@@ -292,7 +302,7 @@ function Facturas() {
         <Modal titulo={titulo(filaDetalle)} onCerrar={() => setIdDetalle(null)} ancho="max-w-4xl">
           <DetalleFactura
             factura={filaDetalle}
-            onEditar={estaAnulado(filaDetalle) ? undefined : () => navigate(`/facturas/${filaDetalle.id}`)}
+            onEditar={!puedeEditar || estaAnulado(filaDetalle) ? undefined : () => navigate(`/facturas/${filaDetalle.id}`)}
             onCerrar={() => setIdDetalle(null)}
             onPagosCambiaron={recargarEstados}
           />

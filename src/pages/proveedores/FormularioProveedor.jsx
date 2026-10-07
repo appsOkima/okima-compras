@@ -36,6 +36,7 @@ function FormularioProveedor() {
   return (
     <PaginaRegistro
       titulo="proveedor"
+      entidad="proveedores"
       tabla="proveedores"
       campos={campos}
       valoresIniciales={valoresIniciales}

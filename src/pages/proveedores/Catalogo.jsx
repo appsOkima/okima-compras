@@ -67,6 +67,7 @@ function Catalogo() {
     <Mantenedor
       titulo="Catálogo"
       descripcion="Insumos tal como los vende cada proveedor, con su precio, formato de compra y los insumos Okima a los que suman stock (× factor de conversión)."
+      entidad="catalogo"
       tabla="insumos_proveedores"
       select={SELECT}
       columnas={columnas}

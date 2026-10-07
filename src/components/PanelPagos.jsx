@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertCircle, AlertTriangle, Pencil, Trash2, X } from 'lucide-react'
 import { useAuth } from '../auth/contexto'
 import { estaAnulado } from '../lib/anulacion'
-import { mensajeError } from '../lib/errores'
+import { errorSinFilas, mensajeError } from '../lib/errores'
 import { formatoCLP, formatoFecha } from '../lib/formato'
 import { numeroAEditable } from '../lib/numero'
 import { avisoSobrepago, montoSugerido, puedeAgregarPago, saldoDe } from '../lib/pagos'
@@ -92,8 +92,9 @@ function PanelPagos({ tipo, documento, onCambio }) {
   }
 
   const editar = async (datos) => {
-    const { error: errorActualizar } = await supabase.from('pagos').update(datos).eq('id', edicion.id)
-    if (errorActualizar) throw errorActualizar
+    const { data, error: errorActualizar } = await supabase.from('pagos').update(datos).eq('id', edicion.id).select('id')
+    const fallo = errorActualizar ?? errorSinFilas(data)
+    if (fallo) throw fallo
     tras()
   }
 
@@ -101,7 +102,8 @@ function PanelPagos({ tipo, documento, onCambio }) {
     const pregunta = `¿Eliminar el pago de ${formatoCLP(pago.monto)} del ${formatoFecha(pago.fecha_pago)}?`
     if (!window.confirm(`${pregunta} Esta acción no se puede deshacer.`)) return
     setErrorAccion('')
-    const { error: errorBorrar } = await supabase.from('pagos').delete().eq('id', pago.id)
+    const { data, error } = await supabase.from('pagos').delete().eq('id', pago.id).select('id')
+    const errorBorrar = error ?? errorSinFilas(data)
     if (errorBorrar) return setErrorAccion(mensajeError(errorBorrar))
     tras()
   }

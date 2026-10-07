@@ -9,7 +9,7 @@
 --   * Montos en CLP (numeric), sin excepciones.
 --   * Campos nullable donde la "creación al vuelo" los deja vacíos.
 --   * Sin UNIQUE sobre `nombre`: el chequeo de duplicados es de aplicación.
---   * Sin login: RLS habilitado con políticas permisivas para anon y authenticated.
+--   * RLS por rol (Sprint 2 / T3b): sin acceso para anon; políticas por rol al final del archivo.
 -- =============================================================================
 
 begin;
@@ -223,8 +223,8 @@ create table movimientos_stock (
 create unique index movimientos_stock_detalle_factura_insumo_key on movimientos_stock (id_detalle_factura, id_insumo);
 create index movimientos_stock_id_insumo_idx on movimientos_stock (id_insumo);
 
--- SECURITY DEFINER: más adelante el RLS por rol impedirá que algunos roles
--- actualicen insumos; el stock lo mueve siempre el trigger.
+-- SECURITY DEFINER: el RLS por rol impide que algunos roles actualicen insumos;
+-- el stock lo mueve siempre el trigger.
 create function aplicar_movimiento_stock()
 returns trigger
 language plpgsql
@@ -821,37 +821,373 @@ comment on view vista_estado_pago is
   'Una fila por factura/boleta con pagado y saldo (total - pagado). estado_pago: anulado | pagado (pagado >= total; sobrepago = saldo negativo) | pendiente | parcial.';
 
 -- -----------------------------------------------------------------------------
--- RLS: habilitado en todas las tablas, acceso total sin login (MVP)
+-- RLS por rol (Sprint 2 / T3b). Detalle: migraciones/2026-10-02-11-rls-por-rol.sql
 -- -----------------------------------------------------------------------------
+-- Todo el acceso requiere sesión con perfil: anon no tiene privilegios y sin perfil
+-- (rol_actual() null) no se ve nada. perfiles conserva perfiles_lectura (definida arriba).
+-- Políticas separadas por tabla y comando; (select ...) hace que rol_actual() se evalúe una vez.
+--
+-- Matriz aplicada (S = select, I = insert, U = update, D = delete); p = productor, c = contador, a = admin:
+--   categorias                     S:pca I:a   U:a   D:a
+--   subcategorias                  S:pca I:a   U:a   D:a
+--   proveedores                    S:pca I:ca  U:ca  D:a
+--   insumos_proveedores            S:pca I:ca  U:ca  D:a
+--   insumos                        S:pca I:pca U:pca D:a
+--   insumos_proveedores_okima      S:pca I:pca U:pca D:ca
+--   solicitudes_compra             S:pca I:pca U:pca D:a
+--   facturas                       S:ca  I:ca  U:ca  D:a
+--   detalle_facturas               S:ca  I:ca  U:ca  D:ca
+--   movimientos_stock              S:ca  I:a   U:a   D:a
+--   plantillas_gastos_recurrentes  S:ca  I:a   U:a   D:a
+--   boletas                        S:ca  I:ca  U:ca  D:a
+--   detalle_boletas                S:ca  I:ca  U:ca  D:ca
+--   pagos                          S:ca  I:ca  U:a   D:a
+--   perfiles: perfiles_lectura (select authenticated), sin políticas de escritura (ni siquiera admin).
+--   anon: ningún acceso. Sin sesión o sin perfil (rol_actual() null): ningún acceso.
 do $$
 declare
-  t text;
+  r record;
 begin
-  foreach t in array array[
-    'categorias',
-    'subcategorias',
-    'proveedores',
-    'insumos',
-    'insumos_proveedores',
-    'insumos_proveedores_okima',
-    'solicitudes_compra',
-    'facturas',
-    'detalle_facturas',
-    'movimientos_stock',
-    'plantillas_gastos_recurrentes',
-    'boletas',
-    'detalle_boletas',
-    'pagos'
-  ]
+  for r in
+    select c.relname
+    from pg_class c
+    join pg_namespace ns on ns.oid = c.relnamespace
+    where ns.nspname = 'public' and c.relkind in ('r', 'p')
   loop
-    execute format('alter table %I enable row level security', t);
-    execute format(
-      'create policy "acceso_publico" on %I for all to anon, authenticated using (true) with check (true)',
-      t
-    );
+    execute format('alter table public.%I enable row level security', r.relname);
   end loop;
 end
 $$;
+
+-- categorias: select → productor, contador, admin
+create policy categorias_select on public.categorias
+  for select to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- categorias: insert → admin
+create policy categorias_insert on public.categorias
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('admin'));
+
+-- categorias: update → admin
+create policy categorias_update on public.categorias
+  for update to authenticated
+  using ((select public.rol_actual()) in ('admin'))
+  with check ((select public.rol_actual()) in ('admin'));
+
+-- categorias: delete → admin
+create policy categorias_delete on public.categorias
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('admin'));
+
+-- subcategorias: select → productor, contador, admin
+create policy subcategorias_select on public.subcategorias
+  for select to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- subcategorias: insert → admin
+create policy subcategorias_insert on public.subcategorias
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('admin'));
+
+-- subcategorias: update → admin
+create policy subcategorias_update on public.subcategorias
+  for update to authenticated
+  using ((select public.rol_actual()) in ('admin'))
+  with check ((select public.rol_actual()) in ('admin'));
+
+-- subcategorias: delete → admin
+create policy subcategorias_delete on public.subcategorias
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('admin'));
+
+-- proveedores: select → productor, contador, admin
+create policy proveedores_select on public.proveedores
+  for select to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- proveedores: insert → contador, admin
+create policy proveedores_insert on public.proveedores
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- proveedores: update → contador, admin
+create policy proveedores_update on public.proveedores
+  for update to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'))
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- proveedores: delete → admin
+create policy proveedores_delete on public.proveedores
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('admin'));
+
+-- insumos_proveedores: select → productor, contador, admin
+create policy insumos_proveedores_select on public.insumos_proveedores
+  for select to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- insumos_proveedores: insert → contador, admin
+create policy insumos_proveedores_insert on public.insumos_proveedores
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- insumos_proveedores: update → contador, admin
+create policy insumos_proveedores_update on public.insumos_proveedores
+  for update to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'))
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- insumos_proveedores: delete → admin
+create policy insumos_proveedores_delete on public.insumos_proveedores
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('admin'));
+
+-- insumos: select → productor, contador, admin
+create policy insumos_select on public.insumos
+  for select to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- insumos: insert → productor, contador, admin
+create policy insumos_insert on public.insumos
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- insumos: update → productor, contador, admin
+create policy insumos_update on public.insumos
+  for update to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'))
+  with check ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- insumos: delete → admin
+create policy insumos_delete on public.insumos
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('admin'));
+
+-- insumos_proveedores_okima: select → productor, contador, admin
+create policy insumos_proveedores_okima_select on public.insumos_proveedores_okima
+  for select to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- insumos_proveedores_okima: insert → productor, contador, admin
+create policy insumos_proveedores_okima_insert on public.insumos_proveedores_okima
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- insumos_proveedores_okima: update → productor, contador, admin
+create policy insumos_proveedores_okima_update on public.insumos_proveedores_okima
+  for update to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'))
+  with check ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- insumos_proveedores_okima: delete → contador, admin
+create policy insumos_proveedores_okima_delete on public.insumos_proveedores_okima
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- solicitudes_compra: select → productor, contador, admin
+create policy solicitudes_compra_select on public.solicitudes_compra
+  for select to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- solicitudes_compra: insert → productor, contador, admin
+create policy solicitudes_compra_insert on public.solicitudes_compra
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- solicitudes_compra: update → productor, contador, admin
+create policy solicitudes_compra_update on public.solicitudes_compra
+  for update to authenticated
+  using ((select public.rol_actual()) in ('productor', 'contador', 'admin'))
+  with check ((select public.rol_actual()) in ('productor', 'contador', 'admin'));
+
+-- solicitudes_compra: delete → admin
+create policy solicitudes_compra_delete on public.solicitudes_compra
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('admin'));
+
+-- facturas: select → contador, admin
+create policy facturas_select on public.facturas
+  for select to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- facturas: insert → contador, admin
+create policy facturas_insert on public.facturas
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- facturas: update → contador, admin
+create policy facturas_update on public.facturas
+  for update to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'))
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- facturas: delete → admin
+create policy facturas_delete on public.facturas
+  for delete to authenticated
+  using (
+    (select public.rol_actual()) in ('admin')
+    -- El contador solo puede deshacer su propia cabecera recién creada, mientras no tiene líneas ni
+    -- pagos (rollback del formulario cuando fallan las líneas); no borra documentos ya armados.
+    or ((select public.rol_actual()) = 'contador'
+        and created_by = (select auth.uid())
+        and not exists (select 1 from public.detalle_facturas d where d.id_factura = facturas.id)
+        and not exists (select 1 from public.pagos p where p.id_factura = facturas.id))
+  );
+
+-- detalle_facturas: select → contador, admin
+create policy detalle_facturas_select on public.detalle_facturas
+  for select to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- detalle_facturas: insert → contador, admin
+create policy detalle_facturas_insert on public.detalle_facturas
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- detalle_facturas: update → contador, admin
+create policy detalle_facturas_update on public.detalle_facturas
+  for update to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'))
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- detalle_facturas: delete → contador, admin
+create policy detalle_facturas_delete on public.detalle_facturas
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- movimientos_stock: select → contador, admin
+create policy movimientos_stock_select on public.movimientos_stock
+  for select to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- movimientos_stock: insert → admin
+create policy movimientos_stock_insert on public.movimientos_stock
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('admin'));
+
+-- movimientos_stock: update → admin
+create policy movimientos_stock_update on public.movimientos_stock
+  for update to authenticated
+  using ((select public.rol_actual()) in ('admin'))
+  with check ((select public.rol_actual()) in ('admin'));
+
+-- movimientos_stock: delete → admin
+create policy movimientos_stock_delete on public.movimientos_stock
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('admin'));
+
+-- plantillas_gastos_recurrentes: select → contador, admin
+create policy plantillas_gastos_recurrentes_select on public.plantillas_gastos_recurrentes
+  for select to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- plantillas_gastos_recurrentes: insert → admin
+create policy plantillas_gastos_recurrentes_insert on public.plantillas_gastos_recurrentes
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('admin'));
+
+-- plantillas_gastos_recurrentes: update → admin
+create policy plantillas_gastos_recurrentes_update on public.plantillas_gastos_recurrentes
+  for update to authenticated
+  using ((select public.rol_actual()) in ('admin'))
+  with check ((select public.rol_actual()) in ('admin'));
+
+-- plantillas_gastos_recurrentes: delete → admin
+create policy plantillas_gastos_recurrentes_delete on public.plantillas_gastos_recurrentes
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('admin'));
+
+-- boletas: select → contador, admin
+create policy boletas_select on public.boletas
+  for select to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- boletas: insert → contador, admin
+create policy boletas_insert on public.boletas
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- boletas: update → contador, admin
+create policy boletas_update on public.boletas
+  for update to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'))
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- boletas: delete → admin
+create policy boletas_delete on public.boletas
+  for delete to authenticated
+  using (
+    (select public.rol_actual()) in ('admin')
+    -- El contador solo puede deshacer su propia cabecera recién creada, mientras no tiene líneas ni
+    -- pagos (rollback del formulario cuando fallan las líneas); no borra documentos ya armados.
+    or ((select public.rol_actual()) = 'contador'
+        and created_by = (select auth.uid())
+        and not exists (select 1 from public.detalle_boletas d where d.id_boleta = boletas.id)
+        and not exists (select 1 from public.pagos p where p.id_boleta = boletas.id))
+  );
+
+-- detalle_boletas: select → contador, admin
+create policy detalle_boletas_select on public.detalle_boletas
+  for select to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- detalle_boletas: insert → contador, admin
+create policy detalle_boletas_insert on public.detalle_boletas
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- detalle_boletas: update → contador, admin
+create policy detalle_boletas_update on public.detalle_boletas
+  for update to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'))
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- detalle_boletas: delete → contador, admin
+create policy detalle_boletas_delete on public.detalle_boletas
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- pagos: select → contador, admin
+create policy pagos_select on public.pagos
+  for select to authenticated
+  using ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- pagos: insert → contador, admin
+create policy pagos_insert on public.pagos
+  for insert to authenticated
+  with check ((select public.rol_actual()) in ('contador', 'admin'));
+
+-- pagos: update → admin
+create policy pagos_update on public.pagos
+  for update to authenticated
+  using ((select public.rol_actual()) in ('admin'))
+  with check ((select public.rol_actual()) in ('admin'));
+
+-- pagos: delete → admin
+create policy pagos_delete on public.pagos
+  for delete to authenticated
+  using ((select public.rol_actual()) in ('admin'));
+
+-- anon: ningún privilegio sobre tablas, vistas, secuencias ni funciones del esquema public
+-- (service_role no se toca). Los default privileges evitan que objetos futuros vuelvan a
+-- concedérselos (aplican al rol que ejecuta, normalmente postgres en el SQL Editor).
+revoke all on all tables in schema public from anon;
+revoke all on all sequences in schema public from anon;
+revoke execute on all functions in schema public from anon;
+alter default privileges in schema public revoke all on tables from anon;
+alter default privileges in schema public revoke all on sequences from anon;
+alter default privileges in schema public revoke execute on functions from anon;
+
+-- authenticated: DML sobre las tablas (el RLS decide qué filas y qué rol); sin TRUNCATE
+-- (no pasa por RLS), REFERENCES ni TRIGGER. Las vistas son de solo lectura y perfiles no se
+-- escribe desde clientes (se llena con el trigger de auth.users o con service_role).
+grant select, insert, update, delete on all tables in schema public to authenticated;
+revoke truncate, references, trigger on all tables in schema public from authenticated;
+revoke insert, update, delete on public.perfiles from authenticated;
+revoke insert, update, delete on public.vista_solicitudes_pendientes from authenticated;
+revoke insert, update, delete on public.vista_estado_pago from authenticated;
+grant execute on function public.rol_actual() to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- Datos semilla

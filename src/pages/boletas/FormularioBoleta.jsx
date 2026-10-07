@@ -20,7 +20,7 @@ import {
   valoresDesdePlantilla,
 } from '../../lib/boletas'
 import { estaAnulado } from '../../lib/anulacion'
-import { mensajeError } from '../../lib/errores'
+import { errorSinFilas, mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, gastosDePlantillaEnMes, mesDe } from '../../lib/gastos'
 import { numeroAEditable } from '../../lib/numero'
@@ -298,19 +298,22 @@ function FormularioBoleta({ id, idPlantilla }) {
   // camino, lo ya aplicado pasa a ser la base del diff para que volver a guardar
   // no duplique ni repita cambios.
   const actualizarBoleta = async (datosCab, datosLineas) => {
-    const { error } = await supabase.from('boletas').update(datosCab).eq('id', id)
-    if (error) throw error
+    const { data, error } = await supabase.from('boletas').update(datosCab).eq('id', id).select('id')
+    const fallo = error ?? errorSinFilas(data)
+    if (fallo) throw fallo
     const { eliminar, actualizar, insertar } = diffLineasBoleta(originales, datosLineas)
     let vigentes = originales
     try {
       if (eliminar.length > 0) {
-        const { error: errorEliminar } = await supabase.from('detalle_boletas').delete().in('id', eliminar)
-        if (errorEliminar) throw errorEliminar
+        const { data, error: errorEliminar } = await supabase.from('detalle_boletas').delete().in('id', eliminar).select('id')
+        const fallo = errorEliminar ?? errorSinFilas(data, eliminar.length)
+        if (fallo) throw fallo
         vigentes = vigentes.filter((o) => !eliminar.includes(o.id))
       }
       for (const { id: idLinea, datos } of actualizar) {
-        const { error: errorActualizar } = await supabase.from('detalle_boletas').update(datos).eq('id', idLinea)
-        if (errorActualizar) throw errorActualizar
+        const { data, error: errorActualizar } = await supabase.from('detalle_boletas').update(datos).eq('id', idLinea).select('id')
+        const fallo = errorActualizar ?? errorSinFilas(data)
+        if (fallo) throw fallo
         vigentes = vigentes.map((o) => (o.id === idLinea ? { ...o, ...datos } : o))
       }
       if (insertar.length > 0) {

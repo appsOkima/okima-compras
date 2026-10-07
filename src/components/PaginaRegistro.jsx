@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react'
+import { useAuth } from '../auth/contexto'
 import { useConfirmarSalida } from '../hooks/useConfirmarSalida'
 import { useTabla } from '../hooks/useTabla'
 import { buscarDuplicados as buscarDuplicadosEn } from '../lib/duplicados'
 import { mensajeError } from '../lib/errores'
+import { puedeHacer } from '../lib/permisos'
 import FormularioRegistro from './FormularioRegistro'
 
 const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
@@ -34,12 +36,15 @@ const mayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1)
 //   deben estar antes de armar el formulario (ej. la plantilla de una boleta): se
 //   espera igual que al registro, y `errorExtra` (texto) se muestra en su lugar
 //   con el enlace de vuelta al listado.
+// - `entidad` (ver lib/permisos): si el rol no puede crear / editar, la página no muestra
+//   el formulario sino un aviso con el enlace de vuelta al listado.
 // Carga la tabla completa con useTabla: sirve para encontrar el registro y como
 // candidatos del aviso de duplicados, igual que en el listado.
 // Con cambios sin guardar, salir de la página (Volver, Cancelar, menú, pestañas,
 // atrás del navegador, recargar) pide confirmación (useConfirmarSalida).
 function PaginaRegistro({
   titulo,
+  entidad,
   femenino = false,
   descripcion,
   tituloNuevo,
@@ -62,6 +67,7 @@ function PaginaRegistro({
   errorExtra,
 }) {
   const { id } = useParams()
+  const { perfil } = useAuth()
   const navigate = useNavigate()
   const { filas, cargando, error, crear, actualizar } = useTabla(tabla, { select, orden })
   const contenedor = useRef(null)
@@ -70,6 +76,7 @@ function PaginaRegistro({
   const permitirSalida = useConfirmarSalida(sucio)
 
   const esNuevo = !id
+  const permitido = puedeHacer(perfil?.rol, entidad, esNuevo ? 'crear' : 'editar')
   const registro = esNuevo ? null : (filas.find((f) => f.id === id) ?? null)
   const camposFormulario = typeof campos === 'function' ? campos(registro) : campos
   // Se espera la carga también al crear: sin las filas el aviso de duplicados no vería nada.
@@ -104,6 +111,22 @@ function PaginaRegistro({
 
   // Si hay cambios sin guardar, el bloqueo de useConfirmarSalida pregunta antes.
   const volver = () => navigate(rutaListado)
+
+  if (!permitido) {
+    return (
+      <section className="mt-6">
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="alert">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="flex-1">
+            Tu rol no puede {esNuevo ? 'crear' : 'editar'} {femenino ? 'esta' : 'este'} {titulo}.{' '}
+            <Link to={rutaListado} className="font-medium underline">
+              Volver al listado
+            </Link>
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   if (!listo) {
     return (

@@ -7,7 +7,7 @@ import Modal from '../../components/Modal'
 import TablaDatos from '../../components/TablaDatos'
 import { claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
-import { mensajeError } from '../../lib/errores'
+import { errorSinFilas, mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { mesDe } from '../../lib/gastos'
 import { numeroAEditable } from '../../lib/numero'
@@ -93,8 +93,9 @@ function Pagos() {
   }
 
   const guardarEdicion = async (datos) => {
-    const { error: errorActualizar } = await supabase.from('pagos').update(datos).eq('id', edicion.pago.id)
-    if (errorActualizar) throw errorActualizar
+    const { data, error: errorActualizar } = await supabase.from('pagos').update(datos).eq('id', edicion.pago.id).select('id')
+    const fallo = errorActualizar ?? errorSinFilas(data)
+    if (fallo) throw fallo
     setEdicion(null)
     await recargar({ silencioso: true })
   }
@@ -103,7 +104,8 @@ function Pagos() {
     const pregunta = `¿Eliminar el pago de ${formatoCLP(pago.monto)} del ${formatoFecha(pago.fecha_pago)} (${textoDocumento(pago)})?`
     if (!window.confirm(`${pregunta} Esta acción no se puede deshacer.`)) return
     setErrorAccion('')
-    const { error: errorBorrar } = await supabase.from('pagos').delete().eq('id', pago.id)
+    const { data, error } = await supabase.from('pagos').delete().eq('id', pago.id).select('id')
+    const errorBorrar = error ?? errorSinFilas(data)
     if (errorBorrar) return setErrorAccion(mensajeError(errorBorrar))
     await recargar({ silencioso: true })
   }

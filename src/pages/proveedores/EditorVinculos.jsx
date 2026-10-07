@@ -1,9 +1,11 @@
 import { useRef } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
+import { useAuth } from '../../auth/contexto'
 import Combobox from '../../components/Combobox'
 import InputNumero from '../../components/InputNumero'
 import { claseBotonSecundario, claseInput } from '../../components/estilos'
 import { numeroAEditable } from '../../lib/numero'
+import { puedeHacer } from '../../lib/permisos'
 import { factorPorDefecto } from '../../lib/vinculos'
 
 // Lista editable de vínculos de un insumo del proveedor: filas { insumo Okima,
@@ -12,7 +14,11 @@ import { factorPorDefecto } from '../../lib/vinculos'
 // `opciones` = opciones del Combobox de insumos Okima; `cantidadFormato` (número o
 // null) da el factor por defecto de una fila nueva. Un insumo Okima ya elegido en
 // otra fila no se ofrece de nuevo (la base no admite el mismo par dos veces).
+// Quitar un vínculo ya guardado lo borra de la base: solo contador y admin (el productor
+// puede quitar las filas que acaba de agregar, aún sin guardar).
 function EditorVinculos({ id, valor, onChange, opciones, cantidadFormato, cargando = false }) {
+  const { perfil } = useAuth()
+  const puedeBorrar = puedeHacer(perfil?.rol, 'vinculos', 'borrar')
   const filas = Array.isArray(valor) ? valor : []
   const siguiente = useRef(0)
 
@@ -51,15 +57,17 @@ function EditorVinculos({ id, valor, onChange, opciones, cantidadFormato, cargan
               aria-label={`Factor de conversión del vínculo ${i + 1}`}
             />
           </label>
-          <button
-            type="button"
-            onClick={() => quitarFila(fila.clave)}
-            className="rounded-md p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"
-            aria-label={`Quitar vínculo ${i + 1}`}
-            title="Quitar vínculo"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {(puedeBorrar || !fila.id) && (
+            <button
+              type="button"
+              onClick={() => quitarFila(fila.clave)}
+              className="rounded-md p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"
+              aria-label={`Quitar vínculo ${i + 1}`}
+              title="Quitar vínculo"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ))}
       <button type="button" onClick={agregarFila} className={claseBotonSecundario}>

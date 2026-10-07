@@ -65,6 +65,7 @@ function FormularioInsumo() {
   return (
     <PaginaRegistro
       titulo="insumo Okima"
+      entidad="insumos"
       tabla="insumos"
       select={SELECT}
       campos={campos}

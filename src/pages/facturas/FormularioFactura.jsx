@@ -7,7 +7,7 @@ import InputNumero from '../../components/InputNumero'
 import SwitchPagoContado from '../../components/SwitchPagoContado'
 import { useTabla } from '../../hooks/useTabla'
 import { estaAnulado } from '../../lib/anulacion'
-import { mensajeError } from '../../lib/errores'
+import { errorSinFilas, mensajeError } from '../../lib/errores'
 import {
   aNumero,
   aplicarCambioLinea,
@@ -336,19 +336,22 @@ function FormularioFactura({ id }) {
   // Si algo falla a medio camino, lo ya aplicado pasa a ser la base del diff
   // para que volver a guardar no duplique ni repita cambios.
   const actualizarFactura = async (datosCab, datosLineas) => {
-    const { error } = await supabase.from('facturas').update(datosCab).eq('id', id)
-    if (error) throw error
+    const { data, error } = await supabase.from('facturas').update(datosCab).eq('id', id).select('id')
+    const fallo = error ?? errorSinFilas(data)
+    if (fallo) throw fallo
     const { eliminar, actualizar, insertar } = diffLineas(originales, datosLineas)
     let vigentes = originales
     try {
       if (eliminar.length > 0) {
-        const { error: errorEliminar } = await supabase.from('detalle_facturas').delete().in('id', eliminar)
-        if (errorEliminar) throw errorEliminar
+        const { data, error: errorEliminar } = await supabase.from('detalle_facturas').delete().in('id', eliminar).select('id')
+        const fallo = errorEliminar ?? errorSinFilas(data, eliminar.length)
+        if (fallo) throw fallo
         vigentes = vigentes.filter((o) => !eliminar.includes(o.id))
       }
       for (const { id: idLinea, datos } of actualizar) {
-        const { error: errorActualizar } = await supabase.from('detalle_facturas').update(datos).eq('id', idLinea)
-        if (errorActualizar) throw errorActualizar
+        const { data, error: errorActualizar } = await supabase.from('detalle_facturas').update(datos).eq('id', idLinea).select('id')
+        const fallo = errorActualizar ?? errorSinFilas(data)
+        if (fallo) throw fallo
         vigentes = vigentes.map((o) => (o.id === idLinea ? { ...o, ...datos } : o))
       }
       if (insertar.length > 0) {

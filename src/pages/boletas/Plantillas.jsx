@@ -58,6 +58,7 @@ function Plantillas() {
     <Mantenedor
       titulo="Plantillas recurrentes"
       descripcion="Gastos que se repiten y su monto habitual. Aparecen como atajos en la pestaña Boletas."
+      entidad="plantillas"
       tabla="plantillas_gastos_recurrentes"
       select={SELECT}
       columnas={columnas}

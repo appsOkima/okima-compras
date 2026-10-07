@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { useAuth } from '../auth/contexto'
 import { useTabla } from '../hooks/useTabla'
 import { estaAnulado } from '../lib/anulacion'
 import { buscarDuplicados as buscarDuplicadosEn } from '../lib/duplicados'
 import { CODIGO_EN_USO, mensajeError } from '../lib/errores'
+import { puedeHacer } from '../lib/permisos'
 import { coincide } from '../lib/texto'
 import DetalleRegistro from './DetalleRegistro'
 import FormularioRegistro from './FormularioRegistro'
@@ -26,6 +28,7 @@ const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
 // solo declara columnas y campos.
 // `detalle` (opcional, ver DetalleRegistro) agrega la acción "Ver detalles" para
 // consultar campos que no caben en la tabla.
+// `entidad` (ver lib/permisos): según el rol del usuario se ocultan Nuevo, Editar y Eliminar.
 // Opcionales para tablas sin `nombre` o con más filtros (ej. Boletas):
 // - `nombreRegistro(fila)`: texto que identifica la fila en títulos y avisos.
 // - `duplicadosPorNombre = false`: sin aviso de parecidos por nombre.
@@ -45,6 +48,7 @@ const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
 function Mantenedor({
   titulo,
   descripcion,
+  entidad,
   tabla,
   select,
   orden,
@@ -72,6 +76,10 @@ function Mantenedor({
 }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { perfil } = useAuth()
+  const puedeCrear = puedeHacer(perfil?.rol, entidad, 'crear')
+  const puedeEditar = puedeHacer(perfil?.rol, entidad, 'editar')
+  const puedeBorrar = puedeHacer(perfil?.rol, entidad, 'borrar')
   const { filas, cargando, error, crear, actualizar, eliminar } = useTabla(tabla, { select, orden })
   const [busqueda, setBusqueda] = useState('')
   const [soloIncompletos, setSoloIncompletos] = useState(false)
@@ -202,10 +210,12 @@ function Mantenedor({
           <h2 className="text-xl font-semibold text-slate-800">{titulo}</h2>
           {descripcion && <p className="mt-1 text-sm text-slate-600">{descripcion}</p>}
         </div>
-        <button type="button" onClick={abrirNuevo} className={`${claseBotonPrimario} print:hidden`}>
-          <Plus className="h-4 w-4" />
-          Nuevo
-        </button>
+        {puedeCrear && (
+          <button type="button" onClick={abrirNuevo} className={`${claseBotonPrimario} print:hidden`}>
+            <Plus className="h-4 w-4" />
+            Nuevo
+          </button>
+        )}
       </div>
 
       {aviso && (
@@ -263,7 +273,7 @@ function Mantenedor({
                   <Eye className="h-4 w-4" />
                 </button>
               )}
-              {!(tieneAnulados && estaAnulado(fila)) && (
+              {puedeEditar && !(tieneAnulados && estaAnulado(fila)) && (
                 <button
                   type="button"
                   onClick={() => abrirEdicion(fila)}
@@ -275,15 +285,17 @@ function Mantenedor({
                 </button>
               )}
               {accionesFila?.(fila, { actualizar })}
-              <button
-                type="button"
-                onClick={() => borrar(fila)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                aria-label={`Eliminar ${nombreRegistro(fila) ?? ''}`}
-                title="Eliminar"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {puedeBorrar && (
+                <button
+                  type="button"
+                  onClick={() => borrar(fila)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                  aria-label={`Eliminar ${nombreRegistro(fila) ?? ''}`}
+                  title="Eliminar"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           )}
         />
@@ -296,7 +308,7 @@ function Mantenedor({
             detalle={detalle}
             fila={filaDetalle}
             onEditar={
-              tieneAnulados && estaAnulado(filaDetalle)
+              !puedeEditar || (tieneAnulados && estaAnulado(filaDetalle))
                 ? undefined
                 : () => {
                     setIdDetalle(null)
