@@ -90,9 +90,13 @@ begin
   end if;
 
   -- Si el enum ya existe debe tener exactamente las etiquetas esperadas.
+  -- Sin cast a regtype: si el tipo no existe, ese cast fallaría aunque el IF lo descarte.
   if exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'estado_documento')
-     and (select array_agg(enumlabel::text order by enumsortorder) from pg_enum
-          where enumtypid = 'public.estado_documento'::regtype) is distinct from array['vigente', 'anulado'] then
+     and (select array_agg(e.enumlabel::text order by e.enumsortorder)
+          from pg_enum e
+          join pg_type t on t.oid = e.enumtypid
+          where t.typnamespace = 'public'::regnamespace and t.typname = 'estado_documento')
+         is distinct from array['vigente', 'anulado'] then
     raise exception 'T6a: el tipo estado_documento ya existe con etiquetas distintas de (vigente, anulado).';
   end if;
 end
