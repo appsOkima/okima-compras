@@ -21,6 +21,9 @@ begin;
 -- El orden de declaración define el orden de ORDER BY: Baja < Media < Alta.
 create type nivel_urgencia as enum ('Baja', 'Media', 'Alta');
 
+-- Estado de facturas y boletas (Sprint 2 / T6a). Las solicitudes mantienen 'Cancelada'.
+create type estado_documento as enum ('vigente', 'anulado');
+
 -- -----------------------------------------------------------------------------
 -- 8. categorias (centros de costo)
 -- -----------------------------------------------------------------------------
@@ -198,8 +201,9 @@ create index detalle_facturas_id_solicitud_compra_idx on detalle_facturas (id_so
 -- -----------------------------------------------------------------------------
 -- Reemplaza detalle_facturas.id_insumo_stock / qty_stock: una línea puede afectar
 -- varios insumos (pivote N:M). Los triggers de abajo mantienen insumos.qty:
--- INSERT suma, DELETE resta, UPDATE de qty/id_insumo revierte y reaplica. Borrar
--- la línea o la factura (cascada) revierte el stock sin código adicional.
+-- INSERT suma, DELETE resta, UPDATE de qty/id_insumo/revertido revierte y reaplica; los
+-- movimientos revertidos (documento anulado) no cuentan: ni suman al insertarse ni restan
+-- al borrarse. Borrar la línea o la factura (cascada) revierte el stock sin código adicional.
 -- id_insumo SIN cascade: borrar un insumo con movimientos falla a propósito
 -- (el historial de stock no se pierde en silencio).
 -- Los movimientos también nacen de líneas de boleta (T5a): id_detalle_factura es
@@ -210,7 +214,10 @@ create table movimientos_stock (
   created_at          timestamptz not null default now(),
   id_detalle_factura  uuid references detalle_facturas (id) on delete cascade,
   id_insumo           uuid not null references insumos (id),
-  qty                 numeric not null
+  qty                 numeric not null,
+  -- true = revertido por la anulación de su documento (T6a): se conserva el registro pero ya
+  -- no cuenta en insumos.qty. Reactivar el documento lo devuelve a false (reaplica exacto qty).
+  revertido           boolean not null default false
 );
 
 create unique index movimientos_stock_detalle_factura_insumo_key on movimientos_stock (id_detalle_factura, id_insumo);
@@ -226,13 +233,23 @@ set search_path = public
 as $$
 begin
   if tg_op = 'INSERT' then
-    update insumos set qty = qty + new.qty where id = new.id_insumo;
-  elsif tg_op = 'DELETE' then
-    update insumos set qty = qty - old.qty where id = old.id_insumo;
-  else
-    if new.qty is distinct from old.qty or new.id_insumo is distinct from old.id_insumo then
-      update insumos set qty = qty - old.qty where id = old.id_insumo;
+    if not new.revertido then
       update insumos set qty = qty + new.qty where id = new.id_insumo;
+    end if;
+  elsif tg_op = 'DELETE' then
+    if not old.revertido then
+      update insumos set qty = qty - old.qty where id = old.id_insumo;
+    end if;
+  else
+    if new.qty is distinct from old.qty
+       or new.id_insumo is distinct from old.id_insumo
+       or new.revertido is distinct from old.revertido then
+      if not old.revertido then
+        update insumos set qty = qty - old.qty where id = old.id_insumo;
+      end if;
+      if not new.revertido then
+        update insumos set qty = qty + new.qty where id = new.id_insumo;
+      end if;
     end if;
   end if;
   return null;
@@ -240,7 +257,7 @@ end;
 $$;
 
 create trigger movimientos_stock_aplicar
-after insert or delete or update of qty, id_insumo on movimientos_stock
+after insert or delete or update of qty, id_insumo, revertido on movimientos_stock
 for each row
 execute function aplicar_movimiento_stock();
 
@@ -549,6 +566,191 @@ create trigger asignar_created_by before insert on facturas
   for each row execute function asignar_created_by();
 create trigger asignar_created_by before insert on boletas
   for each row execute function asignar_created_by();
+
+-- -----------------------------------------------------------------------------
+-- Estado "Anulado" en facturas y boletas (Sprint 2 / T6a)
+-- Detalle y casos límite: migraciones/2026-10-02-09-estado-anulado.sql
+-- -----------------------------------------------------------------------------
+alter table facturas
+  add column estado_documento estado_documento not null default 'vigente',
+  add column anulado_por      uuid references perfiles (id) on delete set null,
+  add column anulado_at       timestamptz,
+  add column motivo_anulacion text;  -- opcional en la base; la interfaz lo pide
+alter table boletas
+  add column estado_documento estado_documento not null default 'vigente',
+  add column anulado_por      uuid references perfiles (id) on delete set null,
+  add column anulado_at       timestamptz,
+  add column motivo_anulacion text;
+
+-- Parciales sobre los anulados (pocos): el Resumen filtra por 'vigente', casi todo.
+create index facturas_anuladas_idx on facturas (anulado_at) where estado_documento = 'anulado';
+create index boletas_anuladas_idx on boletas (anulado_at) where estado_documento = 'anulado';
+
+comment on column facturas.estado_documento is
+  'vigente | anulado. Anular revierte el stock (movimientos_stock.revertido) y excluye el documento de totales; solo contador/admin anula, solo admin reactiva.';
+comment on column boletas.estado_documento is
+  'vigente | anulado. Anular revierte el stock (movimientos_stock.revertido) y excluye el documento de totales; solo contador/admin anula, solo admin reactiva.';
+comment on column facturas.motivo_anulacion is 'Opcional en la base; la interfaz lo pide al anular.';
+comment on column boletas.motivo_anulacion is 'Opcional en la base; la interfaz lo pide al anular.';
+
+-- BEFORE UPDATE (facturas y boletas): un documento anulado no se modifica (salvo created_by /
+-- anulado_por -> null por on delete set null); vigente->anulado exige contador/admin y fija
+-- anulado_at/anulado_por; anulado->vigente exige admin y limpia los datos de anulación. El rol
+-- se exige con sesión (auth.uid()) o con el rol anon; sin sesión y sin anon (SQL Editor,
+-- service role) se permite sin chequear rol.
+create function validar_estado_documento()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_controlar boolean := auth.uid() is not null or coalesce(auth.role(), '') = 'anon';
+  v_rol public.rol_usuario;
+begin
+  if old.estado_documento = 'anulado' and new.estado_documento = 'anulado' then
+    if (to_jsonb(new) - 'created_by' - 'anulado_por') is distinct from (to_jsonb(old) - 'created_by' - 'anulado_por')
+       or (new.anulado_por is not null and new.anulado_por is distinct from old.anulado_por)
+       or (new.created_by is not null and new.created_by is distinct from old.created_by) then
+      raise exception 'El documento está anulado y no se puede modificar. Un administrador debe reactivarlo antes de editarlo.';
+    end if;
+    return new;
+  end if;
+
+  if old.estado_documento = 'vigente' and new.estado_documento = 'anulado' then
+    if v_controlar then
+      v_rol := public.rol_actual();
+      if v_rol is null or v_rol not in ('contador', 'admin') then
+        raise exception 'Solo un contador o un administrador puede anular un documento.'
+          using errcode = '42501';
+      end if;
+    end if;
+    new.anulado_at := now();
+    new.anulado_por := case
+      when auth.uid() is not null and exists (select 1 from public.perfiles where id = auth.uid())
+        then auth.uid()
+      else null
+    end;
+  elsif old.estado_documento = 'anulado' and new.estado_documento = 'vigente' then
+    if v_controlar then
+      v_rol := public.rol_actual();
+      if v_rol is null or v_rol <> 'admin' then
+        raise exception 'Solo un administrador puede reactivar un documento anulado.'
+          using errcode = '42501';
+      end if;
+    end if;
+    new.anulado_por := null;
+    new.anulado_at := null;
+    new.motivo_anulacion := null;
+  else
+    new.anulado_por := null;
+    new.anulado_at := null;
+    new.motivo_anulacion := null;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger facturas_validar_estado
+before update on facturas
+for each row
+execute function validar_estado_documento();
+
+create trigger boletas_validar_estado
+before update on boletas
+for each row
+execute function validar_estado_documento();
+
+-- AFTER UPDATE del estado: anular marca revertido = true en los movimientos de todas las
+-- líneas del documento (el trigger de movimientos_stock resta); reactivar los pone en false
+-- (reaplica exacto lo revertido, sin recalcular con la pivote actual).
+create function sincronizar_stock_estado_documento()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_revertir boolean := (new.estado_documento = 'anulado');
+begin
+  if tg_table_name = 'facturas' then
+    update movimientos_stock m
+    set revertido = v_revertir
+    where m.revertido is distinct from v_revertir
+      and m.id_detalle_factura in (select d.id from detalle_facturas d where d.id_factura = new.id);
+  else
+    update movimientos_stock m
+    set revertido = v_revertir
+    where m.revertido is distinct from v_revertir
+      and m.id_detalle_boleta in (select d.id from detalle_boletas d where d.id_boleta = new.id);
+  end if;
+  return null;
+end;
+$$;
+
+create trigger facturas_sincronizar_stock_estado
+after update on facturas
+for each row
+when (old.estado_documento is distinct from new.estado_documento)
+execute function sincronizar_stock_estado_documento();
+
+create trigger boletas_sincronizar_stock_estado
+after update on boletas
+for each row
+when (old.estado_documento is distinct from new.estado_documento)
+execute function sincronizar_stock_estado_documento();
+
+-- Líneas de un documento anulado: sin INSERT ni UPDATE (el DELETE, incluida la cascada del
+-- Admin, sigue permitido y no resta stock: sus movimientos ya están revertidos). Argumentos:
+-- (tabla del documento, columna FK de la línea). `for share` serializa contra una anulación
+-- concurrente. El on delete set null de id_solicitud_compra (acción referencial, trigger
+-- anidado: pg_trigger_depth() > 1) se permite. No bloquea a generar_movimientos_stock_*: son
+-- AFTER de las líneas y no se disparan si la línea no se puede insertar ni actualizar.
+create function bloquear_lineas_documento_anulado()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ids uuid[];
+  v_id uuid;
+  v_estado public.estado_documento;
+begin
+  v_ids := array[(to_jsonb(new) ->> tg_argv[1])::uuid];
+
+  if tg_op = 'UPDATE' then
+    if pg_trigger_depth() > 1
+       and (to_jsonb(new) - 'id_solicitud_compra') = (to_jsonb(old) - 'id_solicitud_compra')
+       and (to_jsonb(new) ->> 'id_solicitud_compra') is null then
+      return new;
+    end if;
+    v_ids := v_ids || (to_jsonb(old) ->> tg_argv[1])::uuid;
+  end if;
+
+  foreach v_id in array v_ids loop
+    if v_id is null then
+      continue;
+    end if;
+    execute format('select estado_documento from public.%I where id = $1 for share', tg_argv[0])
+      into v_estado using v_id;
+    if v_estado = 'anulado' then
+      raise exception 'El documento está anulado: no se pueden agregar ni modificar sus líneas. Un administrador debe reactivarlo primero.';
+    end if;
+  end loop;
+  return new;
+end;
+$$;
+
+create trigger detalle_facturas_bloquear_si_anulada
+before insert or update on detalle_facturas
+for each row
+execute function bloquear_lineas_documento_anulado('facturas', 'id_factura');
+
+create trigger detalle_boletas_bloquear_si_anulada
+before insert or update on detalle_boletas
+for each row
+execute function bloquear_lineas_documento_anulado('boletas', 'id_boleta');
 
 -- -----------------------------------------------------------------------------
 -- RLS: habilitado en todas las tablas, acceso total sin login (MVP)
