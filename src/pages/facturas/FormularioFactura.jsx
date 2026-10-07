@@ -4,6 +4,7 @@ import { AlertCircle, ArrowLeft, Loader2, Plus, Save } from 'lucide-react'
 import CampoNotas from '../../components/CampoNotas'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import InputNumero from '../../components/InputNumero'
+import SwitchPagoContado from '../../components/SwitchPagoContado'
 import { useTabla } from '../../hooks/useTabla'
 import { estaAnulado } from '../../lib/anulacion'
 import { mensajeError } from '../../lib/errores'
@@ -25,6 +26,7 @@ import {
   vinculosAAplicar,
 } from '../../lib/facturas'
 import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
+import { mensajePagoCreacion, pagoAlContado } from '../../lib/pagos'
 import { hoyISO } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import { validarFactor } from '../../lib/vinculos'
@@ -131,6 +133,9 @@ function FormularioFactura({ id }) {
   const [errores, setErrores] = useState({ cabecera: {}, lineas: {} })
   const [errorGuardar, setErrorGuardar] = useState('')
   const [guardando, setGuardando] = useState(false)
+  // Solo al crear: registra un pago por el total al terminar de guardar. No cuenta como
+  // cambio sin guardar (no toca `sucio`).
+  const [alContado, setAlContado] = useState(true)
 
   useEffect(() => {
     if (esNueva) return
@@ -309,13 +314,14 @@ function FormularioFactura({ id }) {
 
   // Nueva: cabecera y luego todas las líneas en un solo insert (todas o ninguna).
   // Si fallan las líneas se borra la cabecera para no dejar una factura vacía.
+  // Devuelve el id de la factura creada.
   const crearFactura = async (datosCab, datosLineas) => {
     const { data, error } = await supabase.from('facturas').insert(datosCab).select('id').single()
     if (error) throw error
     const { error: errorLineas } = await supabase
       .from('detalle_facturas')
       .insert(datosLineas.map((l) => ({ ...l, id_factura: data.id })))
-    if (!errorLineas) return
+    if (!errorLineas) return data.id
     const { error: errorBorrar } = await supabase.from('facturas').delete().eq('id', data.id)
     if (errorBorrar) {
       throw new Error(
@@ -392,8 +398,19 @@ function FormularioFactura({ id }) {
     let resultadoVinculos = null
     try {
       resultadoVinculos = await aplicarVinculos()
-      if (esNueva) await crearFactura(datosCab, datosLineas)
-      else await actualizarFactura(datosCab, datosLineas)
+      let textoPago = ''
+      if (esNueva) {
+        const idFactura = await crearFactura(datosCab, datosLineas)
+        // Último paso: con la factura y sus líneas ya guardadas. Si el pago falla no se
+        // deshace nada: el aviso lo manda a registrarlo desde Cuotas/Pagos.
+        const pago = alContado ? pagoAlContado('factura', idFactura, datosCab.total, datosCab.fecha) : null
+        let motivoError
+        if (pago) {
+          const { error: errorPago } = await supabase.from('pagos').insert(pago)
+          if (errorPago) motivoError = mensajeError(errorPago).replace(/\.$/, '')
+        }
+        textoPago = mensajePagoCreacion({ alContado, pago, motivoError })
+      } else await actualizarFactura(datosCab, datosLineas)
       const { aplicados, omitidos } = resultadoVinculos
       const notas = [
         aplicados.length > 0 && `Se ${aplicados.length === 1 ? 'vinculó' : 'vincularon'} ${aplicados.map(parVinculo).join(', ')}.`,
@@ -403,7 +420,9 @@ function FormularioFactura({ id }) {
       ].filter(Boolean)
       navigate('/facturas', {
         state: {
-          mensaje: [`Factura N° ${datosCab.numero_factura} ${esNueva ? 'ingresada' : 'actualizada'}.`, ...notas].join(' '),
+          mensaje: [`Factura N° ${datosCab.numero_factura} ${esNueva ? 'ingresada' : 'actualizada'}.`, textoPago, ...notas]
+            .filter(Boolean)
+            .join(' '),
         },
       })
     } catch (error) {
@@ -564,6 +583,7 @@ function FormularioFactura({ id }) {
                 className={`${claseInput}${errores.cabecera.descuento_pct ? claseError : ''}`}
               />
             </Campo>
+            {esNueva && <SwitchPagoContado activo={alContado} onCambiar={setAlContado} />}
             <CampoNotas
               valor={cabecera.notas}
               onChange={(valor) => cambiarCabecera('notas', valor)}

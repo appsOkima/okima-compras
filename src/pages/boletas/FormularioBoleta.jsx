@@ -4,6 +4,7 @@ import { AlertCircle, AlertTriangle, ArrowLeft, Loader2, Plus, Save } from 'luci
 import CampoNotas from '../../components/CampoNotas'
 import DetalleRegistro from '../../components/DetalleRegistro'
 import SelectorSubcategoria from '../../components/SelectorSubcategoria'
+import SwitchPagoContado from '../../components/SwitchPagoContado'
 import { claseBotonAdvertencia, claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import { useConfirmarSalida } from '../../hooks/useConfirmarSalida'
 import { useTabla } from '../../hooks/useTabla'
@@ -23,6 +24,7 @@ import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, gastosDePlantillaEnMes, mesDe } from '../../lib/gastos'
 import { numeroAEditable } from '../../lib/numero'
+import { mensajePagoCreacion, pagoAlContado } from '../../lib/pagos'
 import { hoyISO } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import Campo from '../facturas/Campo'
@@ -114,6 +116,9 @@ function FormularioBoleta({ id, idPlantilla }) {
   const [errores, setErrores] = useState({ cabecera: {}, lineas: {} })
   const [errorGuardar, setErrorGuardar] = useState('')
   const [guardando, setGuardando] = useState(false)
+  // Solo al crear (también desde plantilla): registra un pago por el total al terminar
+  // de guardar. No cuenta como cambio sin guardar (no toca `sucio`).
+  const [alContado, setAlContado] = useState(true)
   // Boletas ya registradas de esta plantilla (para el aviso del mes) y las del
   // mes de la fecha elegida que se mostraron en el aviso (se vuelve a chequear al guardar).
   const [deLaPlantilla, setDeLaPlantilla] = useState([])
@@ -269,6 +274,7 @@ function FormularioBoleta({ id, idPlantilla }) {
 
   // Nueva: cabecera y luego todas las líneas en un solo insert (todas o ninguna).
   // Si fallan las líneas se borra la cabecera para no dejar una boleta vacía.
+  // Devuelve el id de la boleta creada.
   const crearBoleta = async (datosCab, datosLineas) => {
     const cabeceraNueva = plantilla ? { ...datosCab, id_plantilla_recurrente: plantilla.id } : datosCab
     const { data, error } = await supabase.from('boletas').insert(cabeceraNueva).select('id').single()
@@ -276,7 +282,7 @@ function FormularioBoleta({ id, idPlantilla }) {
     const { error: errorLineas } = await supabase
       .from('detalle_boletas')
       .insert(datosLineas.map((l) => ({ ...l, id_boleta: data.id })))
-    if (!errorLineas) return
+    if (!errorLineas) return data.id
     const { error: errorBorrar } = await supabase.from('boletas').delete().eq('id', data.id)
     if (errorBorrar) {
       throw new Error(
@@ -358,12 +364,25 @@ function FormularioBoleta({ id, idPlantilla }) {
     setErrorGuardar('')
     setGuardando(true)
     try {
-      if (esNueva) await crearBoleta(datosCab, datosLineas)
-      else await actualizarBoleta(datosCab, datosLineas)
+      let textoPago = ''
+      if (esNueva) {
+        const idBoleta = await crearBoleta(datosCab, datosLineas)
+        // Último paso: con la boleta y sus líneas ya guardadas. Si el pago falla no se
+        // deshace nada: el aviso lo manda a registrarlo desde Cuotas/Pagos.
+        const pago = alContado ? pagoAlContado('boleta', idBoleta, datosCab.monto, datosCab.fecha) : null
+        let motivoError
+        if (pago) {
+          const { error: errorPago } = await supabase.from('pagos').insert(pago)
+          if (errorPago) motivoError = mensajeError(errorPago).replace(/\.$/, '')
+        }
+        textoPago = mensajePagoCreacion({ alContado, pago, motivoError })
+      } else await actualizarBoleta(datosCab, datosLineas)
       // Ya se guardó: la vuelta al listado no pide confirmación.
       permitirSalida()
       navigate('/boletas', {
-        state: { mensaje: `Boleta «${datosCab.concepto}» ${esNueva ? 'creada' : 'actualizada'}.` },
+        state: {
+          mensaje: [`Boleta «${datosCab.concepto}» ${esNueva ? 'creada' : 'actualizada'}.`, textoPago].filter(Boolean).join(' '),
+        },
       })
     } catch (error) {
       setErrorGuardar(mensajeError(error))
@@ -521,6 +540,7 @@ function FormularioBoleta({ id, idPlantilla }) {
                 error={errorProveedores}
               />
             </Campo>
+            {esNueva && <SwitchPagoContado activo={alContado} onCambiar={setAlContado} />}
             <CampoNotas
               valor={cabecera.notas}
               onChange={(valor) => cambiarCabecera('notas', valor)}

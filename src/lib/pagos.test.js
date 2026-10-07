@@ -4,7 +4,9 @@ import {
   documentoDePago,
   estadosPorDocumento,
   mensajeBorradoDocumento,
+  mensajePagoCreacion,
   montoSugerido,
+  pagoAlContado,
   puedeAgregarPago,
   saldoDe,
   textoEstadoPago,
@@ -152,5 +154,58 @@ describe('mensajeBorradoDocumento', () => {
   it('otros errores: null (se usa el mensaje general)', () => {
     expect(mensajeBorradoDocumento({ code: '42501' })).toBeNull()
     expect(mensajeBorradoDocumento(null)).toBeNull()
+  })
+})
+
+describe('pagoAlContado', () => {
+  it('factura: pago por el total, a la fecha del documento', () => {
+    expect(pagoAlContado('factura', 'f1', 119000, '2026-10-07')).toEqual({
+      id_factura: 'f1',
+      monto: 119000,
+      fecha_pago: '2026-10-07',
+      notas: 'Pago al contado',
+    })
+  })
+
+  it('boleta: usa id_boleta', () => {
+    expect(pagoAlContado('boleta', 'b1', 5000, '2026-10-01')).toEqual({
+      id_boleta: 'b1',
+      monto: 5000,
+      fecha_pago: '2026-10-01',
+      notas: 'Pago al contado',
+    })
+  })
+
+  it('total como texto de numeric de la base', () => {
+    expect(pagoAlContado('factura', 'f1', '119000.00', '2026-10-07').monto).toBe(119000)
+  })
+
+  it('total 0, negativo, vacío o no numérico: no hay pago', () => {
+    for (const total of [0, -5, '0', '0.00', '', null, undefined, 'abc']) {
+      expect(pagoAlContado('factura', 'f1', total, '2026-10-07')).toBeNull()
+    }
+  })
+})
+
+describe('mensajePagoCreacion', () => {
+  const pago = { monto: 119000 }
+
+  it('pago registrado: lo menciona con el monto', () => {
+    expect(mensajePagoCreacion({ alContado: true, pago })).toBe('Pago registrado por $119.000.')
+  })
+
+  it('desmarcado: queda pendiente', () => {
+    expect(mensajePagoCreacion({ alContado: false, pago: null })).toBe('Queda pendiente de pago.')
+  })
+
+  it('al contado pero sin pago por total 0: no agrega nada', () => {
+    expect(mensajePagoCreacion({ alContado: true, pago: null })).toBe('')
+  })
+
+  it('falla del pago: avisa que el documento sí se guardó, con el motivo', () => {
+    const texto = mensajePagoCreacion({ alContado: true, pago, motivoError: 'sin permiso' })
+    expect(texto).toContain('se guardó pero no se pudo registrar el pago')
+    expect(texto).toContain('sin permiso')
+    expect(texto).toContain('Cuotas/Pagos')
   })
 })

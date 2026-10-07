@@ -96,3 +96,25 @@ export function mensajeBorradoDocumento(error) {
   if (error?.code !== '23503') return null
   return 'Tiene pagos registrados: anula el documento, o elimina primero sus pagos desde Cuotas/Pagos (solo administrador).'
 }
+
+// Pago único que se registra al crear un documento "Pagado al contado": por el total
+// guardado y a la fecha del documento. `total` puede venir como número o como texto de la
+// base. null si el total no es > 0 (el CHECK de pagos lo rechazaría; no es un error).
+export function pagoAlContado(tipo, idDocumento, total, fecha) {
+  const monto = numero(total)
+  if (monto <= 0) return null
+  const columna = tipo === 'boleta' ? 'id_boleta' : 'id_factura'
+  return { [columna]: idDocumento, monto, fecha_pago: fecha, notas: 'Pago al contado' }
+}
+
+// Texto sobre el pago para el mensaje de resultado de un documento recién creado.
+// `pago` es lo que devolvió pagoAlContado (null si no hubo); `motivoError` solo si el
+// insert del pago falló (el documento ya estaba guardado).
+export function mensajePagoCreacion({ alContado, pago, motivoError }) {
+  if (!alContado) return 'Queda pendiente de pago.'
+  if (!pago) return ''
+  if (motivoError) {
+    return `El documento se guardó pero no se pudo registrar el pago (motivo: ${motivoError}); regístralo desde Cuotas/Pagos.`
+  }
+  return `Pago registrado por ${formatoCLP(pago.monto)}.`
+}

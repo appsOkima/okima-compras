@@ -160,10 +160,11 @@ El sistema no tiene registro abierto. Los usuarios se crean con un script de see
 
 ### 3.1 Switch "¿Pagado al contado?"
 
-* La pantalla de crear Factura/Boleta incluye el switch "¿Pagado al contado?".
-* Si es `true`, el documento, sus líneas **y** el pago por el monto total se guardan en **una sola transacción**, mediante una función RPC de Postgres (`SECURITY INVOKER`, para respetar el RLS). La `fecha_pago` es la fecha del documento y se puede editar. Si falla cualquier paso, no se guarda nada.
-* Si es `false`, solo se guarda el documento; los pagos se agregan después en la pestaña "Cuotas/Pagos" del detalle (ver Pagos en 2.1 para los permisos).
-* Si se edita el total de un documento pagado al contado, la UI avisa que el pago ya registrado no se ajusta solo y ofrece corregirlo.
+* Al **crear** una Factura o Boleta (también en el ingreso rápido de boleta desde plantilla) hay un switch "Pagado al contado", **marcado por defecto**. Al editar un documento existente no aparece.
+* Si está marcado, como **último paso** del guardado (cabecera y todas las líneas ya guardadas) se inserta un pago por el total del documento, con `fecha_pago` = fecha del documento y la nota "Pago al contado". Si el total es 0 o negativo no se crea pago.
+* Si se desmarca, solo se guarda el documento; los pagos se agregan después en "Cuotas/Pagos" del detalle (ver permisos en 2.1).
+* **Decisión (reemplaza la RPC transaccional prevista):** el pago se inserta desde la interfaz como último paso y no en una sola transacción. Motivo: si el pago se creara junto con la cabecera y las líneas fallaran, el documento no se podría borrar (la FK de `pagos` no tiene cascada). Costo: si el documento se guarda pero el insert del pago falla, queda "pendiente" y el mensaje de resultado lo indica para registrar el pago desde Cuotas/Pagos.
+* Si se edita el total de un documento ya pagado, el pago registrado no se ajusta solo; se corrige desde Cuotas/Pagos.
 
 ### 3.2 Modal de vinculación de solicitudes
 
