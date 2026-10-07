@@ -8,6 +8,7 @@ const admin = [
   '/facturas',
   '/boletas',
   '/resumen',
+  '/pagos',
   '/proveedores',
   '/insumos',
   '/centros-costo',
@@ -35,3 +36,11 @@ export const rutaInicial = (rol) => seccionesPermitidas(rol)[0] ?? null
 export const puedeAnular = (rol) => rol === 'contador' || rol === 'admin'
 
 export const puedeReactivar = (rol) => rol === 'admin'
+
+// Pagos (Sprint2 §2.1): el contador los registra y los lee; editar y borrar es solo del
+// admin. La sección global /pagos también es solo del admin (ver la matriz de arriba).
+export const puedeRegistrarPago = (rol) => rol === 'contador' || rol === 'admin'
+
+export const puedeEditarPago = (rol) => rol === 'admin'
+
+export const puedeBorrarPago = (rol) => rol === 'admin'

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import DetalleRegistro from '../../components/DetalleRegistro'
+import PanelPagos from '../../components/PanelPagos'
 import TablaDatos from '../../components/TablaDatos'
 import { formatoCLP, formatoCompra, formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
 import { supabase } from '../../lib/supabase'
@@ -60,7 +61,8 @@ const columnasLineas = [
 
 // Contenido de "Ver detalles" de una factura: cabecera, totales y sus líneas
 // (se consultan al abrir; el listado solo trae cuántas son).
-function DetalleFactura({ factura, onEditar, onCerrar }) {
+// `onPagosCambiaron` refresca el estado de pago del listado tras tocar los pagos.
+function DetalleFactura({ factura, onEditar, onCerrar, onPagosCambiaron }) {
   const [lineas, setLineas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
@@ -108,6 +110,11 @@ function DetalleFactura({ factura, onEditar, onCerrar }) {
           />
         </div>
       ),
+    },
+    {
+      etiqueta: 'Cuotas/Pagos',
+      completo: true,
+      valor: (f) => <PanelPagos tipo="factura" documento={f} onCambio={onPagosCambiaron} />,
     },
   ]
 

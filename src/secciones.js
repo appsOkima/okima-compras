@@ -1,4 +1,4 @@
-import { ChartColumn, ClipboardList, FolderTree, Package, Receipt, Truck, Wallet } from 'lucide-react'
+import { Banknote, ChartColumn, ClipboardList, FolderTree, Package, Receipt, Truck, Wallet } from 'lucide-react'
 
 // Las 6 secciones de Funcionalidades Core (CLAUDE.md) más el Resumen de Gastos,
 // en el orden del menú.
@@ -21,6 +21,13 @@ export const secciones = [
     titulo: 'Boletas',
     descripcion: 'Boletas sin stock (arriendo, sueldos, IVA) y las plantillas de gastos recurrentes.',
     icono: Wallet,
+  },
+  // Solo Admin: todos los pagos de facturas y boletas, para revisarlos o corregirlos.
+  {
+    path: '/pagos',
+    titulo: 'Pagos',
+    descripcion: 'Todos los pagos de facturas y boletas: fecha de pago, documento y monto.',
+    icono: Banknote,
   },
   // Solo lectura: junta facturas y boletas (ver lib/resumen.js).
   {

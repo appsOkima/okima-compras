@@ -3,16 +3,20 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import AccionAnulacion from '../../components/AccionAnulacion'
 import EtiquetaAnulada from '../../components/EtiquetaAnulada'
+import EtiquetaPago from '../../components/EtiquetaPago'
+import FiltroEstadoPago from '../../components/FiltroEstadoPago'
 import FiltroMes from '../../components/FiltroMes'
 import Interruptor from '../../components/Interruptor'
 import Modal from '../../components/Modal'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseInput } from '../../components/estilos'
+import { useEstadosPago } from '../../hooks/useEstadosPago'
 import { useTabla } from '../../hooks/useTabla'
 import { estaAnulado, vigentes } from '../../lib/anulacion'
 import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
 import { etiquetaMes, mesDe, mesesPresentes, sumaCampo } from '../../lib/gastos'
+import { mensajeBorradoDocumento, textoEstadoPago } from '../../lib/pagos'
 import { hoyISO } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import { coincide, normalizarRut } from '../../lib/texto'
@@ -41,7 +45,8 @@ const nombreProveedor = (f) => f.proveedor?.nombre ?? ''
 const numeroLineas = (f) => f.lineas?.[0]?.count ?? 0
 const monto = (clave) => (f) => <span className="whitespace-nowrap">{formatoCLP(f[clave])}</span>
 
-const columnas = [
+// Estado de pago de cada factura (vista_estado_pago, ver useEstadosPago).
+const columnasFacturas = (estados) => [
   {
     clave: 'fecha',
     titulo: 'Fecha',
@@ -66,6 +71,12 @@ const columnas = [
     render: (f) => (estaAnulado(f) ? <EtiquetaAnulada /> : ''),
     csv: (f) => f.estado_documento ?? 'vigente',
   },
+  {
+    clave: 'estado_pago',
+    titulo: 'Pago',
+    render: (f) => <EtiquetaPago fila={estados.get(f.id)} />,
+    csv: (f) => textoEstadoPago(estados.get(f.id)),
+  },
 ]
 
 // Listado de facturas (totales ya calculados al guardar). Crear y editar abren el
@@ -74,7 +85,11 @@ function Facturas() {
   const navigate = useNavigate()
   const location = useLocation()
   const { filas, cargando, error, actualizar, eliminar } = useTabla('facturas', { select: SELECT, orden: ORDEN })
+  const { estados, recargar: recargarEstados } = useEstadosPago('factura')
+  const columnas = useMemo(() => columnasFacturas(estados), [estados])
   const [busqueda, setBusqueda] = useState('')
+  // '' = todos; si no, pagado | pendiente | parcial.
+  const [estadoPago, setEstadoPago] = useState('')
   // '' = todos los meses; si no, 'YYYY-MM'.
   const [mes, setMes] = useState('')
   // Las anuladas se ocultan por defecto (como los inactivos de los Mantenedores).
@@ -95,12 +110,13 @@ function Facturas() {
         (f) =>
           (mostrarAnuladas || !estaAnulado(f)) &&
           (!mes || mesDe(f.fecha) === mes) &&
+          (!estadoPago || estados.get(f.id)?.estado_pago === estadoPago) &&
           (!busqueda ||
             [nombreProveedor(f), f.numero_factura, f.proveedor?.rut, normalizarRut(f.proveedor?.rut)].some((v) =>
               coincide(v, busqueda),
             )),
       ),
-    [filas, mes, busqueda, mostrarAnuladas],
+    [filas, mes, busqueda, mostrarAnuladas, estadoPago, estados],
   )
   const totalAnuladas = useMemo(() => filas.filter(estaAnulado).length, [filas])
 
@@ -130,7 +146,7 @@ function Facturas() {
     try {
       await eliminar(f.id)
     } catch (e) {
-      setErrorAccion(mensajeError(e))
+      setErrorAccion(mensajeBorradoDocumento(e) ?? mensajeError(e))
     }
   }
 
@@ -148,6 +164,7 @@ function Facturas() {
         />
       </div>
       <FiltroMes meses={mesesPresentes(filas)} valor={mes} onChange={setMes} />
+      <FiltroEstadoPago valor={estadoPago} onChange={setEstadoPago} />
       <Interruptor activo={mostrarAnuladas} onCambiar={setMostrarAnuladas}>
         Mostrar anuladas
         <span
@@ -161,7 +178,7 @@ function Facturas() {
     </>
   )
 
-  const filtrando = busqueda || mes
+  const filtrando = busqueda || mes || estadoPago
 
   return (
     <section className="mt-6">
@@ -237,7 +254,10 @@ function Facturas() {
                 tipo="factura"
                 doc={f}
                 nombre={`N° ${f.numero_factura}`}
-                onCambiar={(datos) => actualizar(f.id, datos)}
+                onCambiar={async (datos) => {
+                  await actualizar(f.id, datos)
+                  recargarEstados()
+                }}
                 cargarSolicitudes={cargarSolicitudes}
               />
               <button
@@ -274,6 +294,7 @@ function Facturas() {
             factura={filaDetalle}
             onEditar={estaAnulado(filaDetalle) ? undefined : () => navigate(`/facturas/${filaDetalle.id}`)}
             onCerrar={() => setIdDetalle(null)}
+            onPagosCambiaron={recargarEstados}
           />
         </Modal>
       )}

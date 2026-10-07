@@ -3,9 +3,14 @@ import Mantenedor from '../../components/Mantenedor'
 import { claseInput } from '../../components/estilos'
 import AccionAnulacion from '../../components/AccionAnulacion'
 import EtiquetaAnulada from '../../components/EtiquetaAnulada'
+import EtiquetaPago from '../../components/EtiquetaPago'
+import FiltroEstadoPago from '../../components/FiltroEstadoPago'
+import PanelPagos from '../../components/PanelPagos'
+import { useEstadosPago } from '../../hooks/useEstadosPago'
 import { estaAnulado, vigentes } from '../../lib/anulacion'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, mesDe, mesesPresentes, sumaMontos } from '../../lib/gastos'
+import { mensajeBorradoDocumento, textoEstadoPago } from '../../lib/pagos'
 import { estaVacio } from '../../lib/texto'
 import {
   EMBEDS_BOLETA,
@@ -27,7 +32,8 @@ const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_
 // De las líneas basta la cantidad (la ficha las consulta al abrirse).
 const numeroLineas = (fila) => fila.lineas?.[0]?.count ?? 0
 
-const columnas = [
+// Estado de pago de cada boleta (vista_estado_pago, ver useEstadosPago).
+const columnasBoletas = (estados) => [
   {
     clave: 'fecha',
     titulo: 'Fecha',
@@ -50,6 +56,12 @@ const columnas = [
     titulo: 'Estado',
     render: (fila) => (estaAnulado(fila) ? <EtiquetaAnulada /> : ''),
     csv: (fila) => fila.estado_documento ?? 'vigente',
+  },
+  {
+    clave: 'estado_pago',
+    titulo: 'Pago',
+    render: (fila) => <EtiquetaPago fila={estados.get(fila.id)} />,
+    csv: (fila) => textoEstadoPago(estados.get(fila.id)),
   },
   { clave: 'plantilla', titulo: 'Plantilla', soloCsv: true, csv: nombrePlantilla },
   { clave: 'notas', titulo: 'Notas', soloCsv: true },
@@ -80,32 +92,55 @@ const resumen = (filas) => {
 function Boletas() {
   // '' = todos los meses; si no, 'YYYY-MM'.
   const [mes, setMes] = useState('')
+  // '' = todos; si no, pagado | pendiente | parcial.
+  const [estadoPago, setEstadoPago] = useState('')
+  const { estados, recargar: recargarEstados } = useEstadosPago('boleta')
+  const columnas = useMemo(() => columnasBoletas(estados), [estados])
+  // La ficha suma la pestaña Cuotas/Pagos; al tocar los pagos se refresca el listado.
+  const detalle = useMemo(
+    () => [
+      ...detalleBoleta,
+      {
+        etiqueta: 'Cuotas/Pagos',
+        completo: true,
+        valor: (fila) => <PanelPagos tipo="boleta" documento={fila} onCambio={recargarEstados} />,
+      },
+    ],
+    [recargarEstados],
+  )
 
-  // Filtro por mes: se aplica antes de la búsqueda y de "Incompletos".
+  // Filtros por mes y por estado de pago: se aplican antes de la búsqueda y de "Incompletos".
   const filtroMes = useMemo(
     () => ({
-      activo: mes !== '',
-      aplica: mes ? (fila) => mesDe(fila.fecha) === mes : undefined,
+      activo: mes !== '' || estadoPago !== '',
+      aplica:
+        mes || estadoPago
+          ? (fila) =>
+              (!mes || mesDe(fila.fecha) === mes) && (!estadoPago || estados.get(fila.id)?.estado_pago === estadoPago)
+          : undefined,
       render: (filas) => {
         const meses = mesesPresentes(filas)
         // Si se borró el última boleta del mes elegido, la opción se mantiene.
         if (mes && !meses.includes(mes)) meses.unshift(mes)
         return (
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
-            Mes
-            <select value={mes} onChange={(e) => setMes(e.target.value)} className={`${claseInput} w-auto`}>
-              <option value="">Todos</option>
-              {meses.map((m) => (
-                <option key={m} value={m}>
-                  {etiquetaMes(m)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+              Mes
+              <select value={mes} onChange={(e) => setMes(e.target.value)} className={`${claseInput} w-auto`}>
+                <option value="">Todos</option>
+                {meses.map((m) => (
+                  <option key={m} value={m}>
+                    {etiquetaMes(m)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <FiltroEstadoPago valor={estadoPago} onChange={setEstadoPago} />
+          </>
         )
       },
     }),
-    [mes],
+    [mes, estadoPago, estados],
   )
 
   return (
@@ -119,19 +154,23 @@ function Boletas() {
       esIncompleto={esIncompleto}
       camposBusqueda={camposBusqueda}
       nombreArchivo="boletas"
-      detalle={detalleBoleta}
+      detalle={detalle}
       nombreRegistro={nombreBoleta}
       filtroExtra={filtroMes}
       resumen={resumen}
       antesDeTabla={() => <IngresoRapido />}
       rutaFormulario="/boletas"
       tieneAnulados
+      mensajeBorrado={mensajeBorradoDocumento}
       accionesFila={(fila, { actualizar }) => (
         <AccionAnulacion
           tipo="boleta"
           doc={fila}
           nombre={fila.concepto}
-          onCambiar={(datos) => actualizar(fila.id, datos)}
+          onCambiar={async (datos) => {
+            await actualizar(fila.id, datos)
+            recargarEstados()
+          }}
         />
       )}
     />

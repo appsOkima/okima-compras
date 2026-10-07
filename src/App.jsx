@@ -29,13 +29,14 @@ const FormularioProveedor = lazy(() => import('./pages/proveedores/FormularioPro
 const PorVincular = lazy(() => import('./pages/proveedores/PorVincular'))
 const Proveedores = lazy(() => import('./pages/proveedores/Proveedores'))
 const Pendientes = lazy(() => import('./pages/solicitudes/Pendientes'))
+const Pagos = lazy(() => import('./pages/pagos/Pagos'))
 const Resumen = lazy(() => import('./pages/resumen/Resumen'))
 const Todas = lazy(() => import('./pages/solicitudes/Todas'))
 const Login = lazy(() => import('./pages/login/Login'))
 
 // Secciones que ya tienen pantalla propia (con subrutas); el resto sigue con
 // PaginaPendiente hasta que se construya en la Fase 4.
-const conPantalla = new Set(['/solicitudes', '/facturas', '/boletas', '/resumen', '/insumos', '/proveedores', '/centros-costo'])
+const conPantalla = new Set(['/solicitudes', '/facturas', '/boletas', '/pagos', '/resumen', '/insumos', '/proveedores', '/centros-costo'])
 
 // Login con Supabase Auth: ProtectedRoute exige sesión y perfil, y deja pasar solo
 // las secciones permitidas al rol (lib/permisos). /login queda fuera del Layout.
@@ -80,6 +81,9 @@ const router = createBrowserRouter(
         <Route path=":id" element={<FormularioBoleta />} />
       </Route>
       {/* Una sola pantalla: encabezado de sección sin barra de pestañas. */}
+      <Route path="/pagos" element={<SeccionConPestanas path="/pagos" />}>
+        <Route index element={<Pagos />} />
+      </Route>
       <Route path="/resumen" element={<SeccionConPestanas path="/resumen" />}>
         <Route index element={<Resumen />} />
       </Route>

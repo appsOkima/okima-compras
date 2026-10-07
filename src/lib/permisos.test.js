@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { secciones } from '../secciones'
-import { esRolValido, puedeAnular, puedeReactivar, puedeVerSeccion, rutaInicial, seccionesPermitidas } from './permisos'
+import {
+  esRolValido,
+  puedeAnular,
+  puedeBorrarPago,
+  puedeEditarPago,
+  puedeReactivar,
+  puedeRegistrarPago,
+  puedeVerSeccion,
+  rutaInicial,
+  seccionesPermitidas,
+} from './permisos'
 
 describe('puedeAnular / puedeReactivar', () => {
   it('anulan contador y admin; productor no', () => {
@@ -20,6 +30,36 @@ describe('puedeAnular / puedeReactivar', () => {
       expect(puedeAnular(rol)).toBe(false)
       expect(puedeReactivar(rol)).toBe(false)
     }
+  })
+})
+
+describe('permisos de pagos (Sprint2 §2.1: contador CR, admin CRUD, productor nada)', () => {
+  it('registran pagos contador y admin; productor no', () => {
+    expect(puedeRegistrarPago('contador')).toBe(true)
+    expect(puedeRegistrarPago('admin')).toBe(true)
+    expect(puedeRegistrarPago('productor')).toBe(false)
+  })
+
+  it('editan y borran pagos solo el admin', () => {
+    for (const permiso of [puedeEditarPago, puedeBorrarPago]) {
+      expect(permiso('admin')).toBe(true)
+      expect(permiso('contador')).toBe(false)
+      expect(permiso('productor')).toBe(false)
+    }
+  })
+
+  it('rol desconocido, vacío o sin rol: ninguno', () => {
+    for (const rol of ['gerente', 'Admin', '', null, undefined]) {
+      expect(puedeRegistrarPago(rol)).toBe(false)
+      expect(puedeEditarPago(rol)).toBe(false)
+      expect(puedeBorrarPago(rol)).toBe(false)
+    }
+  })
+
+  it('la sección /pagos es solo del admin', () => {
+    expect(puedeVerSeccion('admin', '/pagos')).toBe(true)
+    expect(puedeVerSeccion('contador', '/pagos')).toBe(false)
+    expect(puedeVerSeccion('productor', '/pagos')).toBe(false)
   })
 })
 

@@ -36,6 +36,7 @@ const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
 // - `tieneAnulados` (facturas y boletas): oculta por defecto los documentos anulados, con
 //   un interruptor "Mostrar anuladas"; un anulado no se edita (sin botón Editar ni en la ficha).
 // - `accionesFila(fila, { actualizar })`: botones extra en cada fila (ej. Anular/Reactivar).
+// - `mensajeBorrado(error)`: mensaje propio para un error al borrar (null = el general).
 // - `rutaFormulario` (ej. '/proveedores'): crear y editar abren el formulario en su
 //   propia página (`${rutaFormulario}/nuevo` y `${rutaFormulario}/:id`, ver
 //   PaginaRegistro) en vez del modal; `campos`, `valoresIniciales`, `antesDeGuardar`
@@ -67,6 +68,7 @@ function Mantenedor({
   rutaFormulario,
   tieneAnulados = false,
   accionesFila,
+  mensajeBorrado,
 }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -143,7 +145,7 @@ function Mantenedor({
       await eliminar(fila.id)
     } catch (e) {
       const sugerencia = e?.code === CODIGO_EN_USO && tieneActivo ? ' Puedes desactivarlo en su lugar.' : ''
-      setErrorAccion(mensajeError(e) + sugerencia)
+      setErrorAccion(mensajeBorrado?.(e) ?? mensajeError(e) + sugerencia)
     }
   }
 
