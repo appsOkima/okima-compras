@@ -361,7 +361,8 @@ create index boletas_fecha_idx on boletas (fecha);
 -- 7b. detalle_boletas (líneas de boleta; Sprint 2 / T5a)
 -- -----------------------------------------------------------------------------
 -- La boleta es la cabecera y boletas.monto el total de las líneas (calculado por la
--- interfaz). Sin notas (decisión del usuario). id_solicitud_compra se agrega en T8.
+-- interfaz). Sin notas (decisión del usuario). id_solicitud_compra (T8a) vincula la línea
+-- con la solicitud que la originó, igual que en detalle_facturas.
 -- id_insumo_proveedor es opcional (arriendo, sueldos y servicios no tienen insumo) y
 -- SIN cascade, igual que detalle_facturas. precio = CLP por unidad, IVA incluido según
 -- la boleta (sin descuento ni IVA discriminado). subtotal lo calcula la interfaz:
@@ -372,6 +373,7 @@ create table detalle_boletas (
   id_boleta            uuid not null references boletas (id) on delete cascade,
   descripcion          text not null,
   id_insumo_proveedor  uuid references insumos_proveedores (id),
+  id_solicitud_compra  uuid references solicitudes_compra (id) on delete set null,
   cantidad             numeric not null default 1 check (cantidad > 0),
   precio               numeric not null,
   subtotal             numeric not null
@@ -379,11 +381,16 @@ create table detalle_boletas (
 
 create index detalle_boletas_id_boleta_idx on detalle_boletas (id_boleta);
 create index detalle_boletas_id_insumo_proveedor_idx on detalle_boletas (id_insumo_proveedor);
+create index detalle_boletas_id_solicitud_compra_idx on detalle_boletas (id_solicitud_compra);
 
 comment on table detalle_boletas is
   'Líneas de boleta. boletas.monto es el total de estas líneas (lo calcula y guarda la interfaz; la base no lo recalcula).';
 comment on column detalle_boletas.id_insumo_proveedor is
   'Opcional: arriendo, sueldos y servicios no tienen insumo. Si está vinculado en la pivote, la línea mueve stock.';
+comment on column detalle_boletas.id_solicitud_compra is
+  'Solicitud de compra que originó esta línea (opcional). Varias líneas pueden apuntar a la misma solicitud. Una solicitud no puede tener líneas de factura y de boleta a la vez (validar_exclusividad_solicitud). Marca la solicitud como ''Comprada'' (marcar_solicitud_comprada).';
+comment on column detalle_facturas.id_solicitud_compra is
+  'Solicitud de compra que originó esta línea (opcional). Varias líneas pueden apuntar a la misma solicitud. Una solicitud no puede tener líneas de factura y de boleta a la vez (validar_exclusividad_solicitud). Marca la solicitud como ''Comprada'' (marcar_solicitud_comprada).';
 comment on column detalle_boletas.precio is
   'CLP por unidad, IVA incluido según la boleta (sin descuento ni IVA discriminado).';
 comment on column detalle_boletas.subtotal is
@@ -435,6 +442,76 @@ for each row
 when (old.cantidad is distinct from new.cantidad
       or old.id_insumo_proveedor is distinct from new.id_insumo_proveedor)
 execute function generar_movimientos_stock_boleta();
+
+-- Regla 'Comprada' también para líneas de boleta (T8a): se reutiliza marcar_solicitud_comprada()
+-- (no es SECURITY DEFINER: solo contador y admin escriben líneas y ambos pueden actualizar
+-- solicitudes_compra).
+create trigger detalle_boletas_marcar_solicitud_comprada
+after insert or update of id_solicitud_compra on detalle_boletas
+for each row
+when (new.id_solicitud_compra is not null)
+execute function marcar_solicitud_comprada();
+
+-- Exclusividad (T8a): una solicitud no puede tener líneas de factura y de boleta a la vez
+-- (varias líneas de la MISMA tabla sí). SECURITY DEFINER para mirar la otra tabla sin que el RLS
+-- la oculte. Serializa por solicitud con un candado consultivo de transacción (no FOR UPDATE:
+-- chocaría con el FOR KEY SHARE de la FK y podría dar deadlock). Las líneas de documentos
+-- anulados cuentan como vínculo. El on delete set null no la dispara (valor null). Límite: dos
+-- INSERT en una misma sentencia (CTE sobre ambas tablas) no se ven entre sí.
+-- Detalle: migraciones/2026-10-02-12-vinculo-solicitud-boletas.sql
+create function validar_exclusividad_solicitud()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_otra boolean;
+begin
+  if new.id_solicitud_compra is null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and new.id_solicitud_compra is not distinct from old.id_solicitud_compra then
+    return new;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('solicitud_vinculo'), hashtext(new.id_solicitud_compra::text));
+
+  if tg_table_name = 'detalle_boletas' then
+    select exists (
+      select 1 from public.detalle_facturas where id_solicitud_compra = new.id_solicitud_compra
+    ) into v_otra;
+    if v_otra then
+      raise exception 'La solicitud ya está vinculada a líneas de factura y no puede vincularse también a una boleta.'
+        using errcode = '23514',
+              hint = 'Una solicitud se asocia a líneas de factura O de boleta, nunca a ambas. Si la línea de factura pertenece a un documento anulado, también cuenta.';
+    end if;
+  else
+    select exists (
+      select 1 from public.detalle_boletas where id_solicitud_compra = new.id_solicitud_compra
+    ) into v_otra;
+    if v_otra then
+      raise exception 'La solicitud ya está vinculada a líneas de boleta y no puede vincularse también a una factura.'
+        using errcode = '23514',
+              hint = 'Una solicitud se asocia a líneas de factura O de boleta, nunca a ambas. Si la línea de boleta pertenece a un documento anulado, también cuenta.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger detalle_facturas_validar_exclusividad_solicitud
+before insert or update of id_solicitud_compra on detalle_facturas
+for each row
+when (new.id_solicitud_compra is not null)
+execute function validar_exclusividad_solicitud();
+
+create trigger detalle_boletas_validar_exclusividad_solicitud
+before insert or update of id_solicitud_compra on detalle_boletas
+for each row
+when (new.id_solicitud_compra is not null)
+execute function validar_exclusividad_solicitud();
 
 -- -----------------------------------------------------------------------------
 -- Vista: vista_solicitudes_pendientes (Función 1: lista e impresión)
