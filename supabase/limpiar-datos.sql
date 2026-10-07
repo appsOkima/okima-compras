@@ -4,7 +4,7 @@
 -- ⚠ IRREVERSIBLE. Pensado para limpiar datos de prueba: ejecutar en el SQL
 -- Editor de Supabase cuando se quiera dejar la base en blanco.
 --
--- Borra: movimientos_stock, insumos_proveedores_okima, detalle_facturas, facturas, solicitudes_compra, insumos_proveedores,
+-- Borra: pagos, movimientos_stock, insumos_proveedores_okima, detalle_facturas, facturas, solicitudes_compra, insumos_proveedores,
 -- insumos, detalle_boletas, boletas, plantillas_gastos_recurrentes y proveedores.
 -- Conserva: categorias y subcategorias (centros de costo).
 --
@@ -15,6 +15,7 @@
 begin;
 
 truncate table
+  pagos,
   movimientos_stock,
   insumos_proveedores_okima,
   detalle_facturas,
@@ -52,6 +53,7 @@ union all select 'facturas', count(*) from facturas
 union all select 'insumos_proveedores_okima', count(*) from insumos_proveedores_okima
 union all select 'detalle_facturas', count(*) from detalle_facturas
 union all select 'movimientos_stock', count(*) from movimientos_stock
+union all select 'pagos', count(*) from pagos
 union all select 'detalle_boletas', count(*) from detalle_boletas
 union all select 'boletas', count(*) from boletas
 union all select 'plantillas_gastos_recurrentes', count(*) from plantillas_gastos_recurrentes;

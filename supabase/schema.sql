@@ -753,6 +753,74 @@ for each row
 execute function bloquear_lineas_documento_anulado('boletas', 'id_boleta');
 
 -- -----------------------------------------------------------------------------
+-- Pagos (Sprint 2 / T7a). Detalle: migraciones/2026-10-02-10-pagos.sql
+-- -----------------------------------------------------------------------------
+-- Flujo de caja: cada pago de una factura o de una boleta (exactamente una de las dos).
+-- Las FK a facturas y boletas son SIN on delete cascade a propósito: un documento con pagos
+-- no se puede borrar mientras los tenga. En base limpia no hay histórico que migrar.
+create table pagos (
+  id          uuid primary key default gen_random_uuid(),
+  created_at  timestamptz not null default now(),
+  monto       numeric not null check (monto > 0),
+  fecha_pago  date not null,
+  id_factura  uuid references facturas (id),
+  id_boleta   uuid references boletas (id),
+  notas       text,
+  created_by  uuid references perfiles (id) on delete set null,
+  constraint pagos_documento_unico_check check (num_nonnulls(id_factura, id_boleta) = 1)
+);
+
+create index pagos_fecha_pago_idx on pagos (fecha_pago);
+create index pagos_id_factura_idx on pagos (id_factura);
+create index pagos_id_boleta_idx on pagos (id_boleta);
+
+comment on table pagos is
+  'Flujo de caja: cada pago de una factura o de una boleta. Las FK no tienen cascade: un documento con pagos no se puede borrar. El Resumen suma solo pagos de documentos vigentes.';
+comment on column pagos.id_factura is 'Factura que se paga (exactamente uno de id_factura / id_boleta). Sin on delete cascade.';
+comment on column pagos.id_boleta is 'Boleta que se paga (exactamente uno de id_factura / id_boleta). Sin on delete cascade.';
+comment on column pagos.created_by is 'Quién registró el pago (auth.uid() vía asignar_created_by); null en históricos y en SQL Editor.';
+
+create trigger asignar_created_by before insert on pagos
+  for each row execute function asignar_created_by();
+
+-- Estado de pago por documento (una fila por factura/boleta). 'anulado' si el documento está
+-- anulado; 'pagado' si pagado >= total (incluye total 0; el sobrepago queda 'pagado' con saldo
+-- negativo); 'pendiente' si pagado = 0; 'parcial' en otro caso. security_invoker: respeta el RLS.
+create view vista_estado_pago
+with (security_invoker = true) as
+select
+  d.tipo,
+  d.id_documento,
+  d.fecha,
+  d.estado_documento,
+  d.total,
+  coalesce(p.pagado, 0)             as pagado,
+  d.total - coalesce(p.pagado, 0)   as saldo,
+  case
+    when d.estado_documento = 'anulado' then 'anulado'
+    when coalesce(p.pagado, 0) >= d.total then 'pagado'
+    when coalesce(p.pagado, 0) = 0 then 'pendiente'
+    else 'parcial'
+  end                               as estado_pago
+from (
+  select 'factura'::text as tipo, f.id as id_documento, f.fecha, f.estado_documento, f.total
+  from facturas f
+  union all
+  select 'boleta'::text, b.id, b.fecha, b.estado_documento, b.monto
+  from boletas b
+) d
+left join (
+  select 'factura'::text as tipo, id_factura as id_documento, sum(monto) as pagado
+  from pagos where id_factura is not null group by id_factura
+  union all
+  select 'boleta'::text, id_boleta, sum(monto)
+  from pagos where id_boleta is not null group by id_boleta
+) p on p.tipo = d.tipo and p.id_documento = d.id_documento;
+
+comment on view vista_estado_pago is
+  'Una fila por factura/boleta con pagado y saldo (total - pagado). estado_pago: anulado | pagado (pagado >= total; sobrepago = saldo negativo) | pendiente | parcial.';
+
+-- -----------------------------------------------------------------------------
 -- RLS: habilitado en todas las tablas, acceso total sin login (MVP)
 -- -----------------------------------------------------------------------------
 do $$
@@ -772,7 +840,8 @@ begin
     'movimientos_stock',
     'plantillas_gastos_recurrentes',
     'boletas',
-    'detalle_boletas'
+    'detalle_boletas',
+    'pagos'
   ]
   loop
     execute format('alter table %I enable row level security', t);
