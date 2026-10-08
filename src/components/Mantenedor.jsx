@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { useAuth } from '../auth/contexto'
 import { useTabla } from '../hooks/useTabla'
@@ -45,6 +45,8 @@ const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
 //   PaginaRegistro) en vez del modal; `campos`, `valoresIniciales`, `antesDeGuardar`
 //   y lo de duplicados se declaran entonces en esa página. El listado muestra el
 //   aviso de éxito que deja la página al guardar (location.state.mensaje).
+// - `rutaDetalle(fila)` (ej. facturas y boletas): "Ver detalles" navega a esa página de
+//   detalle en vez de abrir la ficha en un modal (`detalle`).
 function Mantenedor({
   titulo,
   descripcion,
@@ -70,6 +72,7 @@ function Mantenedor({
   antesDeTabla,
   resumen,
   rutaFormulario,
+  rutaDetalle,
   tieneAnulados = false,
   accionesFila,
   mensajeBorrado,
@@ -262,6 +265,16 @@ function Mantenedor({
           claseFila={tieneAnulados ? (fila) => (estaAnulado(fila) ? 'opacity-60' : '') : undefined}
           acciones={(fila) => (
             <div className="inline-flex gap-1">
+              {rutaDetalle && (
+                <Link
+                  to={rutaDetalle(fila)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
+                  aria-label={`Ver detalles de ${nombreRegistro(fila) ?? ''}`}
+                  title="Ver detalles"
+                >
+                  <Eye className="h-4 w-4" />
+                </Link>
+              )}
               {detalle && (
                 <button
                   type="button"

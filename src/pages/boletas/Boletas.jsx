@@ -5,17 +5,15 @@ import AccionAnulacion from '../../components/AccionAnulacion'
 import EtiquetaAnulada from '../../components/EtiquetaAnulada'
 import EtiquetaPago from '../../components/EtiquetaPago'
 import FiltroEstadoPago from '../../components/FiltroEstadoPago'
-import PanelPagos from '../../components/PanelPagos'
 import { useEstadosPago } from '../../hooks/useEstadosPago'
 import { estaAnulado, vigentes } from '../../lib/anulacion'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { etiquetaMes, mesDe, mesesPresentes, sumaMontos } from '../../lib/gastos'
 import { mensajeBorradoDocumento, textoEstadoPago } from '../../lib/pagos'
-import { supabase } from '../../lib/supabase'
+import { solicitudesDeBoleta as cargarSolicitudes } from '../../lib/cargarSolicitudes'
 import { estaVacio } from '../../lib/texto'
 import {
   EMBEDS_BOLETA,
-  detalleBoleta,
   nombreCategoria,
   nombreDeBoleta,
   nombrePlantilla,
@@ -27,21 +25,10 @@ import IngresoRapido from './IngresoRapido'
 // La categoría (centro de costo) se obtiene a través de la subcategoría.
 const SELECT = `*, ${EMBEDS_BOLETA}, lineas:detalle_boletas(descripcion, created_at)`
 
-// Solicitudes vinculadas a las líneas de una boleta, para avisar antes de anularla.
-const cargarSolicitudes = async (idBoleta) => {
-  const { data, error } = await supabase
-    .from('detalle_boletas')
-    .select('solicitud:solicitudes_compra!id_solicitud_compra(id, estado, solicitante, insumo:insumos(nombre))')
-    .eq('id_boleta', idBoleta)
-    .not('id_solicitud_compra', 'is', null)
-  if (error) throw error
-  return data
-}
-
 // Más reciente primero; a igual fecha, el último ingresado arriba.
 const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }
 
-// Del listado basta la cantidad de líneas y sus descripciones (la ficha consulta el resto al abrirse).
+// Del listado basta la cantidad de líneas y sus descripciones (la página de detalle consulta el resto).
 const numeroLineas = (fila) => fila.lineas?.length ?? 0
 const descripcionesLineas = (fila) => (fila.lineas ?? []).map((l) => l.descripcion).join(' ')
 
@@ -100,8 +87,9 @@ const resumen = (filas) => {
 // Boletas: cabecera con sus líneas (arriendo, sueldos, IVA, servicios o compras con
 // boleta); el monto es el total de las líneas. Los recurrentes se ingresan desde
 // sus plantillas (IngresoRapido).
-// Crear y editar (también desde "Ver detalles") abren el formulario en su propia
-// página (/boletas/nuevo, /boletas/:id, ver FormularioBoleta), no en un modal.
+// Crear y editar abren el formulario en su propia página (/boletas/nuevo,
+// /boletas/:id, ver FormularioBoleta) y "Ver detalles" la página de detalle
+// (/boletas/:id/detalle, ver PaginaDetalleBoleta), no un modal.
 function Boletas() {
   // '' = todos los meses; si no, 'YYYY-MM'.
   const [mes, setMes] = useState('')
@@ -109,18 +97,6 @@ function Boletas() {
   const [estadoPago, setEstadoPago] = useState('')
   const { estados, recargar: recargarEstados } = useEstadosPago('boleta')
   const columnas = useMemo(() => columnasBoletas(estados), [estados])
-  // La ficha suma la pestaña Cuotas/Pagos; al tocar los pagos se refresca el listado.
-  const detalle = useMemo(
-    () => [
-      ...detalleBoleta,
-      {
-        etiqueta: 'Cuotas/Pagos',
-        completo: true,
-        valor: (fila) => <PanelPagos tipo="boleta" documento={fila} onCambio={recargarEstados} />,
-      },
-    ],
-    [recargarEstados],
-  )
 
   // Filtros por mes y por estado de pago: se aplican antes de la búsqueda y de "Incompletos".
   const filtroMes = useMemo(
@@ -168,7 +144,7 @@ function Boletas() {
       esIncompleto={esIncompleto}
       camposBusqueda={camposBusqueda}
       nombreArchivo="boletas"
-      detalle={detalle}
+      rutaDetalle={(fila) => `/boletas/${fila.id}/detalle`}
       nombreRegistro={nombreDeBoleta}
       filtroExtra={filtroMes}
       resumen={resumen}

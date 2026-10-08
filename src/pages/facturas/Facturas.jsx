@@ -7,7 +7,6 @@ import EtiquetaPago from '../../components/EtiquetaPago'
 import FiltroEstadoPago from '../../components/FiltroEstadoPago'
 import FiltroMes from '../../components/FiltroMes'
 import Interruptor from '../../components/Interruptor'
-import Modal from '../../components/Modal'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseInput } from '../../components/estilos'
 import { useAuth } from '../../auth/contexto'
@@ -19,26 +18,14 @@ import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
 import { etiquetaMes, mesDe, mesesPresentes, sumaCampo } from '../../lib/gastos'
 import { puedeHacer } from '../../lib/permisos'
 import { mensajeBorradoDocumento, textoEstadoPago } from '../../lib/pagos'
+import { solicitudesDeFactura as cargarSolicitudes } from '../../lib/cargarSolicitudes'
 import { hoyISO } from '../../lib/solicitudes'
-import { supabase } from '../../lib/supabase'
 import { coincide, normalizarRut } from '../../lib/texto'
-import DetalleFactura from './DetalleFactura'
 
 // De las líneas basta la cantidad (el detalle las consulta al abrirse). perfil_anulo:
 // quién la anuló (la FK anulado_por se nombra para no confundirla con created_by).
 const SELECT =
   '*, proveedor:proveedores(id, nombre, rut), perfil_anulo:perfiles!anulado_por(nombre_mostrar), lineas:detalle_facturas(count)'
-
-// Solicitudes vinculadas a las líneas de una factura, para avisar antes de anularla.
-const cargarSolicitudes = async (idFactura) => {
-  const { data, error } = await supabase
-    .from('detalle_facturas')
-    .select('solicitud:solicitudes_compra!id_solicitud_compra(id, estado, solicitante, insumo:insumos(nombre))')
-    .eq('id_factura', idFactura)
-    .not('id_solicitud_compra', 'is', null)
-  if (error) throw error
-  return data
-}
 
 // Más reciente primero; a igual fecha, la última ingresada arriba.
 const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }
@@ -100,7 +87,6 @@ function Facturas() {
   const [mes, setMes] = useState('')
   // Las anuladas se ocultan por defecto (como los inactivos de los Mantenedores).
   const [mostrarAnuladas, setMostrarAnuladas] = useState(false)
-  const [idDetalle, setIdDetalle] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
   // Aviso de éxito que deja el formulario al guardar (location.state).
   const [aviso, setAviso] = useState(() => location.state?.mensaje ?? '')
@@ -137,9 +123,6 @@ function Facturas() {
       ),
     [filas, mesIva],
   )
-
-  const filaDetalle = idDetalle ? filas.find((f) => f.id === idDetalle) : null
-  const titulo = (f) => `Factura N° ${f.numero_factura} — ${nombreProveedor(f)}`
 
   const borrar = async (f) => {
     const n = numeroLineas(f)
@@ -239,15 +222,14 @@ function Facturas() {
           claseFila={(f) => (estaAnulado(f) ? 'opacity-60' : '')}
           acciones={(f) => (
             <div className="inline-flex gap-1">
-              <button
-                type="button"
-                onClick={() => setIdDetalle(f.id)}
+              <Link
+                to={`/facturas/${f.id}/detalle`}
                 className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                 aria-label={`Ver detalles de la factura ${f.numero_factura}`}
                 title="Ver detalles"
               >
                 <Eye className="h-4 w-4" />
-              </button>
+              </Link>
               {puedeEditar && !estaAnulado(f) && (
                 <Link
                   to={`/facturas/${f.id}`}
@@ -297,17 +279,6 @@ function Facturas() {
           </div>
         )}
       </div>
-
-      {filaDetalle && (
-        <Modal titulo={titulo(filaDetalle)} onCerrar={() => setIdDetalle(null)} ancho="max-w-4xl">
-          <DetalleFactura
-            factura={filaDetalle}
-            onEditar={!puedeEditar || estaAnulado(filaDetalle) ? undefined : () => navigate(`/facturas/${filaDetalle.id}`)}
-            onCerrar={() => setIdDetalle(null)}
-            onPagosCambiaron={recargarEstados}
-          />
-        </Modal>
-      )}
     </section>
   )
 }

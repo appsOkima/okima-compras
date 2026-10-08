@@ -14,7 +14,9 @@ import { claseBotonPrimario, claseBotonSecundario, claseInput } from './estilos'
 // - `onCambiar(datos)`: guarda los campos en la cabecera (useTabla.actualizar) y lanza el error.
 // - `cargarSolicitudes(idDocumento)` (opcional, async; función estable): líneas con su solicitud vinculada, para avisar
 //   antes de anular (facturas y boletas).
-function AccionAnulacion({ tipo, doc, nombre, onCambiar, cargarSolicitudes }) {
+// - `conTexto` (opcional): botón con texto ("Anular" / "Reactivar") para la página de detalle,
+//   en vez del botón de solo icono de la fila; el diálogo es el mismo.
+function AccionAnulacion({ tipo, doc, nombre, onCambiar, cargarSolicitudes, conTexto = false }) {
   const { perfil } = useAuth()
   const [abierto, setAbierto] = useState(false)
   const anulado = estaAnulado(doc)
@@ -25,15 +27,26 @@ function AccionAnulacion({ tipo, doc, nombre, onCambiar, cargarSolicitudes }) {
   const accion = anulado ? 'Reactivar' : 'Anular'
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setAbierto(true)}
-        className={`rounded-md p-1.5 text-slate-500 ${anulado ? 'hover:bg-emerald-50 hover:text-emerald-700' : 'hover:bg-red-50 hover:text-red-600'}`}
-        aria-label={`${accion} la ${tipo} ${nombre}`}
-        title={accion}
-      >
-        <Icono className="h-4 w-4" />
-      </button>
+      {conTexto ? (
+        <button
+          type="button"
+          onClick={() => setAbierto(true)}
+          className={`${claseBotonSecundario} ${anulado ? 'hover:text-emerald-700' : 'text-red-700 hover:text-red-800'}`}
+        >
+          <Icono className="h-4 w-4" />
+          {accion}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAbierto(true)}
+          className={`rounded-md p-1.5 text-slate-500 ${anulado ? 'hover:bg-emerald-50 hover:text-emerald-700' : 'hover:bg-red-50 hover:text-red-600'}`}
+          aria-label={`${accion} la ${tipo} ${nombre}`}
+          title={accion}
+        >
+          <Icono className="h-4 w-4" />
+        </button>
+      )}
       {abierto && (
         <Modal titulo={`${accion} ${tipo}: ${nombre}`} onCerrar={() => setAbierto(false)}>
           <DialogoAnulacion

@@ -17,7 +17,9 @@ const Categorias = lazy(() => import('./pages/centros-costo/Categorias'))
 const Subcategorias = lazy(() => import('./pages/centros-costo/Subcategorias'))
 const Facturas = lazy(() => import('./pages/facturas/Facturas'))
 const FormularioFactura = lazy(() => import('./pages/facturas/FormularioFactura'))
+const PaginaDetalleFactura = lazy(() => import('./pages/facturas/PaginaDetalleFactura'))
 const FormularioBoleta = lazy(() => import('./pages/boletas/FormularioBoleta'))
+const PaginaDetalleBoleta = lazy(() => import('./pages/boletas/PaginaDetalleBoleta'))
 const Lineas = lazy(() => import('./pages/facturas/Lineas'))
 const Boletas = lazy(() => import('./pages/boletas/Boletas'))
 const LineasBoletas = lazy(() => import('./pages/boletas/Lineas'))
@@ -70,6 +72,8 @@ const router = createBrowserRouter(
         <Route path="lineas" element={<Lineas />} />
         <Route path="nueva" element={<FormularioFactura />} />
         <Route path=":id" element={<FormularioFactura />} />
+        {/* "Ver detalles" a pantalla completa; dos segmentos, no choca con :id. */}
+        <Route path=":id/detalle" element={<PaginaDetalleFactura />} />
       </Route>
       {/* Los formularios de boleta, insumo, proveedor y catálogo también son
           páginas de su sección (no modales); las rutas estáticas (plantillas,
@@ -81,6 +85,7 @@ const router = createBrowserRouter(
         {/* ?plantilla=<id>: ingreso rápido de boleta recurrente, pre-llenado. */}
         <Route path="nuevo" element={<FormularioBoleta />} />
         <Route path=":id" element={<FormularioBoleta />} />
+        <Route path=":id/detalle" element={<PaginaDetalleBoleta />} />
       </Route>
       {/* Una sola pantalla: encabezado de sección sin barra de pestañas. */}
       <Route path="/pagos" element={<SeccionConPestanas path="/pagos" />}>

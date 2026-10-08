@@ -11,3 +11,6 @@ export const claseBotonSecundario =
 
 export const claseBotonAdvertencia =
   'inline-flex items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60'
+
+// Tarjeta de sección de una página (formularios y detalle de facturas y boletas).
+export const claseTarjeta = 'rounded-lg border border-slate-200 bg-white p-4 shadow-sm'
