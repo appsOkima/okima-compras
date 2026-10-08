@@ -68,12 +68,14 @@ Se separa la deuda (factura / boleta) del flujo de caja (pago).
 
 ### 1.4 Boletas y detalle de boletas
 
+> **Parcialmente superado por la migración 13** (ver §6.3): `boletas.concepto` y `detalle_boletas.id_insumo_proveedor` ya no existen, y las líneas de boleta no mueven stock.
+
 `boletas` (la actual `otros_gastos`) funciona como cabecera que agrupa varias líneas, igual que `facturas`.
 
 * **Cabecera `boletas`:** `id`, `created_at`, `concepto`, `id_subcategoria` (opcional), `id_plantilla_recurrente` (opcional), `id_proveedor` (opcional), `fecha`, `numero_documento` (opcional), `monto` (total, en CLP), `estado_documento` (ver 1.8), `notas`.
 * **Detalle `detalle_boletas`:** `id`, `id_boleta` (FK a `boletas`, `ON DELETE CASCADE`), `descripcion` (text), `id_insumo_proveedor` (opcional), `cantidad`, `precio`, `subtotal` (calculado por la interfaz), `id_solicitud_compra` (opcional, ver 1.5). Sin `notas`.
 * Las boletas no discriminan IVA (es un monto total).
-* Las líneas de boleta **mueven stock** igual que las de factura (ver 1.6): si la línea tiene `id_insumo_proveedor` vinculado en la pivote, suma stock. Las líneas sin `id_insumo_proveedor` (ej. arriendo, sueldos) no tocan stock.
+* ~~Las líneas de boleta **mueven stock** igual que las de factura (ver 1.6): si la línea tiene `id_insumo_proveedor` vinculado en la pivote, suma stock. Las líneas sin `id_insumo_proveedor` (ej. arriendo, sueldos) no tocan stock.~~ *(superado por la migración 13: las boletas no mueven stock)*
 * Una boleta existente se migra con una línea única que replica su concepto y monto.
 
 ### 1.5 Vinculación de solicitudes con líneas
@@ -86,6 +88,8 @@ Una solicitud de compra puede originar la compra de una línea de factura **o** 
 * Una solicitud con vínculos existentes sigue la regla vigente: al pasar a 'Pendiente' o 'Cancelada' se avisa de las líneas asociadas, sin bloquear.
 
 ### 1.6 Insumos proveedor ↔ insumos Okima: relación N:M
+
+> **Parcialmente superado por la migración 13** (ver §6.3): el stock sale solo de líneas de factura; `movimientos_stock` ya no tiene `id_detalle_boleta`.
 
 Casos: varios proveedores venden el mismo producto físico, y un producto del proveedor (ej. resma de papel mercurio) se convierte en varios formatos internos.
 
@@ -243,3 +247,23 @@ Las migraciones (`supabase/migraciones/2026-10-02-NN-*.sql`) se aplican a mano y
 * **Límites conocidos de T9a:** el modal de vinculación inversa carga hasta 500 líneas por tipo, y "Cambiar" una solicitud ya vinculada deja la anterior en 'Comprada'.
 * **Pendientes menores:** el formulario de solo lectura de un documento anulado no muestra Cuotas/Pagos (sí "Ver detalles"); el Productor no ve el aviso de facturas vinculadas al cambiar el estado de una solicitud (no lee facturas).
 * **Seguridad de la clave inicial:** la clave común se lee de `SEED_PASSWORD` (variable de entorno) y se exige cambiarla en el primer login (`user_metadata.debe_cambiar_clave`); el login acepta el nombre (`tac`) o el email completo.
+
+### 6.3 Ajustes posteriores
+
+Migración 13 (`2026-10-02-13-boletas-sin-concepto-ni-insumos.sql`, con `-down` y `13-verificacion`), pedido del usuario después del cierre; detalle en `historial-decisiones.md`. **Rompe la interfaz anterior: aplicar y desplegar juntas.** Registro: `odd/tasks/boletas-sin-concepto-ni-insumos.md`. No ejecutada ni probada contra Supabase real.
+
+| Objeto | Cambio |
+| --- | --- |
+| `boletas.concepto` | Eliminada sin respaldo (copiada antes a `detalle_boletas.descripcion`). Previa: toda boleta con al menos una línea con descripción. |
+| `detalle_boletas.id_insumo_proveedor` | Eliminada (con su FK e índice). Las líneas quedan: descripción, cantidad, precio, subtotal, `id_solicitud_compra`. |
+| `movimientos_stock` | Sin `id_detalle_boleta`, sin `CHECK` de origen ni índice único de boleta; `id_detalle_factura` vuelve a NOT NULL. Los movimientos de boleta existentes se borran revirtiendo el stock. |
+| Triggers y funciones | Fuera `generar_movimientos_stock_boleta()` y sus triggers, y `boletas_sincronizar_stock_estado`; `sincronizar_stock_estado_documento()` queda solo para facturas. Se mantienen `boletas_validar_estado` y `detalle_boletas_bloquear_si_anulada`. |
+| Se mantiene | `detalle_boletas.id_solicitud_compra`, trigger 'Comprada' y exclusividad factura/boleta. |
+
+Correcciones al texto original, **superadas por la migración 13**:
+
+* §1.4: la cabecera ya no tiene `concepto`; el detalle ya no tiene `id_insumo_proveedor`; las líneas de boleta no mueven stock.
+* §1.6: el trigger de stock y `movimientos_stock` aplican solo a líneas de factura; anular una boleta no revierte stock.
+* §4: el criterio "Guardar una línea de boleta con insumo vinculado suma stock…" ya no aplica.
+* §6.2: "La propuesta Vincular insumo no existe en boletas" queda sin objeto (no hay insumos en boletas).
+* Interfaz: una boleta se nombra por la descripción de su primera línea («+N más»; «Boleta sin líneas»). Líneas de factura sin N° factura, descuento %, stock sumado, insumo Okima ni formato en pantalla (los cuatro primeros siguen en el CSV); líneas de boleta con fecha, descripción, cantidad, precio, subtotal y solicitud.

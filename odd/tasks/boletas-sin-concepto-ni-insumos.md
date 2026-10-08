@@ -24,15 +24,16 @@
 - [x] **B1 Base de datos (migración 13).** Eliminar `boletas.concepto`; eliminar `detalle_boletas.id_insumo_proveedor`; retirar el stock de boletas (`generar_movimientos_stock_boleta`, sus triggers, `movimientos_stock.id_detalle_boleta`, el CHECK de origen y su índice único; `id_detalle_factura` vuelve a NOT NULL); `sincronizar_stock_estado_documento` solo para facturas; comprobaciones previas, reversa, verificación y `schema.sql`.
 - [x] **B2 Boletas en la interfaz.** Sin campo concepto; líneas sin insumo del proveedor; etiqueta de boleta derivada de sus líneas; ingreso rápido desde plantilla (la descripción de la línea = nombre de la plantilla); sección Pagos, modales y avisos que usaban `concepto`.
 - [x] **B3 Tablas de líneas.** Líneas de factura sin las 5 columnas; líneas de boleta sin proveedor, insumo Okima ni boleta.
-- [ ] **B4 Documentación.** `CLAUDE.md`, `Sprint2.md` §6, `historial-decisiones.md`, README.
+- [x] **B4 Documentación.** `CLAUDE.md`, `Sprint2.md` §6, `historial-decisiones.md`, README.
 
 ## Progreso y evidencia
 
 - **B1** (ruta **D**, escritor SQL): migración `2026-10-02-13-boletas-sin-concepto-ni-insumos.sql` (+ `-down`, + `-13-verificacion.sql`, UN solo SELECT). Revisada por mí: prechecks (toda boleta con ≥1 línea con descripción; sin dependencias de `concepto`), foto del stock, borrado de movimientos de boleta revirtiendo stock con verificación aritmética, `sincronizar_stock_estado_documento` solo de facturas, drops en orden. **No ejecutada ni validada por parser.** Rompe scripts históricos que usan `boletas.concepto`/`id_detalle_boleta` (pruebas-roles, verificaciones 08/10, down 08): se actualizan aparte. RDD off → disabled/unmanaged.
 - **B2+B3** (ruta **D**, escritor interfaz): RED observado (13 fallos incl. `nombreBoleta` sin módulo), GREEN 226/226; lint y build pasan y el grep final en `src/` no deja referencias a `concepto`/`id_insumo_proveedor`/`id_detalle_boleta` de boletas (re-verificado por mí). `nombreBoleta` en `src/lib/nombreBoleta.js` (evita ciclo de imports). Líneas de factura: 5 columnas fuera de pantalla (4 quedan solo en CSV; «Formato» se eliminó, su dato ya estaba en el CSV como `formato_unidad`/`cantidad_formato`). Líneas de boleta: fecha, descripción, cantidad, precio, subtotal, solicitud. NO probado contra Supabase real ni en navegador: embeds nuevos `lineas:detalle_boletas(descripcion, created_at)` sin verificar. Depende de la migración 13. RDD off → disabled/unmanaged.
+- **B4** (ruta **D**, escritor docs): `CLAUDE.md`, `historial-decisiones.md` (sección «Ajuste posterior al cierre del Sprint 2»), `Sprint2.md` (§6.3 y marcas «superado» en §1.4/§1.6) y `README.md` (fila 13). Corregí a mano una frase del historial que atribuía una razón no declarada por el usuario. RDD off → disabled/unmanaged.
 - Scripts históricos actualizados (commit aparte): pruebas-roles, verificaciones 08/09/10 y reversas 08/09.
 - Commit previo e independiente: script `cambiar-clave.mjs` y pendientes del Sprint 3.
 
 ## Siguiente paso
 
-B4 (documentación).
+Cerrada en código; pendiente que el usuario aplique la migración 13, despliegue y pruebe.
