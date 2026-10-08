@@ -139,7 +139,7 @@ Cada rol ve solo sus secciones (matriz arriba).
 5. **Gestionar Insumos Okima:** CRUD de `insumos`; filtro de incompletos.
 6. **Centros de Costo:** CRUD de `categorias` y `subcategorias` (solo Admin; los combos que las muestran son de lectura para todos los roles).
 
-Transversal: botón de exportación a CSV en las vistas de tabla; formato de RUT (módulo 11) y números con separador de miles y coma decimal. La búsqueda por texto de los listados se recuerda mientras se navega dentro de la misma sección (listado, detalle, edición, líneas) y se borra al cambiar de sección, recargar o cerrar sesión (`useBusquedaPersistente`, en memoria).
+Transversal: botón de exportación a CSV en las vistas de tabla; formato de RUT (módulo 11) y números con separador de miles y coma decimal. En Facturas la búsqueda por texto mira también las líneas (insumo del proveedor, su código e insumo Okima vinculado). La búsqueda por texto de los listados se recuerda mientras se navega dentro de la misma sección (listado, detalle, edición, líneas) y se borra al cambiar de sección, recargar o cerrar sesión (`useBusquedaPersistente`, en memoria).
 
 ---
 

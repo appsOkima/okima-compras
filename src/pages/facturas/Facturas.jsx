@@ -21,18 +21,18 @@ import { puedeHacer } from '../../lib/permisos'
 import { mensajeBorradoDocumento, textoEstadoPago } from '../../lib/pagos'
 import { solicitudesDeFactura as cargarSolicitudes } from '../../lib/cargarSolicitudes'
 import { hoyISO } from '../../lib/solicitudes'
-import { coincide, normalizarRut } from '../../lib/texto'
+import { buscarEnFactura } from '../../lib/busquedaFacturas'
 
 // De las líneas basta la cantidad (el detalle las consulta al abrirse). perfil_anulo:
 // quién la anuló (la FK anulado_por se nombra para no confundirla con created_by).
 const SELECT =
-  '*, proveedor:proveedores(id, nombre, rut), perfil_anulo:perfiles!anulado_por(nombre_mostrar), lineas:detalle_facturas(count)'
+  '*, proveedor:proveedores(id, nombre, rut), perfil_anulo:perfiles!anulado_por(nombre_mostrar), lineas:detalle_facturas(id, insumo_proveedor:insumos_proveedores(nombre, codigo, vinculos:insumos_proveedores_okima(insumo:insumos(nombre))))'
 
 // Más reciente primero; a igual fecha, la última ingresada arriba.
 const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }
 
 const nombreProveedor = (f) => f.proveedor?.nombre ?? ''
-const numeroLineas = (f) => f.lineas?.[0]?.count ?? 0
+const numeroLineas = (f) => f.lineas?.length ?? 0
 const monto = (clave) => (f) => <span className="whitespace-nowrap">{formatoCLP(f[clave])}</span>
 
 // Estado de pago de cada factura (vista_estado_pago, ver useEstadosPago).
@@ -42,7 +42,21 @@ const columnasFacturas = (estados) => [
     titulo: 'Fecha',
     render: (f) => <span className="whitespace-nowrap">{formatoFecha(f.fecha)}</span>,
   },
-  { clave: 'proveedor', titulo: 'Proveedor', render: nombreProveedor, csv: nombreProveedor },
+  {
+    clave: 'proveedor',
+    titulo: 'Proveedor',
+    render: (f) => (
+      <>
+        {nombreProveedor(f)}
+        {f.coincidenciasLineas?.length > 0 && (
+          <span className="mt-0.5 block text-xs font-normal text-slate-500">
+            Línea: {f.coincidenciasLineas.join(', ')}
+          </span>
+        )}
+      </>
+    ),
+    csv: nombreProveedor,
+  },
   { clave: 'rut', titulo: 'RUT proveedor', soloCsv: true, csv: (f) => f.proveedor?.rut ?? '' },
   { clave: 'numero_factura', titulo: 'N° factura' },
   { clave: 'neto_total', titulo: 'Neto', alinear: 'derecha', render: monto('neto_total') },
@@ -99,16 +113,19 @@ function Facturas() {
 
   const visibles = useMemo(
     () =>
-      filas.filter(
-        (f) =>
-          (mostrarAnuladas || !estaAnulado(f)) &&
-          (!mes || mesDe(f.fecha) === mes) &&
-          (!estadoPago || estados.get(f.id)?.estado_pago === estadoPago) &&
-          (!busqueda ||
-            [nombreProveedor(f), f.numero_factura, f.proveedor?.rut, normalizarRut(f.proveedor?.rut)].some((v) =>
-              coincide(v, busqueda),
-            )),
-      ),
+      filas
+        .filter(
+          (f) =>
+            (mostrarAnuladas || !estaAnulado(f)) &&
+            (!mes || mesDe(f.fecha) === mes) &&
+            (!estadoPago || estados.get(f.id)?.estado_pago === estadoPago),
+        )
+        // La búsqueda mira la cabecera y las líneas; si la factura aparece solo por una línea,
+        // se anota cuál (coincidenciasLineas) para mostrarla bajo el proveedor.
+        .flatMap((f) => {
+          const r = buscarEnFactura(f, busqueda)
+          return r.coincide ? [{ ...f, coincidenciasLineas: r.lineas }] : []
+        }),
     [filas, mes, busqueda, mostrarAnuladas, estadoPago, estados],
   )
   const totalAnuladas = useMemo(() => filas.filter(estaAnulado).length, [filas])
