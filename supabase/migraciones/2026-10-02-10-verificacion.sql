@@ -41,7 +41,8 @@ select
 select 'factura' as tipo, f.id, f.numero_factura as referencia, f.total as monto, f.estado_documento::text as estado
 from facturas f where not exists (select 1 from pagos p where p.id_factura = f.id)
 union all
-select 'boleta', b.id, b.concepto, b.monto, b.estado_documento::text
+select 'boleta', b.id, coalesce((select d.descripcion from detalle_boletas d where d.id_boleta = b.id
+                                  order by d.created_at, d.id limit 1), b.id::text), b.monto, b.estado_documento::text
 from boletas b where not exists (select 1 from pagos p where p.id_boleta = b.id)
 order by 1, 4;
 

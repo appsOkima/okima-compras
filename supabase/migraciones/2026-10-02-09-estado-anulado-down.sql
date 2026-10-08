@@ -1,4 +1,9 @@
 -- Reversa de 2026-10-02-09-estado-anulado.sql. Una sola transacción.
+-- ORDEN DE REVERSA: la migración 13 eliminó la rama de boletas de sincronizar_stock_estado_documento()
+-- y el trigger boletas_sincronizar_stock_estado (y movimientos_stock.id_detalle_boleta). Esta reversa
+-- asume el estado posterior a la 08 y anterior a la 13: revertir primero 13-down (y 12, 11, 10 -down),
+-- y después ESTE archivo; el -08-detalle-boletas-down.sql va a continuación. Si id_detalle_boleta no
+-- existe, aborta con un error claro y no cambia nada.
 -- Comportamiento con documentos anulados (documentado, no silencioso):
 --   * Los documentos anulados VUELVEN A CONTAR: sus movimientos revertidos se ponen en
 --     revertido = false con el trigger NUEVO todavía activo, que suma de vuelta su qty a
@@ -16,6 +21,12 @@ begin;
 
 do $$
 begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'movimientos_stock' and column_name = 'id_detalle_boleta'
+  ) then
+    raise exception 'Reversa T6a: movimientos_stock.id_detalle_boleta no existe (la migración 13 está aplicada). Antes hay que revertir la 13 con 2026-10-02-13-boletas-sin-concepto-ni-insumos-down.sql (y las posteriores a la 09, en orden inverso).';
+  end if;
   if not exists (
     select 1 from information_schema.columns
     where table_schema = 'public' and table_name = 'facturas' and column_name = 'estado_documento'

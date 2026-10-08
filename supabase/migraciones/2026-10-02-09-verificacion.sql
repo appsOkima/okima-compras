@@ -1,5 +1,10 @@
 -- Verificación posterior a 2026-10-02-09-estado-anulado.sql.
 -- SOLO LECTURA: no modifica nada. Ejecutar en el SQL Editor y revisar cada bloque.
+-- AJUSTADO A LA MIGRACION 13: contra la base final, los movimientos de stock son solo de facturas
+-- (movimientos_stock.id_detalle_boleta ya no existe) y el trigger boletas_sincronizar_stock_estado fue
+-- eliminado. Anular una boleta ya no toca stock; el bloque 4 solo chequea facturas en cuanto a stock y
+-- mantiene los chequeos de datos de anulación de boletas. Para los chequeos históricos de boletas y stock,
+-- ejecutar este archivo antes de la 13.
 
 -- 1. Enum: debe devolver vigente, anulado (en ese orden).
 select enumlabel from pg_enum
@@ -32,18 +37,12 @@ select
      join detalle_facturas d on d.id = m.id_detalle_factura
      join facturas f on f.id = d.id_factura
      where m.revertido and f.estado_documento = 'vigente')
-  + (select count(*) from movimientos_stock m
-     join detalle_boletas d on d.id = m.id_detalle_boleta
-     join boletas b on b.id = d.id_boleta
-     where m.revertido and b.estado_documento = 'vigente')            as revertidos_en_documentos_vigentes,
+                                                                      as revertidos_en_documentos_vigentes,
   (select count(*) from movimientos_stock m
      join detalle_facturas d on d.id = m.id_detalle_factura
      join facturas f on f.id = d.id_factura
      where not m.revertido and f.estado_documento = 'anulado')
-  + (select count(*) from movimientos_stock m
-     join detalle_boletas d on d.id = m.id_detalle_boleta
-     join boletas b on b.id = d.id_boleta
-     where not m.revertido and b.estado_documento = 'anulado')        as no_revertidos_en_documentos_anulados,
+                                                                      as no_revertidos_en_documentos_anulados,
   (select count(*) from facturas where estado_documento = 'anulado' and anulado_at is null)
   + (select count(*) from boletas where estado_documento = 'anulado' and anulado_at is null)
                                                                         as anulados_sin_fecha,
@@ -57,7 +56,7 @@ select
 
 -- 5. Triggers esperados (cada uno una vez):
 --    facturas: facturas_validar_estado, facturas_sincronizar_stock_estado
---    boletas:  boletas_validar_estado, boletas_sincronizar_stock_estado
+--    boletas:  boletas_validar_estado (boletas_sincronizar_stock_estado ya NO existe tras la 13)
 --    detalle_facturas / detalle_boletas: ..._bloquear_si_anulada (además de los de stock)
 --    movimientos_stock: movimientos_stock_aplicar (debe incluir "UPDATE OF ... revertido").
 select event_object_table as tabla, trigger_name, action_timing, string_agg(event_manipulation, ', ') as eventos

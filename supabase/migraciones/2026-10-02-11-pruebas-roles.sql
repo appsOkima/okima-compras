@@ -1,4 +1,7 @@
 -- Sprint 2 / T3b: pruebas de las políticas por rol (2026-10-02-11-rls-por-rol.sql).
+-- Actualizado a la migración 13 (boletas sin concepto ni insumos del proveedor): las boletas se insertan sin
+-- `concepto`, las líneas de boleta no usan id_insumo_proveedor y las boletas ya no generan movimientos
+-- de stock. Siguen siendo 143 casos (la numeración no cambia: ninguno probaba stock de boletas).
 -- NO DEJA CAMBIOS en la base: las filas de prueba se crean y se usan dentro de un sub-bloque
 -- (BEGIN ... EXCEPTION) de un DO que termina con una excepción propia (P0777); Postgres revierte
 -- todo el sub-bloque y los resultados sobreviven en una variable del DO. No necesita BEGIN/ROLLBACK
@@ -119,7 +122,7 @@ begin
       (31, 'productor', $q$NO actualiza insumo_proveedor (0 filas)$q$, 'dml', $q$update public.insumos_proveedores set notas = 'x' where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000006'$q$, 'filas=0'),
       (32, 'productor', $q$NO inserta factura$q$, 'dml', $q$insert into public.facturas (id_proveedor, numero_factura, fecha) values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000003', 'ZZ-RLS-P', current_date)$q$, 'error 42501'),
       (33, 'productor', $q$NO inserta pago$q$, 'dml', $q$insert into public.pagos (monto, fecha_pago, id_factura) values (1, current_date, 'aaaaaaaa-aaaa-4aaa-8aaa-000000000012')$q$, 'error 42501'),
-      (34, 'productor', $q$NO inserta boleta$q$, 'dml', $q$insert into public.boletas (concepto, monto) values ('ZZ_PRUEBA_RLS', 1)$q$, 'error 42501'),
+      (34, 'productor', $q$NO inserta boleta$q$, 'dml', $q$insert into public.boletas (monto) values (1)$q$, 'error 42501'),
       (35, 'productor', $q$NO inserta categoría$q$, 'dml', $q$insert into public.categorias (nombre) values ('ZZ_PRUEBA_RLS')$q$, 'error 42501'),
       (36, 'productor', $q$NO inserta plantilla$q$, 'dml', $q$insert into public.plantillas_gastos_recurrentes (nombre) values ('ZZ_PRUEBA_RLS')$q$, 'error 42501'),
       (37, 'productor', $q$NO escribe perfiles (UPDATE sin privilegio)$q$, 'dml', $q$update public.perfiles set nombre_mostrar = nombre_mostrar$q$, 'error 42501'),
@@ -149,7 +152,7 @@ begin
       (61, 'contador', $q$inserta pago (returning id)$q$, 'dml', $q$insert into public.pagos (monto, fecha_pago, id_factura) values (10, current_date, 'aaaaaaaa-aaaa-4aaa-8aaa-000000000012') returning id$q$, 'filas=1'),
       (62, 'contador', $q$NO actualiza pago (0 filas)$q$, 'dml', $q$update public.pagos set notas = 'x' where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000018'$q$, 'filas=0'),
       (63, 'contador', $q$NO borra pago (0 filas)$q$, 'dml', $q$delete from public.pagos where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000018'$q$, 'filas=0'),
-      (64, 'contador', $q$inserta boleta (returning id)$q$, 'dml', $q$insert into public.boletas (concepto, monto) values ('ZZ_PRUEBA_RLS boleta c', 1000) returning id$q$, 'filas=1'),
+      (64, 'contador', $q$inserta boleta (returning id)$q$, 'dml', $q$insert into public.boletas (monto) values (1000) returning id$q$, 'filas=1'),
       (65, 'contador', $q$actualiza boleta$q$, 'dml', $q$update public.boletas set notas = 'x' where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000019'$q$, 'filas=1'),
       (66, 'contador', $q$inserta línea de boleta (returning id)$q$, 'dml', $q$insert into public.detalle_boletas (id_boleta, descripcion, cantidad, precio, subtotal) values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000019', 'ZZ_PRUEBA_RLS', 1, 10, 10) returning id$q$, 'filas=1'),
       (67, 'contador', $q$borra línea de boleta (edición del documento)$q$, 'dml', $q$delete from public.detalle_boletas where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000022'$q$, 'filas=1'),
@@ -252,7 +255,7 @@ begin
       ('aaaaaaaa-aaaa-4aaa-8aaa-000000000017', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000014', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000007', 1, 100, 100);
     insert into public.pagos (id, monto, fecha_pago, id_factura) values
       ('aaaaaaaa-aaaa-4aaa-8aaa-000000000018', 50, current_date, 'aaaaaaaa-aaaa-4aaa-8aaa-000000000012'), ('aaaaaaaa-aaaa-4aaa-8aaa-000000000025', 20, current_date, 'aaaaaaaa-aaaa-4aaa-8aaa-000000000012');
-    insert into public.boletas (id, concepto, monto) values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000019', 'ZZ_PRUEBA_RLS boleta 1', 10), ('aaaaaaaa-aaaa-4aaa-8aaa-000000000020', 'ZZ_PRUEBA_RLS boleta 2', 10);
+    insert into public.boletas (id, monto) values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000019', 10), ('aaaaaaaa-aaaa-4aaa-8aaa-000000000020', 10);
     insert into public.detalle_boletas (id, id_boleta, descripcion, cantidad, precio, subtotal) values
       ('aaaaaaaa-aaaa-4aaa-8aaa-000000000021', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000019', 'ZZ_PRUEBA_RLS', 1, 10, 10),
       ('aaaaaaaa-aaaa-4aaa-8aaa-000000000022', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000019', 'ZZ_PRUEBA_RLS', 1, 10, 10),

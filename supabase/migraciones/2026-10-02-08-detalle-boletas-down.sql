@@ -1,4 +1,9 @@
 -- Reversa de 2026-10-02-08-detalle-boletas.sql. Una sola transacción.
+-- ORDEN DE REVERSA (obligatorio): esta reversa usa movimientos_stock.id_detalle_boleta, que la
+-- migración 13 (boletas sin concepto ni insumos) elimina. Con la 13 aplicada hay que revertir en
+-- orden inverso al de aplicación: 13-down, luego 12-down, ..., 09-down y recién después ESTE archivo
+-- (2026-10-02-13-boletas-sin-concepto-ni-insumos-down.sql primero: recrea id_detalle_boleta). Si
+-- id_detalle_boleta no existe, el primer paso aborta con un error claro y no cambia nada.
 --   * Elimina los movimientos de stock de líneas de boleta CON el trigger
 --     movimientos_stock_aplicar activo: insumos.qty se REVIERTE (se resta lo que las
 --     líneas de boleta habían sumado).
@@ -13,6 +18,12 @@ begin;
 
 do $$
 begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'movimientos_stock' and column_name = 'id_detalle_boleta'
+  ) then
+    raise exception 'Reversa T5a: movimientos_stock.id_detalle_boleta no existe (la migración 13 está aplicada). Antes hay que revertir la 13 con 2026-10-02-13-boletas-sin-concepto-ni-insumos-down.sql (y las posteriores a la 08, en orden inverso).';
+  end if;
   if to_regclass('public.detalle_boletas') is null then
     raise exception 'Reversa T5a: detalle_boletas no existe; la migración no está aplicada.';
   end if;
