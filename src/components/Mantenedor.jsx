@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { useAuth } from '../auth/contexto'
+import { useBusquedaPersistente } from '../hooks/useBusquedaPersistente'
 import { useTabla } from '../hooks/useTabla'
 import { estaAnulado } from '../lib/anulacion'
 import { buscarDuplicados as buscarDuplicadosEn } from '../lib/duplicados'
@@ -84,7 +85,7 @@ function Mantenedor({
   const puedeEditar = puedeHacer(perfil?.rol, entidad, 'editar')
   const puedeBorrar = puedeHacer(perfil?.rol, entidad, 'borrar')
   const { filas, cargando, error, crear, actualizar, eliminar } = useTabla(tabla, { select, orden })
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   const [soloIncompletos, setSoloIncompletos] = useState(false)
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
   const [mostrarAnuladas, setMostrarAnuladas] = useState(false)

@@ -5,6 +5,7 @@ import InputNumero from '../../components/InputNumero'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
+import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
 import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoCompra } from '../../lib/formato'
 import { aNumeroDesdeTexto, numeroAEditable } from '../../lib/numero'
@@ -30,7 +31,7 @@ const DURACION_CONFIRMACION = 5000
 function PorVincular() {
   const { filas, cargando, error, recargar } = useTabla('insumos_proveedores', { select: SELECT })
   const { filas: insumos, error: errorInsumos } = useTabla('insumos', { select: SELECT_INSUMOS })
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   // id del insumo de proveedor → id del insumo Okima elegido (aún sin guardar).
   const [seleccion, setSeleccion] = useState({})
   // id del insumo de proveedor → factor escrito (si no, el por defecto de la fila).

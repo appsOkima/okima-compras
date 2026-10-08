@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LogOut, Menu, PackageSearch, X } from 'lucide-react'
 import { useAuth } from '../auth/contexto'
+import BusquedasProvider from './BusquedasProvider'
 import { puedeVerSeccion } from '../lib/permisos'
 import { secciones } from '../secciones'
 
@@ -20,6 +21,7 @@ function Layout() {
   }, [pathname])
 
   return (
+    <BusquedasProvider>
     <div className="min-h-screen bg-slate-50 text-slate-800 md:flex print:block print:bg-white">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden print:hidden">
         <Marca />
@@ -82,6 +84,7 @@ function Layout() {
         </Suspense>
       </main>
     </div>
+    </BusquedasProvider>
   )
 }
 

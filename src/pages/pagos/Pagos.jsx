@@ -7,6 +7,7 @@ import Modal from '../../components/Modal'
 import TablaDatos from '../../components/TablaDatos'
 import { claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
+import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
 import { errorSinFilas, mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha } from '../../lib/formato'
 import { mesDe } from '../../lib/gastos'
@@ -58,7 +59,7 @@ const columnas = [
 // en el total del filtro (como en el Resumen).
 function Pagos() {
   const { filas, cargando, error, recargar } = useTabla('pagos', { select: SELECT, orden: ORDEN })
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   // '' = todos los meses; si no, 'YYYY-MM' (del mes del pago).
   const [mes, setMes] = useState('')
   // { pago, total, pagadoOtros } mientras se edita; el total y lo ya pagado salen del documento.

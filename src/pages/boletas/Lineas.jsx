@@ -8,6 +8,7 @@ import TablaDatos from '../../components/TablaDatos'
 import { claseInput } from '../../components/estilos'
 import { useSolicitudesVinculables } from '../../hooks/useSolicitudesVinculables'
 import { useTabla } from '../../hooks/useTabla'
+import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
 import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
 import { mesDe, mesesPresentes } from '../../lib/gastos'
 import { puedeHacer } from '../../lib/permisos'
@@ -81,7 +82,7 @@ function Lineas() {
   const solicitudes = useSolicitudesVinculables('detalle_facturas')
   const { perfil } = useAuth()
   const puedeVincular = puedeHacer(perfil?.rol, 'boletas', 'editar')
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   const [mes, setMes] = useState('')
   const [soloSinSolicitud, setSoloSinSolicitud] = useState(false)
 

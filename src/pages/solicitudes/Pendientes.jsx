@@ -9,6 +9,7 @@ import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import { useSolicitudesConLineas } from '../../hooks/useSolicitudesOcupadas'
 import { useTabla } from '../../hooks/useTabla'
+import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
 import { errorSinFilas, mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
 import { notasImpresion } from '../../lib/notas'
@@ -61,7 +62,7 @@ function Pendientes() {
   const { perfil } = useAuth()
   const puedeVincular = puedeHacer(perfil?.rol, 'facturas', 'editar') && puedeHacer(perfil?.rol, 'boletas', 'editar')
   const conLineas = useSolicitudesConLineas()
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   // null = cerrado; { registro: null } = nueva; { registro } = edición.
   const [edicion, setEdicion] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')

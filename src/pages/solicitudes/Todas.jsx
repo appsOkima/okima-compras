@@ -7,6 +7,7 @@ import TablaDatos from '../../components/TablaDatos'
 import { claseInput } from '../../components/estilos'
 import { useSolicitudesConLineas } from '../../hooks/useSolicitudesOcupadas'
 import { useTabla } from '../../hooks/useTabla'
+import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
 import { mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
 import { puedeHacer } from '../../lib/permisos'
@@ -44,7 +45,7 @@ function Todas({ estadoFijo }) {
   const [filtroElegido, setFiltro] = useState('Todas')
   const filtro = estadoFijo ?? filtroElegido
   const vista = VISTAS_ESTADO[estadoFijo]
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   const [edicion, setEdicion] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
   // id de la solicitud cuyo estado se está cambiando (evita doble clic).

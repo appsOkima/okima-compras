@@ -12,6 +12,7 @@ import { claseBotonPrimario, claseInput } from '../../components/estilos'
 import { useAuth } from '../../auth/contexto'
 import { useEstadosPago } from '../../hooks/useEstadosPago'
 import { useTabla } from '../../hooks/useTabla'
+import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
 import { estaAnulado, vigentes } from '../../lib/anulacion'
 import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
@@ -80,7 +81,7 @@ function Facturas() {
   const { filas, cargando, error, actualizar, eliminar } = useTabla('facturas', { select: SELECT, orden: ORDEN })
   const { estados, recargar: recargarEstados } = useEstadosPago('factura')
   const columnas = useMemo(() => columnasFacturas(estados), [estados])
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   // '' = todos; si no, pagado | pendiente | parcial.
   const [estadoPago, setEstadoPago] = useState('')
   // '' = todos los meses; si no, 'YYYY-MM'.
