@@ -56,8 +56,9 @@ Importar el repositorio en Vercel (framework Vite; `vercel.json` ya redirige tod
 La app exige iniciar sesión (Supabase Auth). No hay registro abierto: los usuarios se siembran con `scripts/seed-usuarios.mjs`, que usa la service-role key (solo desde variable de entorno local, nunca en `src/`).
 
 1. Aplicar `supabase/migraciones/2026-10-02-05-perfiles.sql`.
-2. Crear `.env.seed` en la raíz (ignorado por git; no se versiona ninguna plantilla) con tres variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (clave service role del panel de Supabase) y `SEED_PASSWORD` (clave temporal común). La service-role key vive solo ahí y en el script, nunca en `src/` ni en `.env.local`.
+2. Crear `.env.seed` en la raíz (ignorado por git; la plantilla sin valores es `.env.seed.example`) con tres variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (clave service role del panel de Supabase) y `SEED_PASSWORD` (clave temporal común). La service-role key vive solo ahí y en el script, nunca en `src/` ni en `.env.local`.
 3. `node --env-file=.env.seed scripts/seed-usuarios.mjs` (idempotente: omite los que ya existen y no toca su clave). Crea Richard, Jhona y Ana (productor), Gerardo (contador) y Tac y Jorge (admin), como `nombre@okima.cl`. Cada usuario debe cambiar la clave en su primer ingreso.
+4. **Cambiar la clave de un usuario (administrador):** las claves no se pueden leer, solo reemplazar (en la base solo hay un hash en `auth.users`). Con `.env.seed` ya creado: `$env:NUEVA_CLAVE='clave-temporal'; node --env-file=.env.seed scripts/cambiar-clave.mjs tac` (PowerShell) o `NUEVA_CLAVE=clave-temporal node --env-file=.env.seed scripts/cambiar-clave.mjs tac`. Deja una clave temporal (mínimo 8 caracteres) y el usuario debe elegir la suya al ingresar. También se puede desde el panel de Supabase (Authentication → Users).
 4. Aplicar `supabase/migraciones/2026-10-02-06-vincular-solicitantes.sql` (después de sembrar).
 
 El rol de cada usuario sale de `app_metadata`; la matriz de permisos está en `CLAUDE.md` y `Sprint2.md` §2.1.
