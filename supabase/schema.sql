@@ -206,13 +206,12 @@ create index detalle_facturas_id_solicitud_compra_idx on detalle_facturas (id_so
 -- al borrarse. Borrar la línea o la factura (cascada) revierte el stock sin código adicional.
 -- id_insumo SIN cascade: borrar un insumo con movimientos falla a propósito
 -- (el historial de stock no se pierde en silencio).
--- Los movimientos también nacen de líneas de boleta (T5a): id_detalle_factura es
--- nullable y id_detalle_boleta se agrega más abajo, en la sección de detalle_boletas
--- (la tabla se declara después de boletas), con CHECK de origen único.
+-- Solo las líneas de factura mueven stock: las boletas no registran insumos del proveedor
+-- (migración 13).
 create table movimientos_stock (
   id                  uuid primary key default gen_random_uuid(),
   created_at          timestamptz not null default now(),
-  id_detalle_factura  uuid references detalle_facturas (id) on delete cascade,
+  id_detalle_factura  uuid not null references detalle_facturas (id) on delete cascade,
   id_insumo           uuid not null references insumos (id),
   qty                 numeric not null,
   -- true = revertido por la anulación de su documento (T6a): se conserva el registro pero ya
@@ -342,7 +341,6 @@ create table plantillas_gastos_recurrentes (
 create table boletas (
   id                       uuid primary key default gen_random_uuid(),
   created_at               timestamptz not null default now(),
-  concepto                 text not null,
   id_subcategoria          uuid references subcategorias (id),
   -- Si viene de un atajo de gasto recurrente, indica de cuál plantilla (la boleta nace de un gasto recurrente).
   id_plantilla_recurrente  uuid references plantillas_gastos_recurrentes (id),
@@ -368,9 +366,9 @@ comment on table boletas is
 -- -----------------------------------------------------------------------------
 -- La boleta es la cabecera y boletas.monto el total de las líneas (calculado por la
 -- interfaz). Sin notas (decisión del usuario). id_solicitud_compra (T8a) vincula la línea
--- con la solicitud que la originó, igual que en detalle_facturas.
--- id_insumo_proveedor es opcional (arriendo, sueldos y servicios no tienen insumo) y
--- SIN cascade, igual que detalle_facturas. precio = CLP por unidad, IVA incluido según
+-- con la solicitud que la originó, igual que en detalle_facturas. La boleta no tiene
+-- nombre propio: se nombra por la descripcion de sus líneas. Las boletas no registran insumos
+-- del proveedor ni mueven stock (migración 13). precio = CLP por unidad, IVA incluido según
 -- la boleta (sin descuento ni IVA discriminado). subtotal lo calcula la interfaz:
 -- round(cantidad × precio). vista_solicitudes_pendientes y el Resumen no se tocan.
 create table detalle_boletas (
@@ -378,7 +376,6 @@ create table detalle_boletas (
   created_at           timestamptz not null default now(),
   id_boleta            uuid not null references boletas (id) on delete cascade,
   descripcion          text not null,
-  id_insumo_proveedor  uuid references insumos_proveedores (id),
   id_solicitud_compra  uuid references solicitudes_compra (id) on delete set null,
   cantidad             numeric not null default 1 check (cantidad > 0),
   precio               numeric not null,
@@ -386,13 +383,10 @@ create table detalle_boletas (
 );
 
 create index detalle_boletas_id_boleta_idx on detalle_boletas (id_boleta);
-create index detalle_boletas_id_insumo_proveedor_idx on detalle_boletas (id_insumo_proveedor);
 create index detalle_boletas_id_solicitud_compra_idx on detalle_boletas (id_solicitud_compra);
 
 comment on table detalle_boletas is
   'Líneas de boleta. boletas.monto es el total de estas líneas (lo calcula y guarda la interfaz; la base no lo recalcula).';
-comment on column detalle_boletas.id_insumo_proveedor is
-  'Opcional: arriendo, sueldos y servicios no tienen insumo. Si está vinculado en la pivote, la línea mueve stock.';
 comment on column detalle_boletas.id_solicitud_compra is
   'Solicitud de compra que originó esta línea (opcional). Varias líneas pueden apuntar a la misma solicitud. Una solicitud no puede tener líneas de factura y de boleta a la vez (validar_exclusividad_solicitud). Marca la solicitud como ''Comprada'' (marcar_solicitud_comprada).';
 comment on column detalle_facturas.id_solicitud_compra is
@@ -403,51 +397,6 @@ comment on column detalle_boletas.subtotal is
   'Calculado por la interfaz: round(cantidad × precio). La base no lo calcula.';
 comment on column boletas.monto is
   'Total de la boleta en CLP = suma de subtotal de sus líneas (detalle_boletas). Lo calcula y guarda la interfaz; la base no lo recalcula.';
-
--- movimientos_stock admite líneas de boleta: cada movimiento nace de una línea de factura
--- O de una de boleta. Borrar la línea o la boleta (cascade) revierte el stock vía trigger.
-alter table movimientos_stock
-  add column id_detalle_boleta uuid references detalle_boletas (id) on delete cascade,
-  add constraint movimientos_stock_origen_check
-    check (num_nonnulls(id_detalle_factura, id_detalle_boleta) = 1);
-
-create unique index movimientos_stock_detalle_boleta_insumo_key on movimientos_stock (id_detalle_boleta, id_insumo);
-
--- Análogo a generar_movimientos_stock_factura: por cada fila de la pivote del
--- insumo_proveedor de la línea, qty = cantidad × factor_conversion. Sin insumo_proveedor
--- o sin filas en la pivote no hay stock (vincular después no lo aplica retroactivamente).
--- Al cambiar cantidad o insumo_proveedor se borran los movimientos de la línea (revierte)
--- y se regeneran.
-create function generar_movimientos_stock_boleta()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if tg_op = 'UPDATE' then
-    delete from movimientos_stock where id_detalle_boleta = new.id;
-  end if;
-
-  insert into movimientos_stock (id_detalle_boleta, id_insumo, qty)
-  select new.id, po.id_insumo_okima, new.cantidad * po.factor_conversion
-  from insumos_proveedores_okima po
-  where po.id_insumo_proveedor = new.id_insumo_proveedor;
-  return null;
-end;
-$$;
-
-create trigger detalle_boletas_generar_stock_ins
-after insert on detalle_boletas
-for each row
-execute function generar_movimientos_stock_boleta();
-
-create trigger detalle_boletas_generar_stock_upd
-after update on detalle_boletas
-for each row
-when (old.cantidad is distinct from new.cantidad
-      or old.id_insumo_proveedor is distinct from new.id_insumo_proveedor)
-execute function generar_movimientos_stock_boleta();
 
 -- Regla 'Comprada' también para líneas de boleta (T8a): se reutiliza marcar_solicitud_comprada()
 -- (no es SECURITY DEFINER: solo contador y admin escriben líneas y ambos pueden actualizar
@@ -670,7 +619,7 @@ create index boletas_anuladas_idx on boletas (anulado_at) where estado_documento
 comment on column facturas.estado_documento is
   'vigente | anulado. Anular revierte el stock (movimientos_stock.revertido) y excluye el documento de totales; solo contador/admin anula, solo admin reactiva.';
 comment on column boletas.estado_documento is
-  'vigente | anulado. Anular revierte el stock (movimientos_stock.revertido) y excluye el documento de totales; solo contador/admin anula, solo admin reactiva.';
+  'vigente | anulado. Anular excluye el documento de totales (no toca stock: las boletas no mueven stock); solo contador/admin anula, solo admin reactiva.';
 comment on column facturas.motivo_anulacion is 'Opcional en la base; la interfaz lo pide al anular.';
 comment on column boletas.motivo_anulacion is 'Opcional en la base; la interfaz lo pide al anular.';
 
@@ -742,9 +691,10 @@ before update on boletas
 for each row
 execute function validar_estado_documento();
 
--- AFTER UPDATE del estado: anular marca revertido = true en los movimientos de todas las
--- líneas del documento (el trigger de movimientos_stock resta); reactivar los pone en false
--- (reaplica exacto lo revertido, sin recalcular con la pivote actual).
+-- AFTER UPDATE del estado (solo facturas; las boletas no mueven stock): anular marca
+-- revertido = true en los movimientos de todas las líneas de la factura (el trigger de
+-- movimientos_stock resta); reactivar los pone en false (reaplica exacto lo revertido, sin
+-- recalcular con la pivote actual).
 create function sincronizar_stock_estado_documento()
 returns trigger
 language plpgsql
@@ -754,17 +704,10 @@ as $$
 declare
   v_revertir boolean := (new.estado_documento = 'anulado');
 begin
-  if tg_table_name = 'facturas' then
-    update movimientos_stock m
-    set revertido = v_revertir
-    where m.revertido is distinct from v_revertir
-      and m.id_detalle_factura in (select d.id from detalle_facturas d where d.id_factura = new.id);
-  else
-    update movimientos_stock m
-    set revertido = v_revertir
-    where m.revertido is distinct from v_revertir
-      and m.id_detalle_boleta in (select d.id from detalle_boletas d where d.id_boleta = new.id);
-  end if;
+  update movimientos_stock m
+  set revertido = v_revertir
+  where m.revertido is distinct from v_revertir
+    and m.id_detalle_factura in (select d.id from detalle_facturas d where d.id_factura = new.id);
   return null;
 end;
 $$;
@@ -775,18 +718,12 @@ for each row
 when (old.estado_documento is distinct from new.estado_documento)
 execute function sincronizar_stock_estado_documento();
 
-create trigger boletas_sincronizar_stock_estado
-after update on boletas
-for each row
-when (old.estado_documento is distinct from new.estado_documento)
-execute function sincronizar_stock_estado_documento();
-
 -- Líneas de un documento anulado: sin INSERT ni UPDATE (el DELETE, incluida la cascada del
 -- Admin, sigue permitido y no resta stock: sus movimientos ya están revertidos). Argumentos:
 -- (tabla del documento, columna FK de la línea). `for share` serializa contra una anulación
 -- concurrente. El on delete set null de id_solicitud_compra (acción referencial, trigger
--- anidado: pg_trigger_depth() > 1) se permite. No bloquea a generar_movimientos_stock_*: son
--- AFTER de las líneas y no se disparan si la línea no se puede insertar ni actualizar.
+-- anidado: pg_trigger_depth() > 1) se permite. No bloquea a generar_movimientos_stock_factura: es
+-- AFTER de las líneas y no se dispara si la línea no se puede insertar ni actualizar.
 create function bloquear_lineas_documento_anulado()
 returns trigger
 language plpgsql

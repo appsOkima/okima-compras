@@ -21,15 +21,16 @@
 
 ## Tareas
 
-- [ ] **B1 Base de datos (migración 13).** Eliminar `boletas.concepto`; eliminar `detalle_boletas.id_insumo_proveedor`; retirar el stock de boletas (`generar_movimientos_stock_boleta`, sus triggers, `movimientos_stock.id_detalle_boleta`, el CHECK de origen y su índice único; `id_detalle_factura` vuelve a NOT NULL); `sincronizar_stock_estado_documento` solo para facturas; comprobaciones previas, reversa, verificación y `schema.sql`.
+- [x] **B1 Base de datos (migración 13).** Eliminar `boletas.concepto`; eliminar `detalle_boletas.id_insumo_proveedor`; retirar el stock de boletas (`generar_movimientos_stock_boleta`, sus triggers, `movimientos_stock.id_detalle_boleta`, el CHECK de origen y su índice único; `id_detalle_factura` vuelve a NOT NULL); `sincronizar_stock_estado_documento` solo para facturas; comprobaciones previas, reversa, verificación y `schema.sql`.
 - [ ] **B2 Boletas en la interfaz.** Sin campo concepto; líneas sin insumo del proveedor; etiqueta de boleta derivada de sus líneas; ingreso rápido desde plantilla (la descripción de la línea = nombre de la plantilla); sección Pagos, modales y avisos que usaban `concepto`.
 - [ ] **B3 Tablas de líneas.** Líneas de factura sin las 5 columnas; líneas de boleta sin proveedor, insumo Okima ni boleta.
 - [ ] **B4 Documentación.** `CLAUDE.md`, `Sprint2.md` §6, `historial-decisiones.md`, README.
 
 ## Progreso y evidencia
 
+- **B1** (ruta **D**, escritor SQL): migración `2026-10-02-13-boletas-sin-concepto-ni-insumos.sql` (+ `-down`, + `-13-verificacion.sql`, UN solo SELECT). Revisada por mí: prechecks (toda boleta con ≥1 línea con descripción; sin dependencias de `concepto`), foto del stock, borrado de movimientos de boleta revirtiendo stock con verificación aritmética, `sincronizar_stock_estado_documento` solo de facturas, drops en orden. **No ejecutada ni validada por parser.** Rompe scripts históricos que usan `boletas.concepto`/`id_detalle_boleta` (pruebas-roles, verificaciones 08/10, down 08): se actualizan aparte. RDD off → disabled/unmanaged.
 - Commit previo e independiente: script `cambiar-clave.mjs` y pendientes del Sprint 3.
 
 ## Siguiente paso
 
-B1.
+B2+B3 (interfaz) y actualización de scripts SQL históricos.
