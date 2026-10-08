@@ -26,9 +26,6 @@ function detalleItem(item) {
 // Nunca se pide ni se ofrece el insumo Okima al crear: ese vínculo se hace en
 // Proveedores → Por vincular o, con confirmación explícita, al asociar la línea a
 // una solicitud (ver vinculoPropuesto en lib/facturas).
-// `proveedorOpcional` (Boletas, donde el proveedor no es obligatorio): sin proveedor
-// se puede buscar en todo el catálogo que reciba (con `proveedor:proveedores(nombre)`
-// embebido); crear sigue exigiendo proveedor.
 function SelectorInsumoProveedor({
   id,
   valor,
@@ -37,7 +34,6 @@ function SelectorInsumoProveedor({
   idProveedor,
   onCrearInsumo,
   cargando = false,
-  proveedorOpcional = false,
 }) {
   const idBase = useId()
   // null = sin mini-formulario abierto; si no, el nombre a crear.
@@ -102,9 +98,7 @@ function SelectorInsumoProveedor({
   }
 
   const placeholder = !idProveedor
-    ? proveedorOpcional
-      ? 'Buscar insumo (opcional; para crear uno, elige el proveedor)…'
-      : 'Elige primero el proveedor'
+    ? 'Elige primero el proveedor'
     : cargando
       ? 'Cargando catálogo…'
       : 'Buscar o crear insumo del proveedor…'
@@ -118,7 +112,7 @@ function SelectorInsumoProveedor({
         onChange={onChange}
         onCrear={idProveedor ? abrir : undefined}
         placeholder={placeholder}
-        disabled={(!idProveedor && !proveedorOpcional) || cargando || nombreNuevo !== null}
+        disabled={!idProveedor || cargando || nombreNuevo !== null}
       />
 
       {nombreNuevo !== null && (

@@ -131,11 +131,18 @@ describe('documentoDePago / totalPagosVigentes', () => {
     factura: { numero_factura: '55', estado_documento: 'vigente', proveedor: { nombre: 'Papelera' } },
     boleta: null,
   }
-  const pagoBoleta = { monto: 50, factura: null, boleta: { concepto: 'Arriendo', estado_documento: 'anulado' } }
+  const pagoBoleta = { monto: 50, factura: null, boleta: { lineas: [{ descripcion: 'Arriendo', created_at: '2026-10-01' }], estado_documento: 'anulado' } }
 
   it('describe el documento del pago', () => {
     expect(documentoDePago(pagoFactura)).toEqual({ tipo: 'factura', texto: 'Factura N° 55 — Papelera', anulado: false })
     expect(documentoDePago(pagoBoleta)).toEqual({ tipo: 'boleta', texto: 'Boleta — Arriendo', anulado: true })
+  })
+
+  it('el nombre de la boleta sale de sus líneas; sin líneas, "Boleta sin líneas"', () => {
+    const dos = { boleta: { lineas: [{ descripcion: 'Luz', created_at: '2026-10-01' }, { descripcion: 'Agua', created_at: '2026-10-02' }] } }
+    expect(documentoDePago(dos).texto).toBe('Boleta — Luz (+1 más)')
+    expect(documentoDePago({ boleta: { lineas: [] } }).texto).toBe('Boleta sin líneas')
+    expect(documentoDePago({ boleta: null }).texto).toBe('Boleta sin líneas')
   })
 
   it('el total no suma pagos de documentos anulados', () => {

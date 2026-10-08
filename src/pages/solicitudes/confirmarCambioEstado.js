@@ -2,7 +2,7 @@ import { avisaFacturas, boletasDeLineas, facturasDeLineas, textoConfirmacionEsta
 import { supabase } from '../../lib/supabase'
 
 const SELECT_FACTURAS = 'id, factura:facturas(numero_factura, fecha, proveedor:proveedores(nombre))'
-const SELECT_BOLETAS = 'id, boleta:boletas(id, concepto, fecha, numero_documento)'
+const SELECT_BOLETAS = 'id, boleta:boletas(id, fecha, numero_documento, lineas:detalle_boletas(descripcion, created_at))'
 
 // Pide confirmación para cambiar a mano el estado de una solicitud. Al pasarla a
 // 'Pendiente' o 'Cancelada' (en pantalla, "Anulada") consulta antes qué facturas y

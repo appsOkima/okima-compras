@@ -24,6 +24,19 @@ describe('solicitudesParaModal', () => {
     expect(r.map((f) => f.coincide)).toEqual([true, true, false])
   })
 
+  it('línea de boleta (sin insumo, idsInsumoOkima vacío): nada coincide y ordena por urgencia y fecha tope', () => {
+    const r = solicitudesParaModal(
+      [
+        sol('1', { nivel_urgencia: 'Baja' }),
+        sol('2', { nivel_urgencia: 'Media', fecha_esperada: '2026-03-01' }),
+        sol('3', { nivel_urgencia: 'Media', fecha_esperada: '2026-02-01' }),
+      ],
+      { idsInsumoOkima: [] },
+    )
+    expect(ids(r)).toEqual(['3', '2', '1'])
+    expect(r.every((f) => !f.coincide)).toBe(true)
+  })
+
   it('dentro de cada grupo ordena por urgencia Alta, Media, Baja', () => {
     const r = solicitudesParaModal([
       sol('1', { nivel_urgencia: 'Baja' }),
@@ -102,7 +115,7 @@ const filaBoleta = (id, extra = {}) => ({
   cantidad: 1,
   subtotal: 500,
   id_solicitud_compra: null,
-  boleta: { concepto: 'Ferretería', numero_documento: '77', fecha: '2026-02-12', estado_documento: 'vigente', proveedor: null },
+  boleta: { lineas: [{ descripcion: 'Ferretería', created_at: '2026-02-12T10:00:00Z' }], numero_documento: '77', fecha: '2026-02-12', estado_documento: 'vigente', proveedor: null },
   insumo_proveedor: null,
   ...extra,
 })
@@ -123,7 +136,7 @@ describe('normalización de líneas', () => {
   })
 
   it('línea de boleta sin insumo ni proveedor y de documento anulado', () => {
-    const l = lineaBoletaParaVincular(filaBoleta('b', { boleta: { concepto: 'Ferretería', fecha: '2026-02-12', estado_documento: 'anulado' } }))
+    const l = lineaBoletaParaVincular(filaBoleta('b', { boleta: { lineas: [{ descripcion: 'Ferretería', created_at: '2026-02-12T10:00:00Z' }], fecha: '2026-02-12', estado_documento: 'anulado' } }))
     expect(l).toMatchObject({ tipo: 'boleta', documento: 'Boleta «Ferretería»', proveedor: '', descripcion: 'Scotch', idsInsumoOkima: [], anulado: true })
   })
 })
@@ -154,9 +167,9 @@ describe('lineasParaSolicitud', () => {
 
   it('el resto va de la fecha más reciente a la más antigua y es estable', () => {
     const lineas = [
-      b('1', { boleta: { concepto: 'A', fecha: '2026-01-01', estado_documento: 'vigente' } }),
-      b('2', { boleta: { concepto: 'B', fecha: '2026-03-01', estado_documento: 'vigente' } }),
-      b('3', { boleta: { concepto: 'C', fecha: '2026-03-01', estado_documento: 'vigente' } }),
+      b('1', { boleta: { lineas: [{ descripcion: 'A', created_at: '2026-02-12T10:00:00Z' }], fecha: '2026-01-01', estado_documento: 'vigente' } }),
+      b('2', { boleta: { lineas: [{ descripcion: 'B', created_at: '2026-02-12T10:00:00Z' }], fecha: '2026-03-01', estado_documento: 'vigente' } }),
+      b('3', { boleta: { lineas: [{ descripcion: 'C', created_at: '2026-02-12T10:00:00Z' }], fecha: '2026-03-01', estado_documento: 'vigente' } }),
     ]
     expect(idsL(lineasParaSolicitud(lineas, { id: 's', id_insumo_okima: 'q' }))).toEqual(['2', '3', '1'])
   })

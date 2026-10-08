@@ -36,16 +36,19 @@ describe('Cancelada se muestra como Anulada', () => {
 
 describe('avisos de documentos vinculados al cambiar el estado', () => {
   const sol = { insumo_nombre: 'Papel', estado: 'Comprada' }
-  const linea = (id, concepto, fecha, numero) => ({ boleta: { id, concepto, fecha, numero_documento: numero } })
+  const linea = (id, descripcion, fecha, numero) => ({
+    boleta: { id, lineas: descripcion ? [{ descripcion, created_at: '2026-10-01' }] : [], fecha, numero_documento: numero },
+  })
 
   it('boletasDeLineas: una por boleta, con número y fecha si existen', () => {
     const lista = boletasDeLineas([
       linea('b1', 'Ferretería', '2026-10-05', '88'),
       linea('b1', 'Ferretería', '2026-10-05', '88'),
       linea('b2', 'Taxi', null, null),
+      linea('b3', null, null, null),
       { boleta: null },
     ])
-    expect(lista).toEqual(['«Ferretería» N° 88 (05-10-2026)', '«Taxi»'])
+    expect(lista).toEqual(['«Ferretería» N° 88 (05-10-2026)', '«Taxi»', '«Boleta sin líneas»'])
     expect(boletasDeLineas(null)).toEqual([])
   })
 

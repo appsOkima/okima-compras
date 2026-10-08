@@ -4,6 +4,7 @@
 // donde se ve al instante tras agregar un pago.
 import { estaAnulado } from './anulacion.js'
 import { formatoCLP } from './formato.js'
+import { BOLETA_SIN_LINEAS, nombreBoleta } from './nombreBoleta.js'
 import { aNumeroDesdeTexto } from './numero.js'
 
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/
@@ -71,7 +72,7 @@ export function textoEstadoPago(fila) {
 }
 
 // De qué documento es un pago con `factura:facturas(…, proveedor:proveedores(nombre))` y
-// `boleta:boletas(concepto, …)` embebidos → { tipo, texto, anulado }.
+// `boleta:boletas(…, lineas:detalle_boletas(descripcion, created_at))` embebidos → { tipo, texto, anulado }.
 export function documentoDePago(pago) {
   if (pago?.factura) {
     const f = pago.factura
@@ -83,7 +84,9 @@ export function documentoDePago(pago) {
     }
   }
   const b = pago?.boleta
-  return { tipo: 'boleta', texto: `Boleta${b?.concepto ? ` — ${b.concepto}` : ''}`, anulado: estaAnulado(b) }
+  const nombre = nombreBoleta(b?.lineas)
+  const texto = nombre === BOLETA_SIN_LINEAS ? nombre : `Boleta — ${nombre}`
+  return { tipo: 'boleta', texto, anulado: estaAnulado(b) }
 }
 
 // Suma de pagos sin los de documentos anulados (no cuentan, como en el Resumen).

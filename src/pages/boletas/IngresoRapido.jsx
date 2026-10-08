@@ -8,8 +8,8 @@ import { formatoCLP } from '../../lib/formato'
 const SELECT_PLANTILLAS = 'id, nombre, monto_default, activo'
 
 // Atajos de gasto recurrente: un enlace por plantilla activa que abre el
-// formulario de la boleta en su página, pre-llenado desde la plantilla (concepto,
-// subcategoría y una línea con el monto; solo queda confirmar la fecha): /boletas/nuevo?plantilla=<id>,
+// formulario de la boleta en su página, pre-llenado desde la plantilla (subcategoría y
+// una línea con el nombre y el monto; solo queda confirmar la fecha): /boletas/nuevo?plantilla=<id>,
 // ver FormularioBoleta. Al guardar se vuelve al listado con el aviso de éxito.
 function IngresoRapido() {
   const { filas: plantillas, cargando, error } = useTabla('plantillas_gastos_recurrentes', {

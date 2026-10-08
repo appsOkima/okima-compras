@@ -8,7 +8,8 @@ import { lineaBoletaParaVincular, lineaFacturaParaVincular, lineasParaSolicitud 
 import { supabase } from '../../lib/supabase'
 import { vincularLinea } from '../facturas/vincularLinea'
 
-// Por tipo de documento: tabla, consulta y normalizador. Solo líneas sin solicitud y de
+// Por tipo de documento: tabla, consulta y normalizador. Las boletas no traen insumo del
+// proveedor ni vínculos. Solo líneas sin solicitud y de
 // documentos vigentes (!inner + filtro del embebido), las más recientes primero y con
 // tope: la búsqueda del modal opera sobre las cargadas.
 const MAXIMO_LINEAS = 500
@@ -25,7 +26,7 @@ const FUENTES = [
     tipo: 'boleta',
     tabla: 'detalle_boletas',
     documento: 'boleta',
-    select: `id, descripcion, cantidad, subtotal, id_solicitud_compra, boleta:boletas!inner(concepto, numero_documento, fecha, estado_documento, proveedor:proveedores(nombre)), ${VINCULOS}`,
+    select: `id, descripcion, cantidad, subtotal, id_solicitud_compra, boleta:boletas!inner(numero_documento, fecha, estado_documento, proveedor:proveedores(nombre), lineas:detalle_boletas(descripcion, created_at))`,
     normalizar: lineaBoletaParaVincular,
   },
 ]

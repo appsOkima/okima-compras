@@ -8,15 +8,14 @@ import TablaDatos from '../../components/TablaDatos'
 import { claseInput } from '../../components/estilos'
 import { useSolicitudesVinculables } from '../../hooks/useSolicitudesVinculables'
 import { useTabla } from '../../hooks/useTabla'
-import { formatoCLP, formatoCompra, formatoFecha, formatoNumero } from '../../lib/formato'
+import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
 import { mesDe, mesesPresentes } from '../../lib/gastos'
 import { puedeHacer } from '../../lib/permisos'
 import { coincide } from '../../lib/texto'
 import { lineaFacturaParaVincular } from '../../lib/vinculacion'
-import { textoMovimientos } from '../../lib/vinculos'
 import AccionVinculoLinea from './AccionVinculoLinea'
 
-// Solo lo que muestra la tabla o exporta el CSV. !id_solicitud_compra nombra la FK
+// Solo lo que muestra la tabla o exporta el CSV (hay columnas que solo van al CSV). !id_solicitud_compra nombra la FK
 // para que el embebido no sea ambiguo. movimientos: el stock que aplicó el trigger
 // a cada insumo Okima (puede ser más de uno por línea). Los vínculos del insumo del
 // proveedor ordenan las solicitudes de la vinculación rápida; estado_documento marca
@@ -54,16 +53,9 @@ const columnas = [
   {
     clave: 'fecha',
     titulo: 'Fecha',
-    render: (l) => <span className="whitespace-nowrap">{formatoFecha(fechaFactura(l))}</span>,
-    csv: fechaFactura,
-  },
-  {
-    clave: 'numero_factura',
-    titulo: 'N° factura',
-    csv: numeroFactura,
     render: (l) => (
       <>
-        {numeroFactura(l)}
+        <span className="whitespace-nowrap">{formatoFecha(fechaFactura(l))}</span>
         {anulada(l) && (
           <span className="ml-2">
             <EtiquetaAnulada />
@@ -71,7 +63,9 @@ const columnas = [
         )}
       </>
     ),
+    csv: fechaFactura,
   },
+  { clave: 'numero_factura', titulo: 'N° factura', soloCsv: true, csv: numeroFactura },
   { clave: 'proveedor', titulo: 'Proveedor', render: nombreProveedor, csv: nombreProveedor },
   { clave: 'rut_proveedor', titulo: 'RUT proveedor', soloCsv: true, csv: (l) => l.factura?.proveedor?.rut ?? '' },
   {
@@ -86,12 +80,6 @@ const columnas = [
     ),
   },
   { clave: 'codigo', titulo: 'Código proveedor', soloCsv: true, csv: (l) => l.insumo_proveedor?.codigo ?? '' },
-  {
-    clave: 'formato',
-    titulo: 'Formato',
-    soloTabla: true,
-    render: (l) => formatoCompra(l.insumo_proveedor?.cantidad_formato, l.insumo_proveedor?.formato_unidad),
-  },
   { clave: 'formato_unidad', titulo: 'Formato unidad', soloCsv: true, csv: (l) => l.insumo_proveedor?.formato_unidad ?? '' },
   {
     clave: 'cantidad_formato',
@@ -99,28 +87,12 @@ const columnas = [
     soloCsv: true,
     csv: (l) => l.insumo_proveedor?.cantidad_formato ?? null,
   },
-  {
-    clave: 'insumos_okima',
-    titulo: 'Insumo Okima',
-    csv: nombresInsumosOkima,
-    render: (l) => nombresInsumosOkima(l) || <span className="text-xs text-slate-400">Sin stock</span>,
-  },
+  { clave: 'insumos_okima', titulo: 'Insumo Okima', soloCsv: true, csv: nombresInsumosOkima },
   { clave: 'cantidad', titulo: 'Cantidad', alinear: 'derecha', render: (l) => formatoNumero(l.cantidad) },
   { clave: 'precio_neto', titulo: 'Precio neto', alinear: 'derecha', render: monto('precio_neto') },
-  {
-    clave: 'descuento_pct',
-    titulo: 'Descuento %',
-    alinear: 'derecha',
-    render: (l) => <span className="whitespace-nowrap">{formatoNumero(l.descuento_pct ?? 0)} %</span>,
-  },
+  { clave: 'descuento_pct', titulo: 'Descuento %', soloCsv: true },
   { clave: 'subtotal', titulo: 'Subtotal', alinear: 'derecha', render: monto('subtotal') },
-  {
-    clave: 'stock_sumado',
-    titulo: 'Stock sumado',
-    alinear: 'derecha',
-    csv: (l) => (l.movimientos ?? []).map((m) => m.qty).join('; '),
-    render: (l) => textoMovimientos(l.movimientos) || formatoNumero(null),
-  },
+  { clave: 'stock_sumado', titulo: 'Stock sumado', soloCsv: true, csv: (l) => (l.movimientos ?? []).map((m) => m.qty).join('; ') },
   {
     clave: 'solicitud',
     titulo: 'Solicitud',
@@ -198,9 +170,9 @@ function Lineas() {
       <div>
         <h2 className="text-xl font-semibold text-slate-800">Líneas de factura</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Todas las líneas, con su insumo Okima y el stock que sumaron. Para corregir una línea, edita su factura; aquí
-          solo se vincula o desvincula su solicitud. Vincular una línea ya guardada no suma stock ni propone vincular su
-          insumo.
+          Todas las líneas. Para corregir una línea, edita su factura; aquí solo se vincula o desvincula su solicitud.
+          Vincular una línea ya guardada no suma stock ni propone vincular su insumo. El CSV incluye además el N° de
+          factura, el descuento, el formato, el insumo Okima y el stock sumado.
         </p>
       </div>
 

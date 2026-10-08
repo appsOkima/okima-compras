@@ -18,7 +18,7 @@ import { coincide } from '../../lib/texto'
 // Documento del pago y quién lo registró. Las dos FK a perfiles de facturas (created_by,
 // anulado_by) no se embeben aquí: solo el documento y su proveedor.
 const SELECT =
-  '*, factura:facturas(numero_factura, estado_documento, proveedor:proveedores(nombre)), boleta:boletas(concepto, estado_documento), perfil:perfiles!created_by(nombre_mostrar)'
+  '*, factura:facturas(numero_factura, estado_documento, proveedor:proveedores(nombre)), boleta:boletas(estado_documento, lineas:detalle_boletas(descripcion, created_at)), perfil:perfiles!created_by(nombre_mostrar)'
 
 // Más reciente primero; a igual fecha, el último registrado arriba.
 const ORDEN = { columna: 'fecha_pago', ascendente: false, luego: { columna: 'created_at', ascendente: false } }

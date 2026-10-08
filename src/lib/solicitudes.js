@@ -1,6 +1,7 @@
 // Reglas de presentación de las solicitudes de compra (sin React ni Supabase,
 // para poder verificarlas con node). La extensión .js explícita es para node.
 import { formatoFecha, formatoNumero } from './formato.js'
+import { nombreBoleta } from './nombreBoleta.js'
 import { normalizar } from './texto.js'
 
 // En el orden del enum nivel_urgencia de la base (Baja < Media < Alta).
@@ -111,17 +112,17 @@ export function facturasDeLineas(lineas) {
   return [...vistas.values()]
 }
 
-// Líneas de detalle_boletas con `boleta:boletas(id, concepto, fecha, numero_documento)` →
-// boletas distintas, como texto "«Concepto» N° 12 (dd-mm-aaaa)". Varias líneas de una
+// Líneas de detalle_boletas con `boleta:boletas(id, fecha, numero_documento, lineas:detalle_boletas(descripcion,
+// created_at))` → boletas distintas, como texto "«Nombre de la boleta» N° 12 (dd-mm-aaaa)". Varias líneas de una
 // misma boleta cuentan una vez.
 export function boletasDeLineas(lineas) {
   const vistas = new Map()
   for (const linea of lineas ?? []) {
     const b = linea?.boleta
     if (!b) continue
-    const clave = b.id ?? `${b.concepto}|${b.fecha}|${b.numero_documento}`
+    const clave = b.id ?? `${nombreBoleta(b.lineas)}|${b.fecha}|${b.numero_documento}`
     if (vistas.has(clave)) continue
-    let texto = `«${b.concepto ?? '?'}»`
+    let texto = `«${nombreBoleta(b.lineas)}»`
     if (b.numero_documento) texto += ` N° ${b.numero_documento}`
     if (b.fecha) texto += ` (${formatoFecha(b.fecha)})`
     vistas.set(clave, texto)

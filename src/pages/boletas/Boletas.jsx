@@ -16,8 +16,8 @@ import { estaVacio } from '../../lib/texto'
 import {
   EMBEDS_BOLETA,
   detalleBoleta,
-  nombreBoleta,
   nombreCategoria,
+  nombreDeBoleta,
   nombrePlantilla,
   nombreProveedor,
   nombreSubcategoria,
@@ -25,7 +25,7 @@ import {
 import IngresoRapido from './IngresoRapido'
 
 // La categoría (centro de costo) se obtiene a través de la subcategoría.
-const SELECT = `*, ${EMBEDS_BOLETA}, lineas:detalle_boletas(count)`
+const SELECT = `*, ${EMBEDS_BOLETA}, lineas:detalle_boletas(descripcion, created_at)`
 
 // Solicitudes vinculadas a las líneas de una boleta, para avisar antes de anularla.
 const cargarSolicitudes = async (idBoleta) => {
@@ -41,8 +41,9 @@ const cargarSolicitudes = async (idBoleta) => {
 // Más reciente primero; a igual fecha, el último ingresado arriba.
 const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }
 
-// De las líneas basta la cantidad (la ficha las consulta al abrirse).
-const numeroLineas = (fila) => fila.lineas?.[0]?.count ?? 0
+// Del listado basta la cantidad de líneas y sus descripciones (la ficha consulta el resto al abrirse).
+const numeroLineas = (fila) => fila.lineas?.length ?? 0
+const descripcionesLineas = (fila) => (fila.lineas ?? []).map((l) => l.descripcion).join(' ')
 
 // Estado de pago de cada boleta (vista_estado_pago, ver useEstadosPago).
 const columnasBoletas = (estados) => [
@@ -51,7 +52,7 @@ const columnasBoletas = (estados) => [
     titulo: 'Fecha',
     render: (fila) => <span className="whitespace-nowrap">{formatoFecha(fila.fecha)}</span>,
   },
-  { clave: 'concepto', titulo: 'Concepto' },
+  { clave: 'descripcion', titulo: 'Descripción', render: nombreDeBoleta, csv: nombreDeBoleta },
   { clave: 'categoria', titulo: 'Categoría', soloCsv: true, csv: nombreCategoria },
   { clave: 'subcategoria', titulo: 'Subcategoría', render: nombreSubcategoria, csv: nombreSubcategoria },
   { clave: 'proveedor', titulo: 'Proveedor', render: nombreProveedor, csv: nombreProveedor },
@@ -82,7 +83,7 @@ const columnasBoletas = (estados) => [
 // "Incompletos" = boleta sin centro de costo (sin subcategoría).
 const esIncompleto = (fila) => estaVacio(fila.id_subcategoria)
 
-const camposBusqueda = ['concepto', 'numero_documento', nombreProveedor, nombreSubcategoria, nombreCategoria]
+const camposBusqueda = [descripcionesLineas, 'numero_documento', nombreProveedor, nombreSubcategoria, nombreCategoria]
 
 // Total de lo que se está mostrando (después de todos los filtros).
 // Las anuladas que se muestren no suman ni se cuentan.
@@ -168,7 +169,7 @@ function Boletas() {
       camposBusqueda={camposBusqueda}
       nombreArchivo="boletas"
       detalle={detalle}
-      nombreRegistro={nombreBoleta}
+      nombreRegistro={nombreDeBoleta}
       filtroExtra={filtroMes}
       resumen={resumen}
       antesDeTabla={() => <IngresoRapido />}
@@ -179,7 +180,7 @@ function Boletas() {
         <AccionAnulacion
           tipo="boleta"
           doc={fila}
-          nombre={fila.concepto}
+          nombre={nombreDeBoleta(fila)}
           cargarSolicitudes={cargarSolicitudes}
           onCambiar={async (datos) => {
             await actualizar(fila.id, datos)

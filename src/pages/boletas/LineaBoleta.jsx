@@ -6,26 +6,18 @@ import { subtotalDeBoleta } from '../../lib/boletas'
 import { formatoCLP } from '../../lib/formato'
 import Campo from '../facturas/Campo'
 import CampoSolicitud from '../facturas/CampoSolicitud'
-import SelectorInsumoProveedor from '../facturas/SelectorInsumoProveedor'
 
 const claseError = ' border-red-400 focus:border-red-500 focus:ring-red-500/30'
 
-// Una línea de la boleta: descripción, insumo del proveedor opcional (con creación
-// al vuelo si la boleta tiene proveedor), solicitud de compra opcional (el modal usa
-// `solicitudes`, `excluirSolicitudes` e `idsInsumoOkima`), cantidad y precio unitario. El subtotal se
-// calcula y solo se muestra. El stock lo mueve la base al guardar si el insumo está
-// vinculado a insumos Okima.
+// Una línea de la boleta: descripción, solicitud de compra opcional (el modal usa
+// `solicitudes` y `excluirSolicitudes`; sin insumo en la línea se ordenan por urgencia y
+// fecha tope), cantidad y precio unitario. El subtotal se calcula y solo se muestra.
 function LineaBoleta({
   linea,
   numero,
   errores = {},
-  catalogo,
-  idProveedor,
-  onCrearInsumo,
-  cargandoCatalogo,
   solicitudes,
   excluirSolicitudes,
-  idsInsumoOkima,
   cargandoSolicitudes,
   onCambiar,
   onQuitar,
@@ -70,27 +62,10 @@ function LineaBoleta({
             className={`${claseInput}${errores.descripcion ? claseError : ''}`}
           />
         </Campo>
-        <Campo
-          id={`${idBase}-insumo`}
-          etiqueta="Insumo del proveedor"
-          ayuda="Opcional. Si está vinculado a insumos Okima, la línea suma stock al guardar."
-        >
-          <SelectorInsumoProveedor
-            id={`${idBase}-insumo`}
-            valor={linea.id_insumo_proveedor}
-            onChange={(v) => onCambiar('id_insumo_proveedor', v)}
-            catalogo={catalogo}
-            idProveedor={idProveedor}
-            onCrearInsumo={onCrearInsumo}
-            cargando={cargandoCatalogo}
-            proveedorOpcional
-          />
-        </Campo>
         <CampoSolicitud
           id={`${idBase}-solicitud`}
           solicitudes={solicitudes}
           excluir={excluirSolicitudes}
-          idsInsumoOkima={idsInsumoOkima}
           valor={linea.id_solicitud_compra}
           onChange={(v) => onCambiar('id_solicitud_compra', v)}
           cargando={cargandoSolicitudes}

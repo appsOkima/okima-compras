@@ -1,6 +1,7 @@
 // Reglas de las listas de vinculación solicitud ↔ línea (modal de solicitudes y modal
 // de líneas), sin React ni Supabase para poder verificarlas con node.
 import { ordenarSolicitudesParaLinea } from './facturas.js'
+import { nombreBoleta } from './nombreBoleta.js'
 import { coincide } from './texto.js'
 
 // Solicitudes que ofrece el modal de una línea, ya ordenadas: primero las que comparten
@@ -42,18 +43,19 @@ export function lineaFacturaParaVincular(fila) {
   }
 }
 
-// Igual para detalle_boletas (con `boleta:boletas(concepto, numero_documento, fecha,
-// estado_documento, proveedor:proveedores(nombre))`). La descripción es la de la línea.
+// Igual para detalle_boletas (con `boleta:boletas(numero_documento, fecha, estado_documento,
+// proveedor:proveedores(nombre), lineas:detalle_boletas(descripcion, created_at))`). La
+// descripción es la de la línea; las boletas no tienen insumo, así que no hay insumos Okima.
 export function lineaBoletaParaVincular(fila) {
   const b = fila.boleta
   return {
     tipo: 'boleta',
     id: fila.id,
-    documento: `Boleta «${b?.concepto ?? '?'}»${b?.numero_documento ? ` N° ${b.numero_documento}` : ''}`,
+    documento: `Boleta «${nombreBoleta(b?.lineas)}»${b?.numero_documento ? ` N° ${b.numero_documento}` : ''}`,
     fecha: b?.fecha ?? null,
     proveedor: b?.proveedor?.nombre ?? '',
     descripcion: fila.descripcion ?? '',
-    idsInsumoOkima: (fila.insumo_proveedor?.vinculos ?? []).map((v) => v.id_insumo_okima),
+    idsInsumoOkima: [],
     cantidad: fila.cantidad,
     subtotal: fila.subtotal,
     idSolicitud: fila.id_solicitud_compra ?? null,
