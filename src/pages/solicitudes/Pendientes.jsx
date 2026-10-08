@@ -1,17 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { AlertCircle, Pencil, Plus, Printer, Search, X } from 'lucide-react'
+import { useAuth } from '../../auth/contexto'
 import EtiquetaUrgencia from '../../components/EtiquetaUrgencia'
 import Modal from '../../components/Modal'
+import Notas from '../../components/Notas'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
+import { useSolicitudesConLineas } from '../../hooks/useSolicitudesOcupadas'
 import { useTabla } from '../../hooks/useTabla'
-import { mensajeError } from '../../lib/errores'
+import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
+import { errorSinFilas, mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
+import { notasImpresion } from '../../lib/notas'
+import { puedeHacer } from '../../lib/permisos'
 import { compararPendientes, estadoFechaTope, hoyISO, metaUrgencia } from '../../lib/solicitudes'
 import { supabase } from '../../lib/supabase'
 import { coincide } from '../../lib/texto'
 import AccionesEstado from './AccionesEstado'
+import AccionVincularLinea from './AccionVincularLinea'
 import { confirmarCambioEstado } from './confirmarCambioEstado'
 import FormularioSolicitud from './FormularioSolicitud'
 
@@ -32,11 +39,30 @@ function FechaTope({ fecha, hoy }) {
   return <span className="whitespace-nowrap">{formatoFecha(fecha)}</span>
 }
 
+// Notas que acompañan a la solicitud en la hoja impresa (ver notasImpresion); en
+// pantalla no se muestran en la tabla.
+function notasEnPapel(fila) {
+  const notas = notasImpresion(fila)
+  if (notas.length === 0) return null
+  return (
+    <div className="space-y-1">
+      {notas.map((n) => (
+        <Notas key={n.titulo} titulo={n.titulo} valor={n.texto} compacto />
+      ))}
+    </div>
+  )
+}
+
 // Lista de solicitudes pendientes (vista_solicitudes_pendientes), por urgencia, e
 // impresión (skill vista-impresion): en papel queda solo el encabezado y la tabla.
 function Pendientes() {
   const { filas, cargando, error, recargar } = useTabla('vista_solicitudes_pendientes', { orden: ORDEN_CONSULTA })
-  const [busqueda, setBusqueda] = useState('')
+  // Vincular a una línea ya guardada: solo contador y admin (el productor no lee líneas) y
+  // solo para solicitudes sueltas, sin ninguna línea de factura ni de boleta.
+  const { perfil } = useAuth()
+  const puedeVincular = puedeHacer(perfil?.rol, 'facturas', 'editar') && puedeHacer(perfil?.rol, 'boletas', 'editar')
+  const conLineas = useSolicitudesConLineas()
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   // null = cerrado; { registro: null } = nueva; { registro } = edición.
   const [edicion, setEdicion] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
@@ -65,25 +91,29 @@ function Pendientes() {
 
   const guardar = async (datos) => {
     const registro = edicion?.registro
-    const { error: errorGuardar } = registro
-      ? await supabase.from('solicitudes_compra').update(datos).eq('id', registro.id)
+    const { data, error } = registro
+      ? await supabase.from('solicitudes_compra').update(datos).eq('id', registro.id).select('id')
       : await supabase.from('solicitudes_compra').insert(datos)
+    // Un UPDATE denegado por el RLS no da error: afecta 0 filas.
+    const errorGuardar = error ?? (registro ? errorSinFilas(data) : null)
     if (errorGuardar) throw errorGuardar
     setEdicion(null)
     // Se recarga la vista: trae el nombre del insumo y los proveedores sugeridos.
     await recargar({ silencioso: true })
   }
 
-  // Marcar comprada o cancelar a mano (con confirmación); la fila sale de la lista al recargar.
+  // Marcar comprada o anular a mano (con confirmación); la fila sale de la lista al recargar.
   const cambiarEstado = async (fila, nuevoEstado) => {
     setErrorAccion('')
     setEnCurso(fila.id)
     try {
       if (!(await confirmarCambioEstado(fila, nuevoEstado))) return
-      const { error: errorCambio } = await supabase
+      const { data, error } = await supabase
         .from('solicitudes_compra')
         .update({ estado: nuevoEstado })
         .eq('id', fila.id)
+        .select('id')
+      const errorCambio = error ?? errorSinFilas(data)
       if (errorCambio) throw errorCambio
       await recargar({ silencioso: true })
     } catch (e) {
@@ -184,6 +214,7 @@ function Pendientes() {
           error={error}
           vacio={busqueda ? 'Ninguna solicitud coincide con la búsqueda.' : 'No hay solicitudes pendientes.'}
           claseFila={(fila) => metaUrgencia(fila.nivel_urgencia).claseFila}
+          detalleImpresion={notasEnPapel}
           barra={
             <div className="relative w-full sm:w-64">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -202,12 +233,19 @@ function Pendientes() {
               <button
                 type="button"
                 onClick={() => setEdicion({ registro: fila })}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                 aria-label={`Editar solicitud de ${fila.insumo_nombre}`}
                 title="Editar"
               >
                 <Pencil className="h-4 w-4" />
               </button>
+              {puedeVincular && !conLineas.has(fila.id) && (
+                <AccionVincularLinea
+                  solicitud={fila}
+                  nombre={fila.insumo_nombre}
+                  onVinculado={() => recargar({ silencioso: true })}
+                />
+              )}
               <AccionesEstado
                 estado="Pendiente"
                 nombre={fila.insumo_nombre}

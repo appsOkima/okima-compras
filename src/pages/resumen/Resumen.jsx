@@ -18,11 +18,11 @@ import {
 } from '../../lib/resumen'
 import { supabase } from '../../lib/supabase'
 
-// De cada factura, su total (con IVA) y el subtotal de sus líneas con la
-// subcategoría del insumo Okima vinculado al insumo del proveedor (ver lib/resumen).
-const SELECT_FACTURAS =
-  'id, fecha, total, lineas:detalle_facturas(subtotal, insumo_proveedor:insumos_proveedores(insumo:insumos(id_subcategoria)))'
-const SELECT_GASTOS = 'id, fecha, monto, id_subcategoria'
+// De cada pago, su monto y fecha, y el documento pagado: de la factura, el subtotal de sus
+// líneas con la subcategoría del insumo Okima vinculado al insumo del proveedor (ver
+// lib/resumen); de la boleta, su subcategoría.
+const SELECT_PAGOS =
+  'id, monto, fecha_pago, id_factura, id_boleta, factura:facturas(id, estado_documento, total, lineas:detalle_facturas(subtotal, insumo_proveedor:insumos_proveedores(vinculos:insumos_proveedores_okima(insumo:insumos(id_subcategoria))))), boleta:boletas(id, estado_documento, id_subcategoria)'
 // Todas, también las inactivas: el historial puede usarlas.
 const SELECT_SUBCATEGORIAS = 'id, nombre, activo, categoria:categorias(id, nombre, activo)'
 
@@ -33,30 +33,25 @@ const TAMANO_PAGINA = 1000
 async function cargarTodo(tabla, select) {
   const filas = []
   for (let desde = 0; ; desde += TAMANO_PAGINA) {
-    const { data, error } = await supabase
-      .from(tabla)
-      .select(select)
-      .order('id')
-      .range(desde, desde + TAMANO_PAGINA - 1)
+    const { data, error } = await supabase.from(tabla).select(select).order('id').range(desde, desde + TAMANO_PAGINA - 1)
     if (error) throw error
     filas.push(...(data ?? []))
     if (!data || data.length < TAMANO_PAGINA) return filas
   }
 }
 
-// Carga única de las tres tablas (solo lectura: no hay que recargar tras editar).
+// Carga única de pagos y subcategorías (solo lectura: no hay que recargar tras editar).
 function useDatosResumen() {
-  const [datos, setDatos] = useState({ facturas: [], gastos: [], subcategorias: [], cargando: true, error: null })
+  const [datos, setDatos] = useState({ pagos: [], subcategorias: [], cargando: true, error: null })
 
   useEffect(() => {
     let vigente = true
     Promise.all([
-      cargarTodo('facturas', SELECT_FACTURAS),
-      cargarTodo('otros_gastos', SELECT_GASTOS),
+      cargarTodo('pagos', SELECT_PAGOS),
       cargarTodo('subcategorias', SELECT_SUBCATEGORIAS),
     ])
-      .then(([facturas, gastos, subcategorias]) => {
-        if (vigente) setDatos({ facturas, gastos, subcategorias, cargando: false, error: null })
+      .then(([pagos, subcategorias]) => {
+        if (vigente) setDatos({ pagos, subcategorias, cargando: false, error: null })
       })
       .catch((error) => {
         if (vigente) setDatos((d) => ({ ...d, cargando: false, error }))
@@ -91,7 +86,7 @@ const columnasMes = [
     csv: (f) => f.mes ?? '',
   },
   columnaMonto('facturas', 'Facturas'),
-  columnaMonto('otrosGastos', 'Otros gastos'),
+  columnaMonto('otrosGastos', 'Boletas'),
   columnaMonto('total', 'Total'),
 ]
 
@@ -103,7 +98,7 @@ const columnasCentro = [
     render: (f) => f.subcategoria || <span className="text-slate-400">—</span>,
   },
   columnaMonto('facturas', 'Facturas'),
-  columnaMonto('otrosGastos', 'Otros gastos'),
+  columnaMonto('otrosGastos', 'Boletas'),
   columnaMonto('total', 'Total'),
   {
     clave: 'pct',
@@ -114,29 +109,29 @@ const columnasCentro = [
   },
 ]
 
-// Línea bajo cada tabla, como el total de los listados de Facturas y Gastos.
+// Línea bajo cada tabla, como el total de los listados de Facturas y Boletas.
 function LineaTotal({ filas }) {
   const t = totales(filas)
   return (
     <div className="mt-2 text-right text-sm text-slate-600">
-      Facturas {formatoCLP(t.facturas)} · Otros gastos {formatoCLP(t.otrosGastos)} · Total:{' '}
+      Facturas {formatoCLP(t.facturas)} · Boletas {formatoCLP(t.otrosGastos)} · Total:{' '}
       <span className="font-semibold text-slate-800">{formatoCLP(t.total)}</span>
     </div>
   )
 }
 
-// Resumen de gastos de solo lectura: facturas y otros gastos juntos, por mes y
-// por centro de costo, con filtros por categoría/subcategoría (ambas tablas) y
+// Resumen de gastos de solo lectura: pagos de facturas y boletas juntos, por mes del
+// pago y por centro de costo, con filtros por categoría/subcategoría (ambas tablas) y
 // por mes (tabla por centro de costo).
 function Resumen() {
-  const { facturas, gastos, subcategorias, cargando, error } = useDatosResumen()
+  const { pagos, subcategorias, cargando, error } = useDatosResumen()
   // '' = todos; SIN_CENTRO = solo lo que no tiene subcategoría; si no, id de categoría.
   const [idCategoria, setIdCategoria] = useState('')
   const [idSubcategoria, setIdSubcategoria] = useState('')
   // '' = todos los meses; si no, 'YYYY-MM'.
   const [mes, setMes] = useState('')
 
-  const movs = useMemo(() => movimientos(facturas, gastos), [facturas, gastos])
+  const movs = useMemo(() => movimientos(pagos), [pagos])
   const indice = useMemo(() => indiceSubcategorias(subcategorias), [subcategorias])
 
   // Categorías que tienen subcategorías, por nombre; las inactivas se marcan.
@@ -177,10 +172,12 @@ function Resumen() {
       <div>
         <h2 className="text-xl font-semibold text-slate-800">Resumen mensual</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Facturas y otros gastos juntos. Cada factura cuenta por su total con IVA, repartido entre sus líneas según su
-          subtotal; cada línea va al centro de costo del insumo Okima vinculado a su insumo del proveedor. Las líneas
+          Suma los pagos de facturas y boletas, no los documentos: cada pago cuenta en el mes en que se pagó, así que un gasto a
+          crédito aparece en el mes de cada cuota. Los pagos de documentos anulados no cuentan. El pago de una factura se
+          reparte entre sus líneas según su subtotal (un pago parcial, con las mismas proporciones); cada línea va al centro
+          de costo del insumo Okima vinculado a su insumo del proveedor. El pago de una boleta va a su subcategoría. Las líneas
           sin insumo Okima vinculado quedan en "{ETIQUETA_SIN_CENTRO}" hasta que se vinculen en{' '}
-          <Link to="/proveedores/por-vincular" className="font-medium text-indigo-700 hover:underline">
+          <Link to="/proveedores/por-vincular" className="font-medium text-primary-darker hover:underline">
             Proveedores → Por vincular
           </Link>
           .
@@ -228,7 +225,7 @@ function Resumen() {
             nombreArchivo="resumen-gastos-por-mes"
             cargando={cargando}
             error={error}
-            vacio={filtrandoCentro ? 'No hay gastos para este centro de costo.' : 'Todavía no hay facturas ni gastos.'}
+            vacio={filtrandoCentro ? 'No hay gastos para este centro de costo.' : 'Todavía no hay pagos de facturas ni de boletas.'}
           />
           {!cargando && !error && <LineaTotal filas={filasMes} />}
         </div>
@@ -255,7 +252,7 @@ function Resumen() {
               <Link to="/proveedores/por-vincular" className="font-medium underline">
                 Proveedores → Por vincular
               </Link>
-              ) y {formatoCLP(sinCentro.otrosGastos)} de otros gastos sin subcategoría.
+              ) y {formatoCLP(sinCentro.otrosGastos)} de boletas sin subcategoría.
             </p>
           </div>
         )}
@@ -267,7 +264,7 @@ function Resumen() {
             nombreArchivo={mes ? `resumen-gastos-por-centro-${mes}` : 'resumen-gastos-por-centro'}
             cargando={cargando}
             error={error}
-            vacio={filtrandoCentro || mes ? 'No hay gastos para estos filtros.' : 'Todavía no hay facturas ni gastos.'}
+            vacio={filtrandoCentro || mes ? 'No hay gastos para estos filtros.' : 'Todavía no hay pagos de facturas ni de boletas.'}
             barra={<FiltroMes meses={mesesDeMovimientos(movs)} valor={mes} onChange={setMes} />}
           />
           {!cargando && !error && <LineaTotal filas={filasCentro} />}

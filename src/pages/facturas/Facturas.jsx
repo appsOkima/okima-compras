@@ -1,35 +1,62 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import AccionAnulacion from '../../components/AccionAnulacion'
+import EtiquetaAnulada from '../../components/EtiquetaAnulada'
+import EtiquetaPago from '../../components/EtiquetaPago'
+import FiltroEstadoPago from '../../components/FiltroEstadoPago'
 import FiltroMes from '../../components/FiltroMes'
-import Modal from '../../components/Modal'
+import Interruptor from '../../components/Interruptor'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseInput } from '../../components/estilos'
+import { useAuth } from '../../auth/contexto'
+import { useEstadosPago } from '../../hooks/useEstadosPago'
 import { useTabla } from '../../hooks/useTabla'
+import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
+import { estaAnulado, vigentes } from '../../lib/anulacion'
 import { mensajeError } from '../../lib/errores'
 import { formatoCLP, formatoFecha, formatoNumero } from '../../lib/formato'
-import { etiquetaMes, mesDe, mesesPresentes } from '../../lib/gastos'
+import { etiquetaMes, mesDe, mesesPresentes, sumaCampo } from '../../lib/gastos'
+import { puedeHacer } from '../../lib/permisos'
+import { mensajeBorradoDocumento, textoEstadoPago } from '../../lib/pagos'
+import { solicitudesDeFactura as cargarSolicitudes } from '../../lib/cargarSolicitudes'
 import { hoyISO } from '../../lib/solicitudes'
-import { coincide, normalizarRut } from '../../lib/texto'
-import DetalleFactura from './DetalleFactura'
+import { buscarEnFactura } from '../../lib/busquedaFacturas'
 
-// De las líneas basta la cantidad (el detalle las consulta al abrirse).
-const SELECT = '*, proveedor:proveedores(id, nombre, rut), lineas:detalle_facturas(count)'
+// De las líneas basta la cantidad (el detalle las consulta al abrirse). perfil_anulo:
+// quién la anuló (la FK anulado_por se nombra para no confundirla con created_by).
+const SELECT =
+  '*, proveedor:proveedores(id, nombre, rut), perfil_anulo:perfiles!anulado_por(nombre_mostrar), lineas:detalle_facturas(id, insumo_proveedor:insumos_proveedores(nombre, codigo, vinculos:insumos_proveedores_okima(insumo:insumos(nombre))))'
 
 // Más reciente primero; a igual fecha, la última ingresada arriba.
 const ORDEN = { columna: 'fecha', ascendente: false, luego: { columna: 'created_at', ascendente: false } }
 
 const nombreProveedor = (f) => f.proveedor?.nombre ?? ''
-const numeroLineas = (f) => f.lineas?.[0]?.count ?? 0
+const numeroLineas = (f) => f.lineas?.length ?? 0
 const monto = (clave) => (f) => <span className="whitespace-nowrap">{formatoCLP(f[clave])}</span>
 
-const columnas = [
+// Estado de pago de cada factura (vista_estado_pago, ver useEstadosPago).
+const columnasFacturas = (estados) => [
   {
     clave: 'fecha',
     titulo: 'Fecha',
     render: (f) => <span className="whitespace-nowrap">{formatoFecha(f.fecha)}</span>,
   },
-  { clave: 'proveedor', titulo: 'Proveedor', render: nombreProveedor, csv: nombreProveedor },
+  {
+    clave: 'proveedor',
+    titulo: 'Proveedor',
+    render: (f) => (
+      <>
+        {nombreProveedor(f)}
+        {f.coincidenciasLineas?.length > 0 && (
+          <span className="mt-0.5 block text-xs font-normal text-slate-500">
+            Línea: {f.coincidenciasLineas.join(', ')}
+          </span>
+        )}
+      </>
+    ),
+    csv: nombreProveedor,
+  },
   { clave: 'rut', titulo: 'RUT proveedor', soloCsv: true, csv: (f) => f.proveedor?.rut ?? '' },
   { clave: 'numero_factura', titulo: 'N° factura' },
   { clave: 'neto_total', titulo: 'Neto', alinear: 'derecha', render: monto('neto_total') },
@@ -42,6 +69,18 @@ const columnas = [
   { clave: 'iva', titulo: 'IVA', alinear: 'derecha', render: monto('iva') },
   { clave: 'total', titulo: 'Total', alinear: 'derecha', render: monto('total') },
   { clave: 'n_lineas', titulo: 'Líneas', alinear: 'derecha', render: numeroLineas, csv: numeroLineas },
+  {
+    clave: 'estado_documento',
+    titulo: 'Estado',
+    render: (f) => (estaAnulado(f) ? <EtiquetaAnulada /> : ''),
+    csv: (f) => f.estado_documento ?? 'vigente',
+  },
+  {
+    clave: 'estado_pago',
+    titulo: 'Pago',
+    render: (f) => <EtiquetaPago fila={estados.get(f.id)} />,
+    csv: (f) => textoEstadoPago(estados.get(f.id)),
+  },
 ]
 
 // Listado de facturas (totales ya calculados al guardar). Crear y editar abren el
@@ -49,11 +88,20 @@ const columnas = [
 function Facturas() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { filas, cargando, error, eliminar } = useTabla('facturas', { select: SELECT, orden: ORDEN })
-  const [busqueda, setBusqueda] = useState('')
+  const { perfil } = useAuth()
+  const puedeCrear = puedeHacer(perfil?.rol, 'facturas', 'crear')
+  const puedeEditar = puedeHacer(perfil?.rol, 'facturas', 'editar')
+  const puedeBorrar = puedeHacer(perfil?.rol, 'facturas', 'borrar')
+  const { filas, cargando, error, actualizar, eliminar } = useTabla('facturas', { select: SELECT, orden: ORDEN })
+  const { estados, recargar: recargarEstados } = useEstadosPago('factura')
+  const columnas = useMemo(() => columnasFacturas(estados), [estados])
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
+  // '' = todos; si no, pagado | pendiente | parcial.
+  const [estadoPago, setEstadoPago] = useState('')
   // '' = todos los meses; si no, 'YYYY-MM'.
   const [mes, setMes] = useState('')
-  const [idDetalle, setIdDetalle] = useState(null)
+  // Las anuladas se ocultan por defecto (como los inactivos de los Mantenedores).
+  const [mostrarAnuladas, setMostrarAnuladas] = useState(false)
   const [errorAccion, setErrorAccion] = useState('')
   // Aviso de éxito que deja el formulario al guardar (location.state).
   const [aviso, setAviso] = useState(() => location.state?.mensaje ?? '')
@@ -65,27 +113,34 @@ function Facturas() {
 
   const visibles = useMemo(
     () =>
-      filas.filter(
-        (f) =>
-          (!mes || mesDe(f.fecha) === mes) &&
-          (!busqueda ||
-            [nombreProveedor(f), f.numero_factura, f.proveedor?.rut, normalizarRut(f.proveedor?.rut)].some((v) =>
-              coincide(v, busqueda),
-            )),
-      ),
-    [filas, mes, busqueda],
+      filas
+        .filter(
+          (f) =>
+            (mostrarAnuladas || !estaAnulado(f)) &&
+            (!mes || mesDe(f.fecha) === mes) &&
+            (!estadoPago || estados.get(f.id)?.estado_pago === estadoPago),
+        )
+        // La búsqueda mira la cabecera y las líneas; si la factura aparece solo por una línea,
+        // se anota cuál (coincidenciasLineas) para mostrarla bajo el proveedor.
+        .flatMap((f) => {
+          const r = buscarEnFactura(f, busqueda)
+          return r.coincide ? [{ ...f, coincidenciasLineas: r.lineas }] : []
+        }),
+    [filas, mes, busqueda, mostrarAnuladas, estadoPago, estados],
   )
+  const totalAnuladas = useMemo(() => filas.filter(estaAnulado).length, [filas])
 
   // IVA del mes filtrado o, sin filtro, del mes en curso. Suma todas las facturas
-  // de ese mes (no depende de la búsqueda): es el IVA de compras del mes.
+  // vigentes de ese mes (no depende de la búsqueda): es el IVA de compras del mes.
   const mesIva = mes || mesDe(hoyISO())
   const ivaDelMes = useMemo(
-    () => filas.reduce((s, f) => (mesDe(f.fecha) === mesIva ? s + Number(f.iva ?? 0) : s), 0),
+    () =>
+      sumaCampo(
+        filas.filter((f) => mesDe(f.fecha) === mesIva),
+        'iva',
+      ),
     [filas, mesIva],
   )
-
-  const filaDetalle = idDetalle ? filas.find((f) => f.id === idDetalle) : null
-  const titulo = (f) => `Factura N° ${f.numero_factura} — ${nombreProveedor(f)}`
 
   const borrar = async (f) => {
     const n = numeroLineas(f)
@@ -98,7 +153,7 @@ function Facturas() {
     try {
       await eliminar(f.id)
     } catch (e) {
-      setErrorAccion(mensajeError(e))
+      setErrorAccion(mensajeBorradoDocumento(e) ?? mensajeError(e))
     }
   }
 
@@ -116,10 +171,21 @@ function Facturas() {
         />
       </div>
       <FiltroMes meses={mesesPresentes(filas)} valor={mes} onChange={setMes} />
+      <FiltroEstadoPago valor={estadoPago} onChange={setEstadoPago} />
+      <Interruptor activo={mostrarAnuladas} onCambiar={setMostrarAnuladas}>
+        Mostrar anuladas
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+            totalAnuladas > 0 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
+          }`}
+        >
+          {totalAnuladas}
+        </span>
+      </Interruptor>
     </>
   )
 
-  const filtrando = busqueda || mes
+  const filtrando = busqueda || mes || estadoPago
 
   return (
     <section className="mt-6">
@@ -131,10 +197,12 @@ function Facturas() {
             y el descuento en %.
           </p>
         </div>
-        <Link to="/facturas/nueva" className={claseBotonPrimario}>
-          <Plus className="h-4 w-4" />
-          Nueva factura
-        </Link>
+        {puedeCrear && (
+          <Link to="/facturas/nueva" className={claseBotonPrimario}>
+            <Plus className="h-4 w-4" />
+            Nueva factura
+          </Link>
+        )}
       </div>
 
       {aviso && (
@@ -169,34 +237,48 @@ function Facturas() {
           error={error}
           vacio={filtrando ? 'Ninguna factura coincide con los filtros.' : 'Todavía no hay facturas.'}
           barra={barra}
+          claseFila={(f) => (estaAnulado(f) ? 'opacity-60' : '')}
           acciones={(f) => (
             <div className="inline-flex gap-1">
-              <button
-                type="button"
-                onClick={() => setIdDetalle(f.id)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+              <Link
+                to={`/facturas/${f.id}/detalle`}
+                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                 aria-label={`Ver detalles de la factura ${f.numero_factura}`}
                 title="Ver detalles"
               >
                 <Eye className="h-4 w-4" />
-              </button>
-              <Link
-                to={`/facturas/${f.id}`}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
-                aria-label={`Editar la factura ${f.numero_factura}`}
-                title="Editar"
-              >
-                <Pencil className="h-4 w-4" />
               </Link>
-              <button
-                type="button"
-                onClick={() => borrar(f)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                aria-label={`Eliminar la factura ${f.numero_factura}`}
-                title="Eliminar"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {puedeEditar && !estaAnulado(f) && (
+                <Link
+                  to={`/facturas/${f.id}`}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
+                  aria-label={`Editar la factura ${f.numero_factura}`}
+                  title="Editar"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Link>
+              )}
+              <AccionAnulacion
+                tipo="factura"
+                doc={f}
+                nombre={`N° ${f.numero_factura}`}
+                onCambiar={async (datos) => {
+                  await actualizar(f.id, datos)
+                  recargarEstados()
+                }}
+                cargarSolicitudes={cargarSolicitudes}
+              />
+              {puedeBorrar && (
+                <button
+                  type="button"
+                  onClick={() => borrar(f)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                  aria-label={`Eliminar la factura ${f.numero_factura}`}
+                  title="Eliminar"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           )}
         />
@@ -208,22 +290,13 @@ function Facturas() {
               <span className="font-semibold text-slate-800">{formatoCLP(ivaDelMes)}</span>
             </div>
             <div>
-              Total: <span className="font-semibold text-slate-800">{formatoCLP(visibles.reduce((s, f) => s + Number(f.total ?? 0), 0))}</span>{' '}
-              ({visibles.length} {visibles.length === 1 ? 'factura' : 'facturas'})
+              {/* Las anuladas que se muestren no suman ni se cuentan. */}
+              Total: <span className="font-semibold text-slate-800">{formatoCLP(sumaCampo(visibles, 'total'))}</span>{' '}
+              ({vigentes(visibles).length} {vigentes(visibles).length === 1 ? 'factura' : 'facturas'})
             </div>
           </div>
         )}
       </div>
-
-      {filaDetalle && (
-        <Modal titulo={titulo(filaDetalle)} onCerrar={() => setIdDetalle(null)} ancho="max-w-4xl">
-          <DetalleFactura
-            factura={filaDetalle}
-            onEditar={() => navigate(`/facturas/${filaDetalle.id}`)}
-            onCerrar={() => setIdDetalle(null)}
-          />
-        </Modal>
-      )}
     </section>
   )
 }

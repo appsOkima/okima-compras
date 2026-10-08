@@ -4,8 +4,8 @@
 -- ⚠ IRREVERSIBLE. Pensado para limpiar datos de prueba: ejecutar en el SQL
 -- Editor de Supabase cuando se quiera dejar la base en blanco.
 --
--- Borra: detalle_facturas, facturas, solicitudes_compra, insumos_proveedores,
--- insumos, otros_gastos, plantillas_gastos_recurrentes y proveedores.
+-- Borra: pagos, movimientos_stock, insumos_proveedores_okima, detalle_facturas, facturas, solicitudes_compra, insumos_proveedores,
+-- insumos, detalle_boletas, boletas, plantillas_gastos_recurrentes y proveedores.
 -- Conserva: categorias y subcategorias (centros de costo).
 --
 -- Sin CASCADE a propósito: si en el futuro otra tabla referencia a alguna de
@@ -15,12 +15,16 @@
 begin;
 
 truncate table
+  pagos,
+  movimientos_stock,
+  insumos_proveedores_okima,
   detalle_facturas,
   facturas,
   solicitudes_compra,
   insumos_proveedores,
   insumos,
-  otros_gastos,
+  detalle_boletas,
+  boletas,
   plantillas_gastos_recurrentes,
   proveedores;
 
@@ -46,6 +50,10 @@ union all select 'insumos', count(*) from insumos
 union all select 'insumos_proveedores', count(*) from insumos_proveedores
 union all select 'solicitudes_compra', count(*) from solicitudes_compra
 union all select 'facturas', count(*) from facturas
+union all select 'insumos_proveedores_okima', count(*) from insumos_proveedores_okima
 union all select 'detalle_facturas', count(*) from detalle_facturas
-union all select 'otros_gastos', count(*) from otros_gastos
+union all select 'movimientos_stock', count(*) from movimientos_stock
+union all select 'pagos', count(*) from pagos
+union all select 'detalle_boletas', count(*) from detalle_boletas
+union all select 'boletas', count(*) from boletas
 union all select 'plantillas_gastos_recurrentes', count(*) from plantillas_gastos_recurrentes;

@@ -5,7 +5,7 @@ function PaginaPendiente({ seccion }) {
   return (
     <section>
       <div className="flex items-center gap-3">
-        <Icono className="h-7 w-7 text-indigo-600" />
+        <Icono className="h-7 w-7 text-primary" />
         <h1 className="text-2xl font-semibold">{titulo}</h1>
       </div>
       <p className="mt-2 text-slate-600">{descripcion}</p>

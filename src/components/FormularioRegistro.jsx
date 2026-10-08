@@ -17,7 +17,9 @@ function aEditable(campo, valor) {
     if (campo.anulable) return valor === true ? 'true' : valor === false ? 'false' : ''
     return Boolean(valor)
   }
-  if (campo.tipo === 'personalizado') return valor ?? ''
+  // `desdeBase` (opcional) convierte el valor de la base en el que edita el control
+  // (ej. filas de una tabla relacionada → filas editables).
+  if (campo.tipo === 'personalizado') return campo.desdeBase ? campo.desdeBase(valor) : (valor ?? '')
   // Un RUT guardado sin formato (ej. datos viejos) se muestra formateado.
   if (campo.tipo === 'rut') return formatearRut(valor)
   // Número de la base (1234.5) → texto con formato chileno (1.234,5).
@@ -246,7 +248,7 @@ function Campo({ id, className, campo, valor, valores, error, onChange, onBlur }
             checked={valor}
             onChange={(e) => onChange(e.target.checked)}
             aria-describedby={idAyuda}
-            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
           />
           {etiqueta}
         </label>

@@ -29,6 +29,7 @@ function Proveedores() {
     <Mantenedor
       titulo="Proveedores"
       descripcion="Datos de contacto y de pago de cada proveedor."
+      entidad="proveedores"
       tabla="proveedores"
       columnas={columnas}
       esIncompleto={esIncompleto}

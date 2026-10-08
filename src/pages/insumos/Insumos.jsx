@@ -72,6 +72,7 @@ function Insumos() {
     <Mantenedor
       titulo="Insumos Okima"
       descripcion="Insumos internos. El stock se actualiza solo al ingresar facturas de insumos vinculados."
+      entidad="insumos"
       tabla="insumos"
       select={SELECT}
       columnas={columnas}

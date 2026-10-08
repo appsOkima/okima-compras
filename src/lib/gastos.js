@@ -1,4 +1,6 @@
-// Reglas de presentación de Otros Gastos (sin React ni Supabase, para poder
+import { estaAnulado } from './anulacion.js'
+
+// Reglas de presentación de Boletas y otros listados con fecha y monto (sin React ni Supabase, para poder
 // verificarlas con node).
 
 // Nombres fijos y no Intl: el resultado no depende del navegador ni de node.
@@ -31,7 +33,7 @@ export function etiquetaMes(mes) {
   return nombre ? `${nombre} ${m[1]}` : String(mes ?? '')
 }
 
-// Meses distintos con gastos, del más reciente al más antiguo (para el filtro "Mes").
+// Meses distintos con registros, del más reciente al más antiguo (para el filtro "Mes").
 export function mesesPresentes(filas) {
   const meses = new Set()
   for (const fila of filas ?? []) {
@@ -42,7 +44,7 @@ export function mesesPresentes(filas) {
   return [...meses].sort().reverse()
 }
 
-// Gastos originados en esa plantilla dentro del mismo mes que `fecha`.
+// Boletas originadas en esa plantilla dentro del mismo mes que `fecha`.
 export function gastosDePlantillaEnMes(filas, idPlantilla, fecha) {
   const mes = mesDe(fecha)
   if (!idPlantilla || !mes) return []
@@ -54,14 +56,18 @@ export function yaRegistradoEnMes(filas, idPlantilla, fecha) {
   return gastosDePlantillaEnMes(filas, idPlantilla, fecha).length > 0
 }
 
-// Suma de `monto` en CLP; ignora vacíos y valores que no son números.
-export function sumaMontos(filas) {
+// Suma de una columna en CLP (`monto`, `total`, `iva`); ignora vacíos y valores que
+// no son números, y no cuenta los documentos anulados.
+export function sumaCampo(filas, campo) {
   let total = 0
   for (const fila of filas ?? []) {
-    const monto = fila?.monto
-    if (monto === null || monto === undefined || monto === '') continue
-    const n = Number(monto)
+    if (estaAnulado(fila)) continue
+    const valor = fila?.[campo]
+    if (valor === null || valor === undefined || valor === '') continue
+    const n = Number(valor)
     if (Number.isFinite(n)) total += n
   }
   return total
 }
+
+export const sumaMontos = (filas) => sumaCampo(filas, 'monto')

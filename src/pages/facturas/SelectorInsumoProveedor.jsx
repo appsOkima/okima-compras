@@ -5,14 +5,17 @@ import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../comp
 import { mensajeError } from '../../lib/errores'
 import { formatoCompra } from '../../lib/formato'
 import { buscarSimilares } from '../../lib/texto'
+import { textoVinculos } from '../../lib/vinculos'
 
-// Detalle de cada opción: código, formato de compra y si suma stock.
+// Detalle de cada opción: proveedor (si el catálogo trae varios), código, formato de
+// compra y los insumos Okima a los que suma stock (× factor), o que no está vinculado.
 function detalleItem(item) {
   const formato = formatoCompra(item.cantidad_formato, item.formato_unidad)
   return [
+    item.proveedor?.nombre,
     item.codigo,
     formato !== '—' ? formato : null,
-    item.insumo_okima ? `Insumo Okima: ${item.insumo_okima.nombre}` : 'Sin vínculo a insumo Okima',
+    item.vinculos?.length > 0 ? `Insumo Okima: ${textoVinculos(item.vinculos)}` : 'Sin vínculo a insumo Okima',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -23,7 +26,15 @@ function detalleItem(item) {
 // Nunca se pide ni se ofrece el insumo Okima al crear: ese vínculo se hace en
 // Proveedores → Por vincular o, con confirmación explícita, al asociar la línea a
 // una solicitud (ver vinculoPropuesto en lib/facturas).
-function SelectorInsumoProveedor({ id, valor, onChange, catalogo, idProveedor, onCrearInsumo, cargando = false }) {
+function SelectorInsumoProveedor({
+  id,
+  valor,
+  onChange,
+  catalogo,
+  idProveedor,
+  onCrearInsumo,
+  cargando = false,
+}) {
   const idBase = useId()
   // null = sin mini-formulario abierto; si no, el nombre a crear.
   const [nombreNuevo, setNombreNuevo] = useState(null)
@@ -106,14 +117,14 @@ function SelectorInsumoProveedor({ id, valor, onChange, catalogo, idProveedor, o
 
       {nombreNuevo !== null && (
         <div
-          className="space-y-3 rounded-md border border-indigo-200 bg-indigo-50/60 p-3"
+          className="space-y-3 rounded-md border border-primary-200 bg-primary-50/60 p-3"
           role="group"
           aria-label="Nuevo insumo del proveedor"
           onKeyDown={alPresionar}
         >
           <div>
             <label htmlFor={`${idBase}-nombre`} className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-700">
-              <Plus className="h-3.5 w-3.5 text-indigo-700" />
+              <Plus className="h-3.5 w-3.5 text-primary-darker" />
               Nuevo insumo del proveedor — nombre <span className="text-red-600">*</span>
             </label>
             <input

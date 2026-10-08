@@ -1,4 +1,7 @@
 import { Pencil } from 'lucide-react'
+import { estaAnulado } from '../lib/anulacion'
+import AvisoAnulado from './AvisoAnulado'
+import Notas from './Notas'
 import { claseBotonPrimario, claseBotonSecundario } from './estilos'
 
 const VACIO = '—'
@@ -9,9 +12,14 @@ const mostrar = (valor) => (valor === null || valor === undefined || valor === '
 // Ficha de solo lectura de un registro: lista de definiciones en 2 columnas desde sm.
 // detalle = [{ etiqueta, valor: (fila) => texto | número | nodo, completo? }];
 // `completo` ocupa todo el ancho (ej. descripciones largas).
-function DetalleRegistro({ detalle, fila, onEditar, onCerrar }) {
+// Un documento anulado (estado_documento) muestra su aviso arriba; sin `onEditar` no hay botón Editar.
+// Si la fila tiene `notas` con contenido, se destacan arriba de la ficha (ver Notas);
+// no hace falta declararlas en `detalle`.
+function DetalleRegistro({ detalle, fila, onEditar, onCerrar, tipo = 'boleta' }) {
   return (
     <div className="space-y-4">
+      {estaAnulado(fila) && <AvisoAnulado doc={fila} tipo={tipo} />}
+      <Notas valor={fila.notas} />
       <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
         {detalle.map(({ etiqueta, valor, completo }) => (
           <div key={etiqueta} className={completo ? 'sm:col-span-2' : undefined}>
@@ -25,10 +33,12 @@ function DetalleRegistro({ detalle, fila, onEditar, onCerrar }) {
         <button type="button" onClick={onCerrar} className={claseBotonSecundario}>
           Cerrar
         </button>
-        <button type="button" onClick={onEditar} className={claseBotonPrimario}>
-          <Pencil className="h-4 w-4" />
-          Editar
-        </button>
+        {onEditar && (
+          <button type="button" onClick={onEditar} className={claseBotonPrimario}>
+            <Pencil className="h-4 w-4" />
+            Editar
+          </button>
+        )}
       </div>
     </div>
   )

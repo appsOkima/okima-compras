@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+/* Paleta de marca (Sprint2.md 3.4). Tailwind v4: el tema se declara aquí, no hay tailwind.config.js.
+   Valores de marca: primary #0098C0, primary-light #1BAAC0, accent #F47B4C, accent-dark #F15A24.
+   Contraste WCAG medido sobre blanco: #0098C0 3.36, #1BAAC0 2.78, #F47B4C 2.70, #F15A24 3.37;
+   ninguno llega a 4.5:1 para texto normal, así que sirven para superficies sin texto pequeño
+   (iconos, bordes, anillos de foco, interruptores, indicadores) y el texto/fondos con texto usan
+   los derivados. */
+@theme {
+  --color-primary: #0098c0;
+  --color-primary-light: #1baac0;
+  --color-accent: #f47b4c;
+  --color-accent-dark: #f15a24;
+
+  /* Derivados de primary (mezcla con negro o con blanco), no son colores de marca nuevos. */
+  --color-primary-dark: #007290; /* 75 % primary + 25 % negro: 5.51:1 con blanco; botones, enlaces */
+  --color-primary-darker: #005b73; /* 60 % primary + 40 % negro: 7.65:1 con blanco; hover y texto sobre tonos claros */
+  --color-primary-50: #ebf7fa; /* 8 % primary + 92 % blanco: fondos suaves de hover/selección */
+  --color-primary-100: #d6eff5; /* 16 % primary */
+  --color-primary-200: #b3e0ec; /* 30 % primary: bordes suaves */
+  --color-primary-300: #80cce0; /* 50 % primary: bordes de elementos activos */
+}
+
 /* Impresión (ej. solicitudes pendientes): hoja blanca, tabla con bordes visibles
    en blanco y negro, encabezado repetido en cada página y filas sin cortar. */
 @media print {

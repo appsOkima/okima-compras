@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react'
+import { useAuth } from '../auth/contexto'
 import { useConfirmarSalida } from '../hooks/useConfirmarSalida'
 import { useTabla } from '../hooks/useTabla'
 import { buscarDuplicados as buscarDuplicadosEn } from '../lib/duplicados'
 import { mensajeError } from '../lib/errores'
+import { puedeHacer } from '../lib/permisos'
 import FormularioRegistro from './FormularioRegistro'
 
 const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
@@ -18,23 +20,32 @@ const mayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1)
 // Recibe la misma configuración que el formulario del Mantenedor (`campos`,
 // `valoresIniciales`, `antesDeGuardar`, duplicados, `nombreRegistro`) más:
 // - `titulo`: nombre del registro en minúscula para títulos y avisos (ej. 'proveedor').
+// - `femenino` (opcional): concuerda los avisos para un nombre femenino (ej. 'boleta':
+//   "Nueva boleta", "creada", "No se encontró la boleta").
 // - `rutaListado`: a dónde se vuelve al guardar o cancelar (ej. '/proveedores').
 // - `descripcion` (opcional): texto bajo el título.
 // - `tituloNuevo` (opcional): título al crear, en vez de "Nuevo <titulo>" (ej.
-//   "Registrar gasto: Arriendo" desde una plantilla).
-// - `buscarDuplicados(valores, { filas, registro })` (opcional): reemplaza el
+//   "Registrar boleta: Arriendo" desde una plantilla).
+// - `despuesDeGuardar(guardado, valores, registro)` (opcional, async): paso extra
+//   tras guardar el registro, ej. filas de una tabla relacionada. Si lanza, el
+//   registro ya quedó guardado y el error se muestra en el formulario.
+// - `buscarDuplicados(valores,{ filas, registro })` (opcional): reemplaza el
 //   aviso por nombre (y `duplicadosAdicionales`) por un criterio propio; con
 //   `textoDuplicados(lista)` para el encabezado del aviso (ver FormularioRegistro).
 // - `cargandoExtra` / `errorExtra` (opcionales): datos propios de la página que
-//   deben estar antes de armar el formulario (ej. la plantilla de un gasto): se
+//   deben estar antes de armar el formulario (ej. la plantilla de una boleta): se
 //   espera igual que al registro, y `errorExtra` (texto) se muestra en su lugar
 //   con el enlace de vuelta al listado.
+// - `entidad` (ver lib/permisos): si el rol no puede crear / editar, la página no muestra
+//   el formulario sino un aviso con el enlace de vuelta al listado.
 // Carga la tabla completa con useTabla: sirve para encontrar el registro y como
 // candidatos del aviso de duplicados, igual que en el listado.
 // Con cambios sin guardar, salir de la página (Volver, Cancelar, menú, pestañas,
 // atrás del navegador, recargar) pide confirmación (useConfirmarSalida).
 function PaginaRegistro({
   titulo,
+  entidad,
+  femenino = false,
   descripcion,
   tituloNuevo,
   tabla,
@@ -44,6 +55,7 @@ function PaginaRegistro({
   valoresIniciales = {},
   rutaListado,
   antesDeGuardar,
+  despuesDeGuardar,
   filtroDuplicados,
   duplicadosAdicionales,
   etiquetaDuplicado,
@@ -55,6 +67,7 @@ function PaginaRegistro({
   errorExtra,
 }) {
   const { id } = useParams()
+  const { perfil } = useAuth()
   const navigate = useNavigate()
   const { filas, cargando, error, crear, actualizar } = useTabla(tabla, { select, orden })
   const contenedor = useRef(null)
@@ -63,6 +76,7 @@ function PaginaRegistro({
   const permitirSalida = useConfirmarSalida(sucio)
 
   const esNuevo = !id
+  const permitido = puedeHacer(perfil?.rol, entidad, esNuevo ? 'crear' : 'editar')
   const registro = esNuevo ? null : (filas.find((f) => f.id === id) ?? null)
   const camposFormulario = typeof campos === 'function' ? campos(registro) : campos
   // Se espera la carga también al crear: sin las filas el aviso de duplicados no vería nada.
@@ -84,18 +98,35 @@ function PaginaRegistro({
   const guardar = async (valores) => {
     const datos = antesDeGuardar ? antesDeGuardar(valores, registro) : valores
     const guardado = registro ? await actualizar(registro.id, datos) : await crear(datos)
+    if (despuesDeGuardar) await despuesDeGuardar(guardado, valores, registro)
     const nombre = nombreRegistro(guardado ?? datos)
     // Ya se guardó: la vuelta al listado no pide confirmación.
     permitirSalida()
     navigate(rutaListado, {
       state: {
-        mensaje: `${mayuscula(titulo)}${nombre ? ` «${nombre}»` : ''} ${registro ? 'actualizado' : 'creado'}.`,
+        mensaje: `${mayuscula(titulo)}${nombre ? ` «${nombre}»` : ''} ${registro ? (femenino ? 'actualizada' : 'actualizado') : femenino ? 'creada' : 'creado'}.`,
       },
     })
   }
 
   // Si hay cambios sin guardar, el bloqueo de useConfirmarSalida pregunta antes.
   const volver = () => navigate(rutaListado)
+
+  if (!permitido) {
+    return (
+      <section className="mt-6">
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="alert">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="flex-1">
+            Tu rol no puede {esNuevo ? 'crear' : 'editar'} {femenino ? 'esta' : 'este'} {titulo}.{' '}
+            <Link to={rutaListado} className="font-medium underline">
+              Volver al listado
+            </Link>
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   if (!listo) {
     return (
@@ -110,7 +141,7 @@ function PaginaRegistro({
             <p className="flex-1">
               {error
                 ? `No se pudieron cargar los datos: ${mensajeError(error)}`
-                : (errorExtra ?? `No se encontró el ${titulo} (puede que se haya eliminado).`)}{' '}
+                : (errorExtra ?? `No se encontró ${femenino ? 'la' : 'el'} ${titulo} (puede que se haya eliminado).`)}{' '}
               <Link to={rutaListado} className="font-medium underline">
                 Volver al listado
               </Link>
@@ -126,13 +157,13 @@ function PaginaRegistro({
       <button
         type="button"
         onClick={volver}
-        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-indigo-700"
+        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-primary-darker"
       >
         <ArrowLeft className="h-4 w-4" />
         Volver al listado
       </button>
       <h2 className="mt-2 text-xl font-semibold text-slate-800">
-        {registro ? `Editar: ${nombreRegistro(registro) ?? ''}` : (tituloNuevo ?? `Nuevo ${titulo}`)}
+        {registro ? `Editar: ${nombreRegistro(registro) ?? ''}` : (tituloNuevo ?? `${femenino ? 'Nueva' : 'Nuevo'} ${titulo}`)}
       </h2>
       {descripcion && <p className="mt-1 text-sm text-slate-600">{descripcion}</p>}
 

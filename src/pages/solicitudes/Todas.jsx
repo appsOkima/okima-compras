@@ -1,15 +1,20 @@
 import { useMemo, useState } from 'react'
 import { AlertCircle, Pencil, Search, X } from 'lucide-react'
+import { useAuth } from '../../auth/contexto'
 import EtiquetaUrgencia from '../../components/EtiquetaUrgencia'
 import Modal from '../../components/Modal'
 import TablaDatos from '../../components/TablaDatos'
 import { claseInput } from '../../components/estilos'
+import { useSolicitudesConLineas } from '../../hooks/useSolicitudesOcupadas'
 import { useTabla } from '../../hooks/useTabla'
+import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
 import { mensajeError } from '../../lib/errores'
 import { formatoFecha, formatoFechaLocal, formatoNumero } from '../../lib/formato'
-import { ESTADOS_SOLICITUD, claseEstado } from '../../lib/solicitudes'
+import { puedeHacer } from '../../lib/permisos'
+import { ESTADOS_SOLICITUD, claseEstado, etiquetaEstado } from '../../lib/solicitudes'
 import { coincide } from '../../lib/texto'
 import AccionesEstado from './AccionesEstado'
+import AccionVincularLinea from './AccionVincularLinea'
 import { confirmarCambioEstado } from './confirmarCambioEstado'
 import FormularioSolicitud from './FormularioSolicitud'
 
@@ -24,18 +29,23 @@ const nombreInsumo = (fila) => fila.insumo?.nombre ?? ''
 // inicial: muchas facturas se ingresan sin asociar la solicitud). El trigger de
 // facturas sigue marcando 'Comprada' al asociar una línea.
 // Con `estadoFijo` sirve de vista de un solo estado (pestañas Compradas y
-// Canceladas): sin botones de filtro, que ahí serían redundantes.
+// Anuladas; en la base el estado sigue siendo 'Cancelada'): sin botones de filtro, que ahí serían redundantes.
 const VISTAS_ESTADO = {
   Comprada: { titulo: 'Solicitudes compradas', archivo: 'solicitudes-compradas' },
-  Cancelada: { titulo: 'Solicitudes canceladas', archivo: 'solicitudes-canceladas' },
+  Cancelada: { titulo: 'Solicitudes anuladas', archivo: 'solicitudes-anuladas' },
 }
 
 function Todas({ estadoFijo }) {
-  const { filas, cargando, error, actualizar } = useTabla('solicitudes_compra', { select: SELECT, orden: ORDEN })
+  const { filas, cargando, error, actualizar, recargar } = useTabla('solicitudes_compra', { select: SELECT, orden: ORDEN })
+  // Vincular a una línea ya guardada: solo contador y admin (el productor no lee líneas) y
+  // solo para pendientes sueltas, sin ninguna línea de factura ni de boleta.
+  const { perfil } = useAuth()
+  const puedeVincular = puedeHacer(perfil?.rol, 'facturas', 'editar') && puedeHacer(perfil?.rol, 'boletas', 'editar')
+  const conLineas = useSolicitudesConLineas()
   const [filtroElegido, setFiltro] = useState('Todas')
   const filtro = estadoFijo ?? filtroElegido
   const vista = VISTAS_ESTADO[estadoFijo]
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   const [edicion, setEdicion] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
   // id de la solicitud cuyo estado se está cambiando (evita doble clic).
@@ -103,9 +113,10 @@ function Todas({ estadoFijo }) {
       titulo: 'Estado',
       render: (fila) => (
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${claseEstado(fila.estado)}`}>
-          {fila.estado}
+          {etiquetaEstado(fila.estado)}
         </span>
       ),
+      csv: (fila) => etiquetaEstado(fila.estado),
     },
   ]
 
@@ -132,11 +143,11 @@ function Todas({ estadoFijo }) {
               onClick={() => setFiltro(opcion)}
               className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium ${
                 filtro === opcion
-                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                  ? 'border-primary-300 bg-primary-50 text-primary-darker'
                   : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
-              {opcion}
+              {etiquetaEstado(opcion)}
               <span className="rounded-full bg-slate-100 px-1.5 text-xs text-slate-500">{totales[opcion] ?? 0}</span>
             </button>
           ))}
@@ -187,12 +198,19 @@ function Todas({ estadoFijo }) {
                 <button
                   type="button"
                   onClick={() => setEdicion(fila)}
-                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                   aria-label={`Editar solicitud de ${nombreInsumo(fila)}`}
                   title="Editar"
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
+              )}
+              {puedeVincular && fila.estado === 'Pendiente' && !conLineas.has(fila.id) && (
+                <AccionVincularLinea
+                  solicitud={fila}
+                  nombre={nombreInsumo(fila)}
+                  onVinculado={() => recargar({ silencioso: true })}
+                />
               )}
               <AccionesEstado
                 estado={fila.estado}

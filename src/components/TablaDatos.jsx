@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, ChevronUp, Download, Loader2 } from 'lucide-react'
 import { descargarCsv, generarCsv } from '../lib/csv'
 import { mensajeError } from '../lib/errores'
@@ -11,6 +11,8 @@ import { claseBotonSecundario } from './estilos'
 // una con `soloTabla` no se exporta (ej. controles o valores ya desglosados).
 // Una con `noImprimir` se ve en pantalla pero no en papel; `claseFila(fila)`
 // agrega clases a cada fila (ej. un acento de color por urgencia).
+// `detalleImpresion(fila)` devuelve contenido que se agrega bajo la fila solo en
+// papel (o null si no hay nada que agregar); en pantalla no ocupa espacio.
 // El encabezado ordena por columna (ver `valorOrden` en lib/tabla.js; `orden(fila)`
 // opcional en la columna) y las filas se paginan de a 50; en papel salen todas.
 function TablaDatos({
@@ -23,6 +25,7 @@ function TablaDatos({
   acciones,
   barra,
   claseFila,
+  detalleImpresion,
 }) {
   const [orden, setOrden] = useState({ clave: null, direccion: null })
   // La página se guarda con la firma del conjunto mostrado: si cambia el orden o las
@@ -112,21 +115,32 @@ function TablaDatos({
             ) : filas.length === 0 ? (
               <FilaMensaje columnas={totalColumnas}>{vacio}</FilaMensaje>
             ) : (
-              filas.map((fila, i) => (
-                <tr
-                  key={fila.id}
-                  className={`odd:bg-white even:bg-slate-50/60 hover:bg-indigo-50/50 ${i < inicio || i >= fin ? 'hidden print:table-row' : ''} ${claseFila ? claseFila(fila) : ''}`}
-                >
-                  {columnas.map((c) => (
-                    <td key={c.clave} className={`px-4 py-2.5 align-top text-slate-700 ${alinear(c)}`}>
-                      {c.render ? c.render(fila) : fila[c.clave]}
-                    </td>
-                  ))}
-                  {acciones && (
-                    <td className="whitespace-nowrap px-4 py-2 text-right align-top print:hidden">{acciones(fila)}</td>
-                  )}
-                </tr>
-              ))
+              filas.map((fila, i) => {
+                // Fuera de la página actual solo se ven en papel.
+                const oculta = i < inicio || i >= fin ? 'hidden print:table-row' : ''
+                const fondo = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
+                return (
+                  <Fragment key={fila.id}>
+                    <tr className={`${fondo} hover:bg-primary-50/50 ${oculta} ${claseFila ? claseFila(fila) : ''}`}>
+                      {columnas.map((c) => (
+                        <td key={c.clave} className={`px-4 py-2.5 align-top text-slate-700 ${alinear(c)}`}>
+                          {c.render ? c.render(fila) : fila[c.clave]}
+                        </td>
+                      ))}
+                      {acciones && (
+                        <td className="whitespace-nowrap px-4 py-2 text-right align-top print:hidden">{acciones(fila)}</td>
+                      )}
+                    </tr>
+                    {detalleImpresion?.(fila) && (
+                      <tr className="hidden print:table-row">
+                        <td colSpan={columnas.length} className="px-4 pb-2.5 pt-0 text-left">
+                          {detalleImpresion(fila)}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })
             )}
           </tbody>
         </table>
@@ -165,10 +179,10 @@ function BotonOrden({ columna, orden, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex cursor-pointer items-center gap-1 rounded uppercase tracking-wide hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 print:cursor-auto"
+      className="inline-flex cursor-pointer items-center gap-1 rounded uppercase tracking-wide hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary print:cursor-auto"
     >
       {columna.titulo}
-      <Icono className={`h-3.5 w-3.5 shrink-0 print:hidden ${activa ? 'text-indigo-600' : 'text-slate-300'}`} aria-hidden="true" />
+      <Icono className={`h-3.5 w-3.5 shrink-0 print:hidden ${activa ? 'text-primary' : 'text-slate-300'}`} aria-hidden="true" />
     </button>
   )
 }

@@ -12,7 +12,7 @@ function Pestanas({ pestanas }) {
           className={({ isActive }) =>
             `-mb-px whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium ${
               isActive
-                ? 'border-indigo-600 text-indigo-700'
+                ? 'border-primary-dark text-primary-darker'
                 : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
             }`
           }

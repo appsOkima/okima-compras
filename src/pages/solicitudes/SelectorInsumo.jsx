@@ -88,12 +88,12 @@ function SelectorInsumo({ id, valor, onChange, insumos, onCrearInsumo, cargando 
 
       {nuevo && (
         <div
-          className="space-y-3 rounded-md border border-indigo-200 bg-indigo-50/60 p-3"
+          className="space-y-3 rounded-md border border-primary-200 bg-primary-50/60 p-3"
           role="group"
           aria-label="Nuevo insumo Okima"
           onKeyDown={alPresionar}
         >
-          <p className="flex items-center gap-2 text-sm font-medium text-indigo-900">
+          <p className="flex items-center gap-2 text-sm font-medium text-primary-darker">
             <Plus className="h-4 w-4" />
             Nuevo insumo Okima
           </p>

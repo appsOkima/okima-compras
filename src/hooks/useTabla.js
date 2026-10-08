@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { errorSinFilas } from '../lib/errores'
 import { supabase } from '../lib/supabase'
 
 const ORDEN_POR_DEFECTO = { columna: 'nombre', ascendente: true }
@@ -105,8 +106,10 @@ export function useTabla(tabla, { select = '*', orden = ORDEN_POR_DEFECTO } = {}
 
   const eliminar = useCallback(
     async (id) => {
-      const { error: errorEliminar } = await supabase.from(tabla).delete().eq('id', id)
-      if (errorEliminar) throw errorEliminar
+      const { data, error: errorEliminar } = await supabase.from(tabla).delete().eq('id', id).select('id')
+      // Un DELETE denegado por el RLS no da error: afecta 0 filas.
+      const fallo = errorEliminar ?? errorSinFilas(data)
+      if (fallo) throw fallo
       setFilas((actuales) => actuales.filter((fila) => fila.id !== id))
     },
     [tabla],

@@ -3,6 +3,7 @@ import { AlertCircle } from 'lucide-react'
 import FormularioRegistro from '../../components/FormularioRegistro'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
+import { campoNotas } from '../../lib/notas'
 import {
   NIVELES_URGENCIA,
   URGENCIA_POR_DEFECTO,
@@ -49,6 +50,7 @@ function FormularioSolicitud({ registro, onGuardar, onCancelar }) {
         nivel_urgencia: URGENCIA_POR_DEFECTO,
         fecha_esperada: '',
         solicitante: leerUltimoSolicitante(),
+        notas: '',
       },
   )
 
@@ -98,6 +100,7 @@ function FormularioSolicitud({ registro, onGuardar, onCancelar }) {
         requerido: true,
         sugerencias: solicitantes,
       },
+      campoNotas,
     ],
     [insumos, crearInsumo, cargando, solicitantes],
   )

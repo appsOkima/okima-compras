@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { useAuth } from '../auth/contexto'
+import { useBusquedaPersistente } from '../hooks/useBusquedaPersistente'
 import { useTabla } from '../hooks/useTabla'
+import { estaAnulado } from '../lib/anulacion'
 import { buscarDuplicados as buscarDuplicadosEn } from '../lib/duplicados'
 import { CODIGO_EN_USO, mensajeError } from '../lib/errores'
+import { puedeHacer } from '../lib/permisos'
 import { coincide } from '../lib/texto'
 import DetalleRegistro from './DetalleRegistro'
 import FormularioRegistro from './FormularioRegistro'
+import Interruptor from './Interruptor'
 import Modal from './Modal'
 import TablaDatos from './TablaDatos'
 import { claseBotonPrimario, claseInput } from './estilos'
@@ -24,21 +29,29 @@ const NOMBRE_POR_DEFECTO = (fila) => fila.nombre
 // solo declara columnas y campos.
 // `detalle` (opcional, ver DetalleRegistro) agrega la acción "Ver detalles" para
 // consultar campos que no caben en la tabla.
-// Opcionales para tablas sin `nombre` o con más filtros (ej. Otros Gastos):
+// `entidad` (ver lib/permisos): según el rol del usuario se ocultan Nuevo, Editar y Eliminar.
+// Opcionales para tablas sin `nombre` o con más filtros (ej. Boletas):
 // - `nombreRegistro(fila)`: texto que identifica la fila en títulos y avisos.
 // - `duplicadosPorNombre = false`: sin aviso de parecidos por nombre.
 // - `filtroExtra = { render(filas), aplica(fila), activo }`: control propio en la
 //   barra (recibe todas las filas cargadas); se aplica antes de búsqueda e Incompletos.
 // - `antesDeTabla({ filas, crear })`: contenido entre el encabezado y la tabla.
 // - `resumen(filasVisibles)`: línea bajo la tabla (ej. total de lo filtrado).
+// - `tieneAnulados` (facturas y boletas): oculta por defecto los documentos anulados, con
+//   un interruptor "Mostrar anuladas"; un anulado no se edita (sin botón Editar ni en la ficha).
+// - `accionesFila(fila, { actualizar })`: botones extra en cada fila (ej. Anular/Reactivar).
+// - `mensajeBorrado(error)`: mensaje propio para un error al borrar (null = el general).
 // - `rutaFormulario` (ej. '/proveedores'): crear y editar abren el formulario en su
 //   propia página (`${rutaFormulario}/nuevo` y `${rutaFormulario}/:id`, ver
 //   PaginaRegistro) en vez del modal; `campos`, `valoresIniciales`, `antesDeGuardar`
 //   y lo de duplicados se declaran entonces en esa página. El listado muestra el
 //   aviso de éxito que deja la página al guardar (location.state.mensaje).
+// - `rutaDetalle(fila)` (ej. facturas y boletas): "Ver detalles" navega a esa página de
+//   detalle en vez de abrir la ficha en un modal (`detalle`).
 function Mantenedor({
   titulo,
   descripcion,
+  entidad,
   tabla,
   select,
   orden,
@@ -60,13 +73,22 @@ function Mantenedor({
   antesDeTabla,
   resumen,
   rutaFormulario,
+  rutaDetalle,
+  tieneAnulados = false,
+  accionesFila,
+  mensajeBorrado,
 }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { perfil } = useAuth()
+  const puedeCrear = puedeHacer(perfil?.rol, entidad, 'crear')
+  const puedeEditar = puedeHacer(perfil?.rol, entidad, 'editar')
+  const puedeBorrar = puedeHacer(perfil?.rol, entidad, 'borrar')
   const { filas, cargando, error, crear, actualizar, eliminar } = useTabla(tabla, { select, orden })
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useBusquedaPersistente()
   const [soloIncompletos, setSoloIncompletos] = useState(false)
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
+  const [mostrarAnuladas, setMostrarAnuladas] = useState(false)
   // null = cerrado; { registro: null } = nuevo; { registro } = edición.
   const [edicion, setEdicion] = useState(null)
   // Se guarda el id y no la fila para mostrar siempre los datos recargados;
@@ -81,6 +103,7 @@ function Mantenedor({
     if (rutaFormulario && location.state?.mensaje) navigate(location.pathname, { replace: true, state: null })
   }, [rutaFormulario, location, navigate])
 
+  const totalAnuladas = useMemo(() => (tieneAnulados ? filas.filter(estaAnulado).length : 0), [filas, tieneAnulados])
   const filaDetalle = idDetalle ? filas.find((f) => f.id === idDetalle) : null
 
   const aplicaFiltroExtra = filtroExtra?.aplica
@@ -88,9 +111,11 @@ function Mantenedor({
     () =>
       filas.filter(
         (f) =>
-          (!tieneActivo || mostrarInactivos || f.activo !== false) && (!aplicaFiltroExtra || aplicaFiltroExtra(f)),
+          (!tieneActivo || mostrarInactivos || f.activo !== false) &&
+          (!tieneAnulados || mostrarAnuladas || !estaAnulado(f)) &&
+          (!aplicaFiltroExtra || aplicaFiltroExtra(f)),
       ),
-    [filas, tieneActivo, mostrarInactivos, aplicaFiltroExtra],
+    [filas, tieneActivo, mostrarInactivos, tieneAnulados, mostrarAnuladas, aplicaFiltroExtra],
   )
   const totalIncompletos = useMemo(
     () => (esIncompleto ? filasActivas.filter(esIncompleto).length : 0),
@@ -132,7 +157,7 @@ function Mantenedor({
       await eliminar(fila.id)
     } catch (e) {
       const sugerencia = e?.code === CODIGO_EN_USO && tieneActivo ? ' Puedes desactivarlo en su lugar.' : ''
-      setErrorAccion(mensajeError(e) + sugerencia)
+      setErrorAccion(mensajeBorrado?.(e) ?? mensajeError(e) + sugerencia)
     }
   }
 
@@ -167,6 +192,18 @@ function Mantenedor({
           Mostrar inactivos
         </Interruptor>
       )}
+      {tieneAnulados && (
+        <Interruptor activo={mostrarAnuladas} onCambiar={setMostrarAnuladas}>
+          Mostrar anuladas
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              totalAnuladas > 0 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
+            }`}
+          >
+            {totalAnuladas}
+          </span>
+        </Interruptor>
+      )}
     </>
   )
 
@@ -177,10 +214,12 @@ function Mantenedor({
           <h2 className="text-xl font-semibold text-slate-800">{titulo}</h2>
           {descripcion && <p className="mt-1 text-sm text-slate-600">{descripcion}</p>}
         </div>
-        <button type="button" onClick={abrirNuevo} className={`${claseBotonPrimario} print:hidden`}>
-          <Plus className="h-4 w-4" />
-          Nuevo
-        </button>
+        {puedeCrear && (
+          <button type="button" onClick={abrirNuevo} className={`${claseBotonPrimario} print:hidden`}>
+            <Plus className="h-4 w-4" />
+            Nuevo
+          </button>
+        )}
       </div>
 
       {aviso && (
@@ -224,37 +263,53 @@ function Mantenedor({
               : 'Todavía no hay registros.'
           }
           barra={barra}
+          claseFila={tieneAnulados ? (fila) => (estaAnulado(fila) ? 'opacity-60' : '') : undefined}
           acciones={(fila) => (
             <div className="inline-flex gap-1">
+              {rutaDetalle && (
+                <Link
+                  to={rutaDetalle(fila)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
+                  aria-label={`Ver detalles de ${nombreRegistro(fila) ?? ''}`}
+                  title="Ver detalles"
+                >
+                  <Eye className="h-4 w-4" />
+                </Link>
+              )}
               {detalle && (
                 <button
                   type="button"
                   onClick={() => setIdDetalle(fila.id)}
-                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
                   aria-label={`Ver detalles de ${nombreRegistro(fila) ?? ''}`}
                   title="Ver detalles"
                 >
                   <Eye className="h-4 w-4" />
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => abrirEdicion(fila)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-700"
-                aria-label={`Editar ${nombreRegistro(fila) ?? ''}`}
-                title="Editar"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => borrar(fila)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                aria-label={`Eliminar ${nombreRegistro(fila) ?? ''}`}
-                title="Eliminar"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {puedeEditar && !(tieneAnulados && estaAnulado(fila)) && (
+                <button
+                  type="button"
+                  onClick={() => abrirEdicion(fila)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-primary-darker"
+                  aria-label={`Editar ${nombreRegistro(fila) ?? ''}`}
+                  title="Editar"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              {accionesFila?.(fila, { actualizar })}
+              {puedeBorrar && (
+                <button
+                  type="button"
+                  onClick={() => borrar(fila)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                  aria-label={`Eliminar ${nombreRegistro(fila) ?? ''}`}
+                  title="Eliminar"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           )}
         />
@@ -266,10 +321,14 @@ function Mantenedor({
           <DetalleRegistro
             detalle={detalle}
             fila={filaDetalle}
-            onEditar={() => {
-              setIdDetalle(null)
-              abrirEdicion(filaDetalle)
-            }}
+            onEditar={
+              !puedeEditar || (tieneAnulados && estaAnulado(filaDetalle))
+                ? undefined
+                : () => {
+                    setIdDetalle(null)
+                    abrirEdicion(filaDetalle)
+                  }
+            }
             onCerrar={() => setIdDetalle(null)}
           />
         </Modal>
@@ -293,24 +352,6 @@ function Mantenedor({
         </Modal>
       )}
     </section>
-  )
-}
-
-// Botón de filtro tipo interruptor (aria-pressed), igual en todos los Mantenedores.
-function Interruptor({ activo, onCambiar, children }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={activo}
-      onClick={() => onCambiar(!activo)}
-      className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
-        activo
-          ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-      }`}
-    >
-      {children}
-    </button>
   )
 }
 
