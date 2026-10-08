@@ -1,7 +1,8 @@
 -- Sprint 2 / T3b: pruebas de las políticas por rol (2026-10-02-11-rls-por-rol.sql).
 -- Actualizado a la migración 13 (boletas sin concepto ni insumos del proveedor): las boletas se insertan sin
 -- `concepto`, las líneas de boleta no usan id_insumo_proveedor y las boletas ya no generan movimientos
--- de stock. Siguen siendo 143 casos (la numeración no cambia: ninguno probaba stock de boletas).
+-- de stock. Casos 1-143 sin cambios de numeración (ninguno probaba stock de boletas); los casos 144-149 prueban la
+-- excepción del contador (borrar su propia cabecera recién creada, sin líneas ni pagos; no la de otro usuario).
 -- NO DEJA CAMBIOS en la base: las filas de prueba se crean y se usan dentro de un sub-bloque
 -- (BEGIN ... EXCEPTION) de un DO que termina con una excepción propia (P0777); Postgres revierte
 -- todo el sub-bloque y los resultados sobreviven en una variable del DO. No necesita BEGIN/ROLLBACK
@@ -231,7 +232,16 @@ begin
       (140, 'sin_perfil', $q$NO lee insumos$q$, 'q', $q$select count(*) from public.insumos where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000004'$q$, '0'),
       (141, 'sin_perfil', $q$NO lee facturas$q$, 'q', $q$select count(*) from public.facturas where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000012'$q$, '0'),
       (142, 'sin_perfil', $q$NO inserta solicitud$q$, 'dml', $q$insert into public.solicitudes_compra (solicitante, id_insumo_okima, cantidad_solicitada) values ('x', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000004', 1)$q$, 'error 42501'),
-      (143, 'sin_perfil', $q$NO inserta insumo$q$, 'dml', $q$insert into public.insumos (nombre, id_subcategoria) values ('ZZ_PRUEBA_RLS x', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000002')$q$, 'error 42501')
+      (143, 'sin_perfil', $q$NO inserta insumo$q$, 'dml', $q$insert into public.insumos (nombre, id_subcategoria) values ('ZZ_PRUEBA_RLS x', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000002')$q$, 'error 42501'),
+      -- Excepción de la migración 11: el contador solo puede borrar SU PROPIA cabecera recién creada, sin líneas
+      -- ni pagos (rollback del formulario cuando falla el guardado de las líneas). created_by lo fija el trigger
+      -- desde auth.uid(); la cabecera de "otro usuario" tiene created_by = admin (fixture) y también está sin líneas.
+      (144, 'contador', $q$crea su cabecera de boleta sin líneas (preparación del caso siguiente)$q$, 'dml', $q$insert into public.boletas (id, monto) values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000027', 1) returning id$q$, 'filas=1'),
+      (145, 'contador', $q$borra su PROPIA cabecera de boleta sin líneas ni pagos (rollback del formulario)$q$, 'dml', $q$delete from public.boletas where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000027'$q$, 'filas=1'),
+      (146, 'contador', $q$NO borra la cabecera de boleta de OTRO usuario aunque no tenga líneas ni pagos$q$, 'dml', $q$delete from public.boletas where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000028'$q$, 'filas=0'),
+      (147, 'contador', $q$crea su cabecera de factura sin líneas (preparación del caso siguiente)$q$, 'dml', $q$insert into public.facturas (id, id_proveedor, numero_factura, fecha) values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000029', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000003', 'ZZ-RLS-C2', current_date) returning id$q$, 'filas=1'),
+      (148, 'contador', $q$borra su PROPIA cabecera de factura sin líneas ni pagos (rollback del formulario)$q$, 'dml', $q$delete from public.facturas where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000029'$q$, 'filas=1'),
+      (149, 'contador', $q$NO borra la cabecera de factura de OTRO usuario aunque no tenga líneas ni pagos$q$, 'dml', $q$delete from public.facturas where id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000030'$q$, 'filas=0')
   ) as t (n, rol, prueba, tipo, sql, esperado);
 
   -- Todo lo que ocurre dentro de este sub-bloque se revierte al final.
@@ -261,6 +271,10 @@ begin
       ('aaaaaaaa-aaaa-4aaa-8aaa-000000000022', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000019', 'ZZ_PRUEBA_RLS', 1, 10, 10),
       ('aaaaaaaa-aaaa-4aaa-8aaa-000000000023', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000020', 'ZZ_PRUEBA_RLS', 1, 10, 10);
     insert into public.plantillas_gastos_recurrentes (id, nombre) values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000024', 'ZZ_PRUEBA_RLS plantilla');
+    -- Cabeceras "de otro usuario" (created_by = admin) sin líneas ni pagos, para los casos 146 y 149. Se crean como
+    -- postgres (auth.uid() nulo: el trigger no pisa created_by). Si el admin de ejemplo no existe, created_by queda null.
+    insert into public.boletas (id, monto, created_by) values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000028', 1, case when v_ok_a then v_uid_a end);
+    insert into public.facturas (id, id_proveedor, numero_factura, fecha, created_by) values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000030', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000003', 'ZZ-RLS-AJENA', current_date, case when v_ok_a then v_uid_a end);
 
     for i in 0 .. jsonb_array_length(v_casos) - 1 loop
       c := v_casos -> i;
