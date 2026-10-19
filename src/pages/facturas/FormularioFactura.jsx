@@ -40,7 +40,7 @@ import SelectorProveedorFactura from './SelectorProveedorFactura'
 const SELECT_PROVEEDORES = 'id, nombre, rut'
 // vinculos: filas de la pivote insumos_proveedores_okima (N:M con insumos Okima).
 const SELECT_CATALOGO =
-  'id, nombre, codigo, id_proveedor, precio_clp, fecha_actualizacion, cantidad_formato, formato_unidad, vinculos:insumos_proveedores_okima(id_insumo_okima, factor_conversion, insumo:insumos(id, nombre))'
+  'id, nombre, codigo, id_proveedor, precio_clp, fecha_actualizacion, cantidad_formato, formato_unidad, se_vincula, vinculos:insumos_proveedores_okima(id_insumo_okima, factor_conversion, insumo:insumos(id, nombre))'
 const SELECT_PENDIENTES =
   'id, created_at, id_insumo_okima, insumo_nombre, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada'
 const ORDEN_PENDIENTES = { columna: 'created_at', ascendente: true }

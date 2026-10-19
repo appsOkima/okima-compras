@@ -18,6 +18,7 @@ const catalogo = new Map([
     'ip-ok',
     { id: 'ip-ok', nombre: 'Taza Norte', vinculos: [{ id_insumo_okima: 'taza', factor_conversion: '1', insumo: { nombre: 'Taza' } }] },
   ],
+  ['ip-descartado', { id: 'ip-descartado', nombre: 'Taza Oeste', se_vincula: false, vinculos: [] }],
   [
     'ip-otro',
     { id: 'ip-otro', nombre: 'Taza Este', vinculos: [{ id_insumo_okima: 'plato', factor_conversion: '1', insumo: { nombre: 'Plato' } }] },
@@ -213,5 +214,18 @@ describe('actualizacionesPrecio', () => {
   it('ignora líneas sin insumo, sin precio o fuera del catálogo, y sin fecha de factura', () => {
     expect(actualizacionesPrecio([l('', 5), l('a', null), l('zz', 5)], cat, '2026-05-01')).toEqual([])
     expect(actualizacionesPrecio([l('a', 120)], cat, null)).toEqual([])
+  })
+})
+
+describe('insumo del proveedor que no se vincula (se_vincula = false)', () => {
+  it('no propone vincular', () => {
+    expect(vinculoPropuesto(linea({ id_insumo_proveedor: 'ip-descartado' }), catalogo, solicitudes).tipo).toBe('ninguno')
+  })
+  it('no aplica un vínculo aceptado antes de descartarlo', () => {
+    const aceptada = linea({
+      id_insumo_proveedor: 'ip-descartado',
+      vinculo: { acepta: true, idInsumoProveedor: 'ip-descartado', idInsumoOkima: 'taza' },
+    })
+    expect(vinculosAAplicar([aceptada], catalogo, solicitudes)).toEqual([])
   })
 })

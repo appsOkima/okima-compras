@@ -43,6 +43,7 @@ Cada migración tiene su reversa `-down.sql`. Orden de aplicación:
 | 11 | `rls-por-rol` | Reemplaza el RLS abierto por políticas por rol. **Aplicar solo con usuarios sembrados y login comprobado**; su reversa deja la base abierta. Verificación: `11-verificacion`; `11-pruebas-roles` prueba los roles sin dejar cambios. |
 | 12 | `vinculo-solicitud-boletas` | `detalle_boletas.id_solicitud_compra` y exclusividad factura/boleta de las solicitudes. Verificación: `12-verificacion`. |
 | 13 | `boletas-sin-concepto-ni-insumos` | Elimina `boletas.concepto` y `detalle_boletas.id_insumo_proveedor`; retira el stock de boletas (`movimientos_stock` solo de facturas, revirtiendo los movimientos de boleta existentes). Reversa: `-down`. Verificación: `13-verificacion`. **Rompe la interfaz anterior: aplicar la migración y desplegar el frontend juntos.** Exige que toda boleta tenga una línea con descripción. Las reversas 08 y 09 exigen revertir antes la 13. |
+| 14 | `insumos-proveedores-se-vincula` | `insumos_proveedores.se_vincula` (boolean, default true): permite descartar insumos que nunca se vincularán ("Sin vínculo"). Aditiva. Reversa: `-down`. Verificación: `14-verificacion`. Desplegar el frontend después de aplicarla. |
 
 Para borrar datos de prueba: `supabase/limpiar-datos.sql` vacía todas las tablas de negocio (incluidos pagos, líneas y movimientos de stock) salvo `categorias`, `subcategorias` y los usuarios/`perfiles` (irreversible).
 

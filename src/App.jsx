@@ -30,6 +30,7 @@ const Catalogo = lazy(() => import('./pages/proveedores/Catalogo'))
 const FormularioInsumoProveedor = lazy(() => import('./pages/proveedores/FormularioInsumoProveedor'))
 const FormularioProveedor = lazy(() => import('./pages/proveedores/FormularioProveedor'))
 const PorVincular = lazy(() => import('./pages/proveedores/PorVincular'))
+const SinVinculo = lazy(() => import('./pages/proveedores/SinVinculo'))
 const Proveedores = lazy(() => import('./pages/proveedores/Proveedores'))
 const Pendientes = lazy(() => import('./pages/solicitudes/Pendientes'))
 const Pagos = lazy(() => import('./pages/pagos/Pagos'))
@@ -106,6 +107,7 @@ const router = createBrowserRouter(
         <Route path="catalogo/nuevo" element={<FormularioInsumoProveedor />} />
         <Route path="catalogo/:id" element={<FormularioInsumoProveedor />} />
         <Route path="por-vincular" element={<PorVincular />} />
+        <Route path="sin-vinculo" element={<SinVinculo />} />
         <Route path="nuevo" element={<FormularioProveedor />} />
         <Route path=":id" element={<FormularioProveedor />} />
       </Route>

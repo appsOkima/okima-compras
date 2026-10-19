@@ -1,7 +1,7 @@
 import Mantenedor from '../../components/Mantenedor'
 import { formatoCLP, formatoCompra, formatoFecha } from '../../lib/formato'
 import { estaVacio } from '../../lib/texto'
-import { textoVinculos } from '../../lib/vinculos'
+import { esDescartado, textoVinculos } from '../../lib/vinculos'
 
 // vinculos: filas de la pivote insumos_proveedores_okima (N:M con insumos Okima).
 const SELECT =
@@ -30,10 +30,14 @@ const columnas = [
   {
     clave: 'vinculos',
     titulo: 'Insumo Okima × factor',
-    csv: (fila) => textoVinculos(fila.vinculos),
+    csv: (fila) => textoVinculos(fila.vinculos) || (esDescartado(fila) ? 'Sin vínculo' : ''),
     render: (fila) =>
       fila.vinculos?.length > 0 ? (
         textoVinculos(fila.vinculos)
+      ) : esDescartado(fila) ? (
+        <span className="whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+          Sin vínculo
+        </span>
       ) : (
         <span className="whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
           Sin vincular

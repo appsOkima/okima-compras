@@ -303,6 +303,8 @@ export function vinculoPropuesto(linea, catalogo, solicitudes) {
   const idInsumoOkima = solicitud?.id_insumo_okima
   // Catálogo o solicitudes aún cargando: no se propone nada todavía.
   if (!item || !idInsumoOkima) return ninguno
+  // Descartado ("Sin vínculo"): no se vincula nunca, no se propone nada.
+  if (item.se_vincula === false) return ninguno
   const nombreInsumoOkima = nombreInsumoSolicitud(solicitud)
 
   const vinculos = item.vinculos ?? []
@@ -348,7 +350,7 @@ export function vinculosAAplicar(lineas, catalogo, solicitudes) {
     if (porPar.has(clave)) continue
     const item = buscar(catalogo, v.idInsumoProveedor)
     const solicitud = buscar(solicitudes, linea.id_solicitud_compra)
-    if (!item || (item.vinculos ?? []).length > 0 || solicitud?.id_insumo_okima !== v.idInsumoOkima) continue
+    if (!item || item.se_vincula === false || (item.vinculos ?? []).length > 0 || solicitud?.id_insumo_okima !== v.idInsumoOkima) continue
     porPar.set(clave, {
       idInsumoProveedor: v.idInsumoProveedor,
       idInsumoOkima: v.idInsumoOkima,

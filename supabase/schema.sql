@@ -110,6 +110,8 @@ create table insumos_proveedores (
   fecha_actualizacion  date,
   link_insumo          text,
   descripcion          text,
+  -- false = descartado (nunca se vinculará a un insumo Okima): sale de "Por vincular".
+  se_vincula           boolean not null default true,
   notas                text  -- indicaciones de interacción; vacío no se muestra
 );
 

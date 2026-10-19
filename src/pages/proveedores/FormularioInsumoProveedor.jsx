@@ -20,6 +20,7 @@ const valoresIniciales = {
   fecha_actualizacion: '',
   link_insumo: '',
   descripcion: '',
+  se_vincula: true,
   vinculos: [],
   notas: '',
 }
@@ -123,6 +124,33 @@ function FormularioInsumoProveedor() {
           cantidadFormato={aNumeroDesdeTexto(valores.cantidad_formato)}
           cargando={cargandoInsumos}
         />
+      ),
+    },
+    {
+      clave: 'se_vincula',
+      etiqueta: 'Vinculación',
+      tipo: 'personalizado',
+      completo: true,
+      desdeBase: (v) => v !== false,
+      ayuda: 'Desmárcalo si este insumo nunca se vinculará (no aparece en Por vincular ni se propone vincular en facturas).',
+      render: ({ id, valor, onChange, valores }) => (
+        <div>
+          <label htmlFor={id} className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              id={id}
+              type="checkbox"
+              checked={valor !== false}
+              onChange={(e) => onChange(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            />
+            Se vincula con un insumo Okima
+          </label>
+          {valor === false && Array.isArray(valores.vinculos) && valores.vinculos.length > 0 && (
+            <p className="mt-1 text-xs text-amber-700">
+              Este insumo ya tiene vínculos: se conservan y siguen sumando stock. Quítalos arriba si ya no corresponden.
+            </p>
+          )}
+        </div>
       ),
     },
     campoNotas,
