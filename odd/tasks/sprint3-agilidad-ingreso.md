@@ -8,7 +8,7 @@ Los 4 cambios pedidos. La carga de CSV para editar la base queda fuera (Sprint 4
 
 ## Config
 - TDD: activo para lógica pura de `src/lib/` (fuente: CLAUDE.md del proyecto), runner `npm test` (vitest). UI/SQL: `npm run lint` + `npm run build`.
-- Delivery: ask-on-risk. Mirror Engram: PENDIENTE (herramientas mem_* no disponibles en esta sesión).
+- Delivery: ask-on-risk. Mirror Engram: tema `odd/sprint3-agilidad-ingreso/tasks`, proyecto okima-compras (reconstruido desde este archivo tras reconectar engram).
 
 ## Tareas
 - [x] T1 Aviso toast de factura duplicada (proveedor + N°) mientras se escribe. Sin sistema de toast previo: crear uno mínimo. Ruta: delegada (FormularioFactura + lib + toast).
@@ -20,4 +20,4 @@ Los 4 cambios pedidos. La carga de CSV para editar la base queda fuera (Sprint 4
 `npm test`, `npm run lint`, `npm run build` verdes.
 
 ## Evidencia / commits
-T2 41ec21f; T1+T3 f9fff7d; T4 ver git log. Verificado: npm test (256), lint, build. Sin prueba manual en navegador.
+T2 41ec21f; T1+T3 f9fff7d; T4 0b11331. Verificado: npm test (256), lint, build. Sin prueba manual en navegador.
