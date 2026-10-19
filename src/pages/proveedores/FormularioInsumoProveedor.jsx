@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import PaginaRegistro from '../../components/PaginaRegistro'
 import { useTabla } from '../../hooks/useTabla'
 import { errorSinFilas, mensajeError } from '../../lib/errores'
@@ -70,12 +69,7 @@ async function guardarVinculos(guardado, valores, registro) {
 // catálogo en página propia (no modal), con el listado del Catálogo como vuelta.
 function FormularioInsumoProveedor() {
   const { filas: proveedores, error: errorProveedores } = useTabla('proveedores', { select: 'id, nombre' })
-  const { filas: insumos, cargando: cargandoInsumos, error: errorInsumos } = useTabla('insumos', { select: SELECT_INSUMOS })
-
-  const opcionesInsumos = useMemo(
-    () => insumos.map((i) => ({ valor: i.id, etiqueta: i.nombre, detalle: i.subcategoria?.nombre })),
-    [insumos],
-  )
+  const { filas: insumos, cargando: cargandoInsumos, error: errorInsumos, crear: crearInsumo } = useTabla('insumos', { select: SELECT_INSUMOS })
 
   // El vínculo a insumos Okima (N:M, con factor de conversión) se edita aquí o en
   // "Por vincular"; nunca se crea al crear el insumo del proveedor al vuelo en
@@ -123,7 +117,9 @@ function FormularioInsumoProveedor() {
           id={id}
           valor={valor}
           onChange={onChange}
-          opciones={opcionesInsumos}
+          insumos={insumos}
+          onCrearInsumo={crearInsumo}
+          sugerido={valores.nombre}
           cantidadFormato={aNumeroDesdeTexto(valores.cantidad_formato)}
           cargando={cargandoInsumos}
         />

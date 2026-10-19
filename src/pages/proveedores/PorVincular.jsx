@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, CheckCircle2, Info, Link2, Loader2, Search, X } from 'lucide-react'
-import Combobox from '../../components/Combobox'
+import ComboboxInsumoOkima from '../../components/ComboboxInsumoOkima'
 import InputNumero from '../../components/InputNumero'
 import TablaDatos from '../../components/TablaDatos'
 import { claseBotonPrimario, claseInput } from '../../components/estilos'
@@ -30,7 +30,7 @@ const DURACION_CONFIRMACION = 5000
 // Para vincularlo a más de un insumo Okima, se edita en el Catálogo.
 function PorVincular() {
   const { filas, cargando, error, recargar } = useTabla('insumos_proveedores', { select: SELECT })
-  const { filas: insumos, error: errorInsumos } = useTabla('insumos', { select: SELECT_INSUMOS })
+  const { filas: insumos, error: errorInsumos, crear: crearInsumo } = useTabla('insumos', { select: SELECT_INSUMOS })
   const [busqueda, setBusqueda] = useBusquedaPersistente()
   // id del insumo de proveedor → id del insumo Okima elegido (aún sin guardar).
   const [seleccion, setSeleccion] = useState({})
@@ -45,11 +45,6 @@ function PorVincular() {
     const temporizador = setTimeout(() => setConfirmacion(''), DURACION_CONFIRMACION)
     return () => clearTimeout(temporizador)
   }, [confirmacion])
-
-  const opcionesInsumos = useMemo(
-    () => insumos.map((i) => ({ valor: i.id, etiqueta: i.nombre, detalle: i.subcategoria?.nombre })),
-    [insumos],
-  )
 
   const pendientes = useMemo(
     () =>
@@ -113,12 +108,14 @@ function PorVincular() {
       soloTabla: true,
       render: (fila) => (
         <div className="flex min-w-96 items-center gap-2 print:hidden">
-          <Combobox
-            className="flex-1"
-            opciones={opcionesInsumos}
+          <ComboboxInsumoOkima
+            className="min-w-0 flex-1"
+            insumos={insumos}
             valor={seleccion[fila.id] ?? ''}
             onChange={(valor) => setSeleccion((actual) => ({ ...actual, [fila.id]: valor }))}
-            placeholder="Buscar insumo Okima…"
+            onCrearInsumo={crearInsumo}
+            sugerido={fila.nombre}
+            placeholder="Buscar o crear insumo Okima…"
             etiqueta={`Insumo Okima para ${fila.nombre}`}
             disabled={vinculando === fila.id}
           />
