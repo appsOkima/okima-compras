@@ -5,14 +5,17 @@ import CampoNotas from '../../components/CampoNotas'
 import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import InputNumero from '../../components/InputNumero'
 import SwitchPagoContado from '../../components/SwitchPagoContado'
+import { useToast } from '../../hooks/useToast'
 import { useSolicitudesOcupadas } from '../../hooks/useSolicitudesOcupadas'
 import { useTabla } from '../../hooks/useTabla'
 import { estaAnulado } from '../../lib/anulacion'
 import { errorSinFilas, mensajeError } from '../../lib/errores'
 import {
+  actualizacionesPrecio,
   aNumero,
   aplicarCambioLinea,
   calcularTotales,
+  claveDuplicado,
   datosCabecera,
   datosLinea,
   decidirVinculo,
@@ -37,7 +40,7 @@ import SelectorProveedorFactura from './SelectorProveedorFactura'
 const SELECT_PROVEEDORES = 'id, nombre, rut'
 // vinculos: filas de la pivote insumos_proveedores_okima (N:M con insumos Okima).
 const SELECT_CATALOGO =
-  'id, nombre, codigo, id_proveedor, cantidad_formato, formato_unidad, vinculos:insumos_proveedores_okima(id_insumo_okima, factor_conversion, insumo:insumos(id, nombre))'
+  'id, nombre, codigo, id_proveedor, precio_clp, fecha_actualizacion, cantidad_formato, formato_unidad, vinculos:insumos_proveedores_okima(id_insumo_okima, factor_conversion, insumo:insumos(id, nombre))'
 const SELECT_PENDIENTES =
   'id, created_at, id_insumo_okima, insumo_nombre, cantidad_solicitada, solicitante, nivel_urgencia, fecha_esperada'
 const ORDEN_PENDIENTES = { columna: 'created_at', ascendente: true }
@@ -77,6 +80,7 @@ function PaginaFactura() {
 // Okima de la solicitud; los vínculos aceptados se aplican antes que las líneas.
 function FormularioFactura({ id }) {
   const navigate = useNavigate()
+  const { avisar } = useToast()
   const esNueva = id === null
   const {
     filas: proveedores,
@@ -159,6 +163,36 @@ function FormularioFactura({ id }) {
       vigente = false
     }
   }, [esNueva, id])
+
+  // Aviso (no bloquea; el guardado sigue validando con 23505) de que el proveedor ya
+  // tiene una factura con ese N°, aunque esté anulada: sigue ocupando el número. Con
+  // debounce, sin repetir el aviso por la misma combinación, y al editar sin contar
+  // la propia factura.
+  const comprobadas = useRef(new Set())
+  useEffect(() => {
+    if (carga !== 'lista') return
+    const pedido = claveDuplicado(cabecera.id_proveedor, cabecera.numero_factura, comprobadas.current)
+    if (!pedido) return
+    let vigente = true
+    const temporizador = setTimeout(async () => {
+      let consulta = supabase
+        .from('facturas')
+        .select('id')
+        .eq('id_proveedor', pedido.idProveedor)
+        .eq('numero_factura', pedido.numero)
+      if (!esNueva) consulta = consulta.neq('id', id)
+      const { data, error } = await consulta.limit(1)
+      if (!vigente || error) return
+      comprobadas.current.add(pedido.clave)
+      if (data?.length > 0) {
+        avisar(`Ya existe la factura N° ${pedido.numero} de este proveedor. No podrás guardarla con ese número.`)
+      }
+    }, 400)
+    return () => {
+      vigente = false
+      clearTimeout(temporizador)
+    }
+  }, [carga, cabecera.id_proveedor, cabecera.numero_factura, esNueva, id, avisar])
 
   const catalogoPorId = useMemo(() => new Map(catalogo.map((item) => [item.id, item])), [catalogo])
   const catalogoProveedor = useMemo(
@@ -350,6 +384,27 @@ function FormularioFactura({ id }) {
     }
   }
 
+  // Último paso, con la factura y las líneas ya guardadas: deja el precio de catálogo
+  // de cada insumo con el de la factura (ver actualizacionesPrecio). Un fallo no
+  // deshace el guardado: solo se avisa.
+  const actualizarPreciosCatalogo = async (datosLineas, fecha) => {
+    const cambios = actualizacionesPrecio(datosLineas, catalogoPorId, fecha)
+    if (cambios.length === 0) return
+    const fallidos = []
+    for (const { id: idInsumo, ...datos } of cambios) {
+      try {
+        const { data, error } = await supabase.from('insumos_proveedores').update(datos).eq('id', idInsumo).select('id')
+        if (error || errorSinFilas(data)) fallidos.push(catalogoPorId.get(idInsumo)?.nombre ?? idInsumo)
+      } catch {
+        fallidos.push(catalogoPorId.get(idInsumo)?.nombre ?? idInsumo)
+      }
+    }
+    if (fallidos.length > 0) {
+      avisar(`La factura se guardó, pero no se pudo actualizar el precio de catálogo de: ${fallidos.join(', ')}.`, { tipo: 'error' })
+    }
+    recargarCatalogo({ silencioso: true })
+  }
+
   const guardar = async (e) => {
     e.preventDefault()
     if (guardando) return
@@ -396,6 +451,7 @@ function FormularioFactura({ id }) {
         textoPago = mensajePagoCreacion({ alContado, pago, motivoError })
       } else await actualizarFactura(datosCab, datosLineas)
       const { aplicados, omitidos } = resultadoVinculos
+      await actualizarPreciosCatalogo(datosLineas, datosCab.fecha)
       const notas = [
         aplicados.length > 0 && `Se ${aplicados.length === 1 ? 'vinculó' : 'vincularon'} ${aplicados.map(parVinculo).join(', ')}.`,
         omitidos.length > 0 &&
