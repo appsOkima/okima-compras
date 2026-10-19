@@ -303,6 +303,8 @@ export function vinculoPropuesto(linea, catalogo, solicitudes) {
   const idInsumoOkima = solicitud?.id_insumo_okima
   // Catálogo o solicitudes aún cargando: no se propone nada todavía.
   if (!item || !idInsumoOkima) return ninguno
+  // Descartado ("Sin vínculo"): no se vincula nunca, no se propone nada.
+  if (item.se_vincula === false) return ninguno
   const nombreInsumoOkima = nombreInsumoSolicitud(solicitud)
 
   const vinculos = item.vinculos ?? []
@@ -348,7 +350,7 @@ export function vinculosAAplicar(lineas, catalogo, solicitudes) {
     if (porPar.has(clave)) continue
     const item = buscar(catalogo, v.idInsumoProveedor)
     const solicitud = buscar(solicitudes, linea.id_solicitud_compra)
-    if (!item || (item.vinculos ?? []).length > 0 || solicitud?.id_insumo_okima !== v.idInsumoOkima) continue
+    if (!item || item.se_vincula === false || (item.vinculos ?? []).length > 0 || solicitud?.id_insumo_okima !== v.idInsumoOkima) continue
     porPar.set(clave, {
       idInsumoProveedor: v.idInsumoProveedor,
       idInsumoOkima: v.idInsumoOkima,
@@ -374,4 +376,42 @@ export function ordenarSolicitudesParaLinea(solicitudes, idsInsumoOkima = []) {
     }
     return compararPendientes(a, b)
   })
+}
+
+// ---------------------------------------------------------------------------
+// Aviso de factura duplicada mientras se escribe, y precio de catálogo.
+
+// Combinación proveedor + N° de factura a comprobar contra la base, o null si no
+// hay nada que comprobar (falta uno de los dos) o ya se comprobó (`comprobadas` es
+// un Set de claves), para no avisar dos veces por lo mismo. El número se compara
+// sin espacios de los bordes, como se guarda (ver datosCabecera).
+export function claveDuplicado(idProveedor, numeroFactura, comprobadas = new Set()) {
+  const numero = String(numeroFactura ?? '').trim()
+  if (!idProveedor || !numero) return null
+  const clave = `${idProveedor}|${numero}`
+  if (comprobadas.has(clave)) return null
+  return { clave, idProveedor, numero }
+}
+
+// Actualizaciones del precio de catálogo (insumos_proveedores.precio_clp) a partir
+// de las líneas ya convertidas con datosLinea: si el precio_neto de la línea difiere
+// del precio_clp del catálogo (null cuenta como distinto), se fija con la fecha de
+// la factura, salvo que el catálogo ya tenga una fecha posterior. Con varias líneas
+// del mismo insumo vale la última. `catalogo` es un Map o arreglo de registros.
+// → [{ id, precio_clp, fecha_actualizacion }]
+export function actualizacionesPrecio(lineas, catalogo, fechaFactura) {
+  if (!fechaFactura) return []
+  const ultimas = new Map()
+  for (const l of lineas ?? []) {
+    if (l?.id_insumo_proveedor && typeof l.precio_neto === 'number') ultimas.set(l.id_insumo_proveedor, l.precio_neto)
+  }
+  const resultado = []
+  for (const [id, precio] of ultimas) {
+    const item = buscar(catalogo, id)
+    if (!item) continue
+    if (numeroDesdeBase(item.precio_clp) === precio) continue
+    if (item.fecha_actualizacion && String(item.fecha_actualizacion) > fechaFactura) continue
+    resultado.push({ id, precio_clp: precio, fecha_actualizacion: fechaFactura })
+  }
+  return resultado
 }

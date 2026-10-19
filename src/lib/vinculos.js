@@ -18,6 +18,13 @@ export function factorPorDefecto(cantidadFormato) {
   return n !== null && n > 0 ? n : 1
 }
 
+// Insumo del proveedor que el administrador descartó: nunca se vinculará a un
+// insumo Okima (columna se_vincula = false; ausente cuenta como true).
+export const esDescartado = (fila) => fila?.se_vincula === false
+
+// Candidato de "Por vincular": se vincula y aún no tiene ninguna fila en la pivote.
+export const esPendienteDeVincular = (fila) => !esDescartado(fila) && (fila?.vinculos ?? []).length === 0
+
 // Texto de un input de factor → mensaje de error, o null si es un número > 0.
 export function validarFactor(valor) {
   const n = aNumeroDesdeTexto(valor)

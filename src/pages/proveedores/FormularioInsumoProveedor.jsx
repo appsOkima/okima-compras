@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import PaginaRegistro from '../../components/PaginaRegistro'
 import { useTabla } from '../../hooks/useTabla'
 import { errorSinFilas, mensajeError } from '../../lib/errores'
@@ -21,6 +20,7 @@ const valoresIniciales = {
   fecha_actualizacion: '',
   link_insumo: '',
   descripcion: '',
+  se_vincula: true,
   vinculos: [],
   notas: '',
 }
@@ -70,12 +70,7 @@ async function guardarVinculos(guardado, valores, registro) {
 // catálogo en página propia (no modal), con el listado del Catálogo como vuelta.
 function FormularioInsumoProveedor() {
   const { filas: proveedores, error: errorProveedores } = useTabla('proveedores', { select: 'id, nombre' })
-  const { filas: insumos, cargando: cargandoInsumos, error: errorInsumos } = useTabla('insumos', { select: SELECT_INSUMOS })
-
-  const opcionesInsumos = useMemo(
-    () => insumos.map((i) => ({ valor: i.id, etiqueta: i.nombre, detalle: i.subcategoria?.nombre })),
-    [insumos],
-  )
+  const { filas: insumos, cargando: cargandoInsumos, error: errorInsumos, crear: crearInsumo } = useTabla('insumos', { select: SELECT_INSUMOS })
 
   // El vínculo a insumos Okima (N:M, con factor de conversión) se edita aquí o en
   // "Por vincular"; nunca se crea al crear el insumo del proveedor al vuelo en
@@ -123,10 +118,39 @@ function FormularioInsumoProveedor() {
           id={id}
           valor={valor}
           onChange={onChange}
-          opciones={opcionesInsumos}
+          insumos={insumos}
+          onCrearInsumo={crearInsumo}
+          sugerido={valores.nombre}
           cantidadFormato={aNumeroDesdeTexto(valores.cantidad_formato)}
           cargando={cargandoInsumos}
         />
+      ),
+    },
+    {
+      clave: 'se_vincula',
+      etiqueta: 'Vinculación',
+      tipo: 'personalizado',
+      completo: true,
+      desdeBase: (v) => v !== false,
+      ayuda: 'Desmárcalo si este insumo nunca se vinculará (no aparece en Por vincular ni se propone vincular en facturas).',
+      render: ({ id, valor, onChange, valores }) => (
+        <div>
+          <label htmlFor={id} className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              id={id}
+              type="checkbox"
+              checked={valor !== false}
+              onChange={(e) => onChange(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            />
+            Se vincula con un insumo Okima
+          </label>
+          {valor === false && Array.isArray(valores.vinculos) && valores.vinculos.length > 0 && (
+            <p className="mt-1 text-xs text-amber-700">
+              Este insumo ya tiene vínculos: se conservan y siguen sumando stock. Quítalos arriba si ya no corresponden.
+            </p>
+          )}
+        </div>
       ),
     },
     campoNotas,

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  actualizacionesPrecio,
   aplicarCambioLinea,
+  claveDuplicado,
   efectoStock,
   lineaVacia,
   ordenarSolicitudesParaLinea,
@@ -16,6 +18,7 @@ const catalogo = new Map([
     'ip-ok',
     { id: 'ip-ok', nombre: 'Taza Norte', vinculos: [{ id_insumo_okima: 'taza', factor_conversion: '1', insumo: { nombre: 'Taza' } }] },
   ],
+  ['ip-descartado', { id: 'ip-descartado', nombre: 'Taza Oeste', se_vincula: false, vinculos: [] }],
   [
     'ip-otro',
     { id: 'ip-otro', nombre: 'Taza Este', vinculos: [{ id_insumo_okima: 'plato', factor_conversion: '1', insumo: { nombre: 'Plato' } }] },
@@ -156,5 +159,73 @@ describe('ordenarSolicitudesParaLinea', () => {
   })
   it('sin insumos vinculados no descarta ninguna', () => {
     expect(ordenarSolicitudesParaLinea([s('1', 'x'), s('2', 'b')], [])).toHaveLength(2)
+  })
+})
+
+describe('claveDuplicado', () => {
+  it('sin proveedor o sin número no hay nada que comprobar', () => {
+    expect(claveDuplicado('', 'F-1')).toBeNull()
+    expect(claveDuplicado('p1', '   ')).toBeNull()
+    expect(claveDuplicado('p1', null)).toBeNull()
+  })
+  it('normaliza los espacios del número', () => {
+    expect(claveDuplicado('p1', '  F-1 ')).toEqual({ clave: 'p1|F-1', idProveedor: 'p1', numero: 'F-1' })
+  })
+  it('no repite una combinación ya comprobada', () => {
+    const comprobadas = new Set(['p1|F-1'])
+    expect(claveDuplicado('p1', ' F-1', comprobadas)).toBeNull()
+    expect(claveDuplicado('p1', 'F-2', comprobadas)).not.toBeNull()
+    expect(claveDuplicado('p2', 'F-1', comprobadas)).not.toBeNull()
+  })
+})
+
+describe('actualizacionesPrecio', () => {
+  const cat = new Map([
+    ['a', { id: 'a', precio_clp: '100', fecha_actualizacion: '2026-01-01' }],
+    ['b', { id: 'b', precio_clp: null, fecha_actualizacion: null }],
+    ['c', { id: 'c', precio_clp: '50', fecha_actualizacion: '2026-12-01' }],
+    ['d', { id: 'd', precio_clp: '70', fecha_actualizacion: null }],
+  ])
+  const l = (id, precio) => ({ id_insumo_proveedor: id, precio_neto: precio })
+
+  it('actualiza si el precio difiere, con la fecha de la factura', () => {
+    expect(actualizacionesPrecio([l('a', 120)], cat, '2026-05-01')).toEqual([
+      { id: 'a', precio_clp: 120, fecha_actualizacion: '2026-05-01' },
+    ])
+  })
+  it('no hace nada si el precio es igual', () => {
+    expect(actualizacionesPrecio([l('a', 100)], cat, '2026-05-01')).toEqual([])
+  })
+  it('un precio null en el catálogo cuenta como distinto', () => {
+    expect(actualizacionesPrecio([l('b', 10)], cat, '2026-05-01')).toHaveLength(1)
+  })
+  it('no pisa un catálogo con fecha posterior a la factura', () => {
+    expect(actualizacionesPrecio([l('c', 99)], cat, '2026-05-01')).toEqual([])
+  })
+  it('catálogo sin fecha sí se actualiza', () => {
+    expect(actualizacionesPrecio([l('d', 71)], cat, '2026-05-01')).toHaveLength(1)
+  })
+  it('con varias líneas del mismo insumo usa la última', () => {
+    expect(actualizacionesPrecio([l('a', 120), l('a', 100)], cat, '2026-05-01')).toEqual([])
+    expect(actualizacionesPrecio([l('a', 100), l('a', 130)], cat, '2026-05-01')).toEqual([
+      { id: 'a', precio_clp: 130, fecha_actualizacion: '2026-05-01' },
+    ])
+  })
+  it('ignora líneas sin insumo, sin precio o fuera del catálogo, y sin fecha de factura', () => {
+    expect(actualizacionesPrecio([l('', 5), l('a', null), l('zz', 5)], cat, '2026-05-01')).toEqual([])
+    expect(actualizacionesPrecio([l('a', 120)], cat, null)).toEqual([])
+  })
+})
+
+describe('insumo del proveedor que no se vincula (se_vincula = false)', () => {
+  it('no propone vincular', () => {
+    expect(vinculoPropuesto(linea({ id_insumo_proveedor: 'ip-descartado' }), catalogo, solicitudes).tipo).toBe('ninguno')
+  })
+  it('no aplica un vínculo aceptado antes de descartarlo', () => {
+    const aceptada = linea({
+      id_insumo_proveedor: 'ip-descartado',
+      vinculo: { acepta: true, idInsumoProveedor: 'ip-descartado', idInsumoOkima: 'taza' },
+    })
+    expect(vinculosAAplicar([aceptada], catalogo, solicitudes)).toEqual([])
   })
 })

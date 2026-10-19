@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   cambiosVinculos,
+  esDescartado,
+  esPendienteDeVincular,
   factorPorDefecto,
   textoMovimientos,
   textoVinculos,
@@ -139,5 +141,21 @@ describe('textoMovimientos', () => {
   })
   it('sin movimientos devuelve vacío', () => {
     expect(textoMovimientos(null)).toBe('')
+  })
+})
+
+describe('esPendienteDeVincular / esDescartado', () => {
+  const sinVinculos = { se_vincula: true, vinculos: [] }
+  it('pendiente: se vincula y no tiene filas en la pivote', () => {
+    expect(esPendienteDeVincular(sinVinculos)).toBe(true)
+    expect(esPendienteDeVincular({ vinculos: [] })).toBe(true) // se_vincula ausente = true
+    expect(esPendienteDeVincular({ se_vincula: true, vinculos: [{ id: 'v' }] })).toBe(false)
+    expect(esPendienteDeVincular({ se_vincula: false, vinculos: [] })).toBe(false)
+  })
+  it('descartado: solo se_vincula = false', () => {
+    expect(esDescartado({ se_vincula: false, vinculos: [] })).toBe(true)
+    expect(esDescartado({ se_vincula: false, vinculos: [{ id: 'v' }] })).toBe(true)
+    expect(esDescartado({ se_vincula: true })).toBe(false)
+    expect(esDescartado({})).toBe(false)
   })
 })

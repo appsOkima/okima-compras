@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
+import { useAuth } from '../../auth/contexto'
 import FormularioRegistro from '../../components/FormularioRegistro'
 import { useTabla } from '../../hooks/useTabla'
 import { mensajeError } from '../../lib/errores'
@@ -7,12 +8,8 @@ import { campoNotas } from '../../lib/notas'
 import {
   NIVELES_URGENCIA,
   URGENCIA_POR_DEFECTO,
-  guardarUltimoSolicitante,
-  leerUltimoSolicitante,
   metaUrgencia,
-  solicitantesUnicos,
 } from '../../lib/solicitudes'
-import { supabase } from '../../lib/supabase'
 import SelectorInsumo from './SelectorInsumo'
 
 const SELECT_INSUMOS = 'id, nombre, subcategoria:subcategorias(nombre)'
@@ -22,26 +19,9 @@ const SELECT_INSUMOS = 'id, nombre, subcategoria:subcategorias(nombre)'
 // facturas o se marca a mano, y los cambios de estado son acciones aparte en las listas.
 function FormularioSolicitud({ registro, onGuardar, onCancelar }) {
   const { filas: insumos, cargando, error, crear: crearInsumo } = useTabla('insumos', { select: SELECT_INSUMOS })
-  const [solicitantes, setSolicitantes] = useState([])
+  const { perfil } = useAuth()
 
-  // Sin tabla de empleados: se sugieren los solicitantes ya usados (el más
-  // reciente primero, para conservar su forma de escribir el nombre).
-  useEffect(() => {
-    let vigente = true
-    supabase
-      .from('solicitudes_compra')
-      .select('solicitante')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        // Si falla, el campo sigue siendo texto libre, sin sugerencias.
-        if (vigente) setSolicitantes(solicitantesUnicos((data ?? []).map((f) => f.solicitante)))
-      })
-    return () => {
-      vigente = false
-    }
-  }, [])
-
-  // Nueva: urgencia media y el último solicitante usado en este navegador.
+  // Nueva: urgencia media. El solicitante no se pide: es el usuario logueado.
   const [valoresIniciales] = useState(
     () =>
       registro ?? {
@@ -49,7 +29,6 @@ function FormularioSolicitud({ registro, onGuardar, onCancelar }) {
         cantidad_solicitada: '',
         nivel_urgencia: URGENCIA_POR_DEFECTO,
         fecha_esperada: '',
-        solicitante: leerUltimoSolicitante(),
         notas: '',
       },
   )
@@ -93,21 +72,18 @@ function FormularioSolicitud({ registro, onGuardar, onCancelar }) {
         tipo: 'fecha',
         ayuda: 'Opcional: para cuándo se necesita.',
       },
-      {
-        clave: 'solicitante',
-        etiqueta: 'Solicitante',
-        tipo: 'texto',
-        requerido: true,
-        sugerencias: solicitantes,
-      },
       campoNotas,
     ],
-    [insumos, crearInsumo, cargando, solicitantes],
+    [insumos, crearInsumo, cargando],
   )
 
   const guardar = async (datos) => {
-    await onGuardar(datos)
-    guardarUltimoSolicitante(datos.solicitante)
+    // Al editar se conservan solicitante/id_solicitante tal como estaban.
+    if (registro) return onGuardar(datos)
+    if (!perfil?.id || !perfil.nombre_mostrar) {
+      throw new Error('No se pudo identificar tu perfil; recarga la página o vuelve a iniciar sesión.')
+    }
+    return onGuardar({ ...datos, solicitante: perfil.nombre_mostrar, id_solicitante: perfil.id })
   }
 
   return (

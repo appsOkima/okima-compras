@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, Info, Link2, Loader2, Search, X } from 'lucide-react'
-import Combobox from '../../components/Combobox'
+import { AlertCircle, Ban, CheckCircle2, Info, Link2, Loader2, Search, X } from 'lucide-react'
+import { useAuth } from '../../auth/contexto'
+import ComboboxInsumoOkima from '../../components/ComboboxInsumoOkima'
 import InputNumero from '../../components/InputNumero'
 import TablaDatos from '../../components/TablaDatos'
-import { claseBotonPrimario, claseInput } from '../../components/estilos'
+import { claseBotonPrimario, claseBotonSecundario, claseInput } from '../../components/estilos'
 import { useTabla } from '../../hooks/useTabla'
 import { useBusquedaPersistente } from '../../hooks/useBusquedaPersistente'
 import { mensajeError } from '../../lib/errores'
+import { puedeHacer } from '../../lib/permisos'
 import { formatoCLP, formatoCompra } from '../../lib/formato'
 import { aNumeroDesdeTexto, numeroAEditable } from '../../lib/numero'
 import { supabase } from '../../lib/supabase'
 import { coincide } from '../../lib/texto'
-import { AYUDA_FACTOR, factorPorDefecto, validarFactor } from '../../lib/vinculos'
+import { AYUDA_FACTOR, esPendienteDeVincular, factorPorDefecto, validarFactor } from '../../lib/vinculos'
 
 // vinculos: solo para saber si el insumo ya tiene alguna fila en la pivote.
+// se_vincula = false (descartados) no se listan aquí: están en "Sin vínculo".
 const SELECT = '*, proveedor:proveedores(id, nombre), vinculos:insumos_proveedores_okima(id)'
 const SELECT_INSUMOS = 'id, nombre, subcategoria:subcategorias(nombre)'
 
@@ -29,14 +32,17 @@ const DURACION_CONFIRMACION = 5000
 // la fila (insumo Okima + factor de conversión) y se recarga: el insumo sale solo.
 // Para vincularlo a más de un insumo Okima, se edita en el Catálogo.
 function PorVincular() {
-  const { filas, cargando, error, recargar } = useTabla('insumos_proveedores', { select: SELECT })
-  const { filas: insumos, error: errorInsumos } = useTabla('insumos', { select: SELECT_INSUMOS })
+  const { perfil } = useAuth()
+  const puedeDescartar = puedeHacer(perfil?.rol, 'catalogo', 'editar')
+  const { filas, cargando, error, recargar, actualizar } = useTabla('insumos_proveedores', { select: SELECT })
+  const { filas: insumos, error: errorInsumos, crear: crearInsumo } = useTabla('insumos', { select: SELECT_INSUMOS })
   const [busqueda, setBusqueda] = useBusquedaPersistente()
   // id del insumo de proveedor → id del insumo Okima elegido (aún sin guardar).
   const [seleccion, setSeleccion] = useState({})
   // id del insumo de proveedor → factor escrito (si no, el por defecto de la fila).
   const [factores, setFactores] = useState({})
   const [vinculando, setVinculando] = useState(null)
+  const [descartando, setDescartando] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
   const [confirmacion, setConfirmacion] = useState('')
 
@@ -46,16 +52,11 @@ function PorVincular() {
     return () => clearTimeout(temporizador)
   }, [confirmacion])
 
-  const opcionesInsumos = useMemo(
-    () => insumos.map((i) => ({ valor: i.id, etiqueta: i.nombre, detalle: i.subcategoria?.nombre })),
-    [insumos],
-  )
-
   const pendientes = useMemo(
     () =>
       filas.filter(
         (f) =>
-          f.vinculos.length === 0 &&
+          esPendienteDeVincular(f) &&
           (!busqueda || [f.nombre, f.codigo, nombreProveedor(f)].some((v) => coincide(v, busqueda))),
       ),
     [filas, busqueda],
@@ -89,6 +90,24 @@ function PorVincular() {
     }
   }
 
+  // Marca el insumo como "no se vincula": sale de esta lista y la factura deja de proponer
+  // vincularlo. Reversible desde "Sin vínculo". Un UPDATE denegado por el RLS lo reporta
+  // useTabla.actualizar (update().select().single() sin fila → mensajeError lo traduce).
+  const descartar = async (fila) => {
+    if (descartando || vinculando) return
+    if (!window.confirm(`¿Descartar "${fila.nombre}"? No se vinculará a ningún insumo Okima y saldrá de esta lista. Puedes restaurarlo en "Sin vínculo".`)) return
+    setDescartando(fila.id)
+    setErrorAccion('')
+    try {
+      await actualizar(fila.id, { se_vincula: false })
+      setConfirmacion(`"${fila.nombre}" se descartó; búscalo en "Sin vínculo" si necesitas restaurarlo.`)
+    } catch (e) {
+      setErrorAccion(mensajeError(e))
+    } finally {
+      setDescartando(null)
+    }
+  }
+
   const columnas = [
     { clave: 'proveedor', titulo: 'Proveedor', render: nombreProveedor, csv: nombreProveedor },
     { clave: 'nombre', titulo: 'Nombre' },
@@ -113,12 +132,14 @@ function PorVincular() {
       soloTabla: true,
       render: (fila) => (
         <div className="flex min-w-96 items-center gap-2 print:hidden">
-          <Combobox
-            className="flex-1"
-            opciones={opcionesInsumos}
+          <ComboboxInsumoOkima
+            className="min-w-0 flex-1"
+            insumos={insumos}
             valor={seleccion[fila.id] ?? ''}
             onChange={(valor) => setSeleccion((actual) => ({ ...actual, [fila.id]: valor }))}
-            placeholder="Buscar insumo Okima…"
+            onCrearInsumo={crearInsumo}
+            sugerido={fila.nombre}
+            placeholder="Buscar o crear insumo Okima…"
             etiqueta={`Insumo Okima para ${fila.nombre}`}
             disabled={vinculando === fila.id}
           />
@@ -141,6 +162,18 @@ function PorVincular() {
             {vinculando === fila.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
             Vincular
           </button>
+          {puedeDescartar && (
+            <button
+              type="button"
+              onClick={() => descartar(fila)}
+              disabled={vinculando !== null || descartando !== null}
+              className={`${claseBotonSecundario} px-3`}
+              title="Este insumo nunca se vinculará a un insumo Okima"
+            >
+              {descartando === fila.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+              Descartar
+            </button>
+          )}
         </div>
       ),
     },
@@ -152,7 +185,7 @@ function PorVincular() {
         <h2 className="text-xl font-semibold text-slate-800">Insumos por vincular</h2>
         <p className="mt-1 text-sm text-slate-600">
           Insumos de proveedor sin ningún insumo Okima asignado. Aquí se hace el vínculo, en la revisión semanal. Para
-          vincular uno a más de un insumo Okima, edítalo en el Catálogo.
+          vincular uno a más de un insumo Okima, edítalo en el Catálogo. Los que nunca se vincularán se pueden descartar.
         </p>
       </div>
 

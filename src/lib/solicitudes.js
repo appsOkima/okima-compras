@@ -2,7 +2,6 @@
 // para poder verificarlas con node). La extensión .js explícita es para node.
 import { formatoFecha, formatoNumero } from './formato.js'
 import { nombreBoleta } from './nombreBoleta.js'
-import { normalizar } from './texto.js'
 
 // En el orden del enum nivel_urgencia de la base (Baja < Media < Alta).
 export const NIVELES_URGENCIA = ['Baja', 'Media', 'Alta']
@@ -197,40 +196,6 @@ export function compararPendientes(a, b) {
     return fa < fb ? -1 : 1
   }
   return (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0)
-}
-
-// Solicitantes distintos para el autocompletado: sin vacíos y sin repetir por
-// mayúsculas, tildes o espacios. Se conserva la primera forma escrita (la lista
-// llega de la más reciente a la más antigua) y se ordena alfabéticamente.
-export function solicitantesUnicos(lista) {
-  const vistos = new Map()
-  for (const valor of lista ?? []) {
-    const texto = String(valor ?? '').trim().replace(/\s+/g, ' ')
-    const clave = normalizar(texto)
-    if (clave && !vistos.has(clave)) vistos.set(clave, texto)
-  }
-  return [...vistos.values()].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
-}
-
-// Último solicitante usado en este navegador. localStorage puede no existir o
-// lanzar error (modo privado, almacenamiento bloqueado): se ignora sin romper.
-const CLAVE_SOLICITANTE = 'okima.ultimoSolicitante'
-
-export function leerUltimoSolicitante() {
-  try {
-    return window.localStorage.getItem(CLAVE_SOLICITANTE) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-export function guardarUltimoSolicitante(nombre) {
-  try {
-    const texto = String(nombre ?? '').trim()
-    if (texto) window.localStorage.setItem(CLAVE_SOLICITANTE, texto)
-  } catch {
-    // Sin almacenamiento disponible: el campo simplemente no se pre-llena.
-  }
 }
 
 // Una solicitud se vincula a líneas de factura O de boleta, nunca a ambas (lo hace
